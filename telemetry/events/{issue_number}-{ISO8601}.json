@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "type": "issue_event",
+  "generated_at": "2025-12-07T01:23:45Z",
+  "repository": "owner/repo",
+  "issue": {
+    "id": 123456789,
+    "number": 42,
+    "title": "Example issue",
+    "url": "https://github.com/owner/repo/issues/42",
+    "state": "open",
+    "labels": ["track/sprint", "priority/medium"],
+    "milestone": "Sprint 1.2",
+    "created_at": "2025-12-06T10:00:00Z",
+    "updated_at": "2025-12-06T11:00:00Z"
+  },
+  "classification": {
+    "track": "sprint",
+    "is_stale": false,
+    "is_valid": true,
+    "violations": []
+  },
+  "actions_taken": [
+    "applied_label:track/sprint",
+    "applied_milestone:Sprint 1.2"
+  ]
+}

@@ -1,0 +1,60 @@
+---
+name: Orchestrator • Issue Events
+
+# yamllint disable rule:truthy
+on:
+  issues:
+    types:
+      - opened
+      - edited
+      - labeled
+      - unlabeled
+      - milestoned
+      - demilestoned
+      - reopened
+
+permissions:
+  issues: write
+  contents: write
+  metadata: read
+
+jobs:
+  handle_issue_event:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Load Orchestrator config
+        id: config
+        run: |
+          if [ ! -f ".github/orchestrator.yml" ]; then
+            echo "Config file missing"
+            exit 1
+          fi
+          echo "Config loaded"
+
+      - name: Process Issue Event (stub)
+        id: orchestrator
+        run: |
+          echo "Running issue classification"
+          echo "Applying track/milestone rules (stub)"
+          # Call external action once implemented:
+          # uses: owner/orchestrator-core@v1
+
+      - name: Write Telemetry Event (stub)
+        run: |
+          mkdir -p telemetry/events
+          FILE="telemetry/events/${{ github.event.issue.number }}-$(date -u +"%Y%m%dT%H%M%SZ").json"
+          echo "{ \"stub\": true }" > "$FILE"
+          echo "Telemetry written to $FILE"
+
+      - name: Commit Telemetry
+        if: always()
+        run: |
+          git config user.name "orchestrator-bot"
+          git config user.email "actions@github.com"
+          git add telemetry/events/*.json
+          git commit -m "Add telemetry event for issue #${{ github.event.issue.number }}" || echo "No changes"
+          git push || echo "No changes to push"
+

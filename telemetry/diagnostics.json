@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "generated_at": "2025-12-07T02:10:00Z",
+  "status": "warning",
+  "checks": [
+    {
+      "id": "config-file-present",
+      "status": "pass",
+      "message": ".github/orchestrator.yml exists"
+    },
+    {
+      "id": "required-labels-exist",
+      "status": "fail",
+      "message": "Missing label: track/support"
+    },
+    {
+      "id": "telemetry-write-permission",
+      "status": "pass",
+      "message": "Able to create files in telemetry/"
+    }
+  ]
+}

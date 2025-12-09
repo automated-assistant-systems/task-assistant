@@ -1,0 +1,54 @@
+---
+name: Orchestrator • Self-Test
+
+# yamllint disable rule:truthy
+on:
+  workflow_dispatch:
+
+permissions:
+  issues: read
+  contents: write
+  metadata: read
+
+jobs:
+  self_test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Validate config file
+        id: config
+        run: |
+          echo "Checking for .github/orchestrator.yml"
+          if [ ! -f ".github/orchestrator.yml" ]; then
+            echo "::error file=.github/orchestrator.yml::Missing orchestrator.yml"
+            exit 1
+          fi
+          echo "::notice::Config file found"
+
+      - name: Validate Required Directories
+        run: |
+          mkdir -p telemetry
+          mkdir -p dashboard
+          echo "::notice::Telemetry and dashboard directories exist"
+
+      - name: Validate Required Labels (stub)
+        run: |
+          echo "::warning::Label validation stub — implement later"
+
+      - name: Write Diagnostics File
+        run: |
+          echo "{ \"status\": \"stub\", \"generated\": \"$(date -u +"%Y-%m-%dT%H:%M:%SZ")\" }" \
+            > telemetry/diagnostics.json
+          echo "Diagnostics file created"
+
+      - name: Commit Diagnostics
+        run: |
+          git config user.name "orchestrator-bot"
+          git config user.email "actions@github.com"
+          git add telemetry/diagnostics.json
+          git commit -m "Update diagnostics" || echo "No changes"
+          git push || echo "No changes"
+

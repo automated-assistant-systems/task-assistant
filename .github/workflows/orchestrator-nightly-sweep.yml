@@ -1,0 +1,53 @@
+---
+name: Orchestrator • Nightly Sweep
+
+# yamllint disable rule:truthy
+on:
+  schedule:
+    - cron: "0 2 * * *"   # 02:00 UTC nightly
+  workflow_dispatch:
+
+permissions:
+  issues: write
+  contents: write
+  metadata: read
+
+jobs:
+  nightly_sweep:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Load Orchestrator config
+        id: config
+        run: |
+          echo "Loading .github/orchestrator.yml"
+          if [ ! -f ".github/orchestrator.yml" ]; then
+            echo "Missing configuration file"
+            exit 1
+          fi
+
+      - name: Run Hygiene Sweep (stub)
+        id: sweep
+        run: |
+          echo "Scanning issues for stale/hygiene (stub)"
+          # Real implementation will page through issues and apply rules
+
+      - name: Write Sweep Telemetry (stub)
+        run: |
+          mkdir -p telemetry/sweeps
+          FILE="telemetry/sweeps/$(date -u +"%Y-%m-%d").json"
+          echo "{ \"stub\": true, \"timestamp\": \"$(date -u +"%Y-%m-%dT%H:%M:%SZ")\" }" > "$FILE"
+          echo "Wrote $FILE"
+
+      - name: Commit Telemetry
+        if: always()
+        run: |
+          git config user.name "orchestrator-bot"
+          git config user.email "actions@github.com"
+          git add telemetry/sweeps/*.json
+          git commit -m "Nightly sweep telemetry" || echo "No changes"
+          git push || echo "No changes"
+

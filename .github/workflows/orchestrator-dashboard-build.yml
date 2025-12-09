@@ -1,0 +1,41 @@
+---
+name: Orchestrator • Dashboard Build
+
+# yamllinit disable rule:truthy
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 * * * *"   # hourly
+
+permissions:
+  contents: write
+  metadata: read
+
+jobs:
+  build_dashboard:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Ensure Dashboard Directory Exists
+        run: |
+          mkdir -p dashboard
+          echo "Dashboard directory ready"
+
+      - name: Aggregate Telemetry (stub)
+        id: aggregate
+        run: |
+          echo "Aggregating telemetry files (stub)"
+          # The final aggregator will parse telemetry/events and sweeps
+          echo "{ \"stub\": true, \"generated_at\": \"$(date -u +"%Y-%m-%dT%H:%M:%SZ")\" }" > dashboard/dashboard.json
+
+      - name: Commit Dashboard
+        run: |
+          git config user.name "orchestrator-bot"
+          git config user.email "actions@github.com"
+          git add dashboard/dashboard.json
+          git commit -m "Update dashboard snapshot" || echo "No changes"
+          git push || echo "No changes"
+

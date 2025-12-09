@@ -1,0 +1,37 @@
+version: 1
+
+tracks:
+  - id: sprint
+    label: track/sprint
+    default_milestone_pattern: "Sprint {major}.{minor}"
+  - id: backlog
+    label: track/backlog
+  - id: support
+    label: track/support
+  - id: ops
+    label: track/ops
+
+milestones:
+  sprint_pattern: "Sprint {major}.{minor}"
+  internal_milestone_label: "Codex Internal"
+  default_sprint_duration_days: 14
+
+stale:
+  enabled: true
+  days_until_stale: 14
+  days_until_close: 30
+  stale_label: "state/stale"
+  exclude_labels:
+    - "state/pinned"
+    - "priority/high"
+
+telemetry:
+  enabled: true
+  path: "telemetry"
+  dashboard_path: "dashboard/dashboard.json"
+
+self_healing:
+  enabled: true
+  normalize_labels: true
+  fix_missing_track: true
+  fix_missing_milestone: true
