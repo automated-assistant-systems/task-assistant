@@ -1,14 +1,30 @@
 {
-  "generated_at": "2025-12-10T01:38:51Z",
-  "meta_version": "1.0.0",
+  "generated_at": "2025-12-10T03:17:40Z",
+  "meta_version": "1.1.0",
   "repos": {
     "orchestrator_core": {
       "repo": "garybayes/mindforge-orchestrator-core",
-      "workflow_build": "success"
+      "display_name": "Orchestrator Core Engine",
+      "workflow": "build.yml",
+      "status": "success"
     },
     "orchestrator_app": {
       "repo": "garybayes/mindforge-orchestrator",
-      "self_test": "failure"
+      "display_name": "Orchestrator GitHub App",
+      "workflow": "orchestrator-self-test.yml",
+      "status": "success"
+    },
+    "saas_app": {
+      "repo": "garybayes/saas-app",
+      "display_name": "MindForge SaaS Platform",
+      "workflow": "build-and-test.yml",
+      "status": "{\"message\":\"Not Found\",\"documentation_url\":\"https://docs.github.com/rest/actions/workflow-runs#list-workflow-runs-for-a-workflow\",\"status\":\"404\"}unknown"
+    },
+    "book_repo": {
+      "repo": "garybayes/remote-workers-survival-guide",
+      "display_name": "Book Workflow Automation",
+      "workflow": "orchestrator-self-test.yml",
+      "status": "{\"message\":\"Not Found\",\"documentation_url\":\"https://docs.github.com/rest/actions/workflow-runs#list-workflow-runs-for-a-workflow\",\"status\":\"404\"}unknown"
     }
   }
 }
