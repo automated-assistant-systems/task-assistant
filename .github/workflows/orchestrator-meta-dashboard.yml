@@ -45,16 +45,21 @@ jobs:
         run: |
           mkdir -p meta-dashboard
 
-          # Load repository list
-          repos=$(jq -c '.repositories[]' "./meta-dashboard/repos.json")
+          repos=$(jq -c '.repositories[]' \
+            "./meta-dashboard/repos.json")
 
-          echo "DEBUG: Parsed repos list:"
-          echo "$repos"
+          echo '{}' > meta-dashboard/meta-dashboard.json
 
-          OUTPUT="{\"generated_at\":\"$(date -u +"%Y-%m-%dT%H:%M:%SZ")\","
-          OUTPUT="$OUTPUT\"meta_version\":\"1.1.0\",\"repos\":{"
-
-          first_repo=true
+          jq \
+            --arg ts "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" \
+            '. + {
+              generated_at: $ts,
+              meta_version: "1.1.0",
+              repos: {}
+            }' \
+            meta-dashboard/meta-dashboard.json \
+            > meta-dashboard/tmp.json
+          mv meta-dashboard/tmp.json meta-dashboard/meta-dashboard.json
 
           for r in $repos; do
             id=$(echo "$r" | jq -r '.id')
@@ -63,32 +68,33 @@ jobs:
             workflow=$(echo "$r" | jq -r '.workflow')
             display=$(echo "$r" | jq -r '.display_name')
 
-            # Build workflow API path safely
-            WF_PATH="repos/$owner/$repo/actions/workflows/$workflow/runs"
+            WF_PATH="repos/$owner/$repo/actions/workflows"
+            WF_PATH="$WF_PATH/$workflow/runs"
 
-            # Fetch workflow status
             STATUS=$(gh api "$WF_PATH" \
               --jq '.workflow_runs[0].conclusion' \
               2>/dev/null || echo "unknown")
 
-            if [ "$first_repo" = true ]; then
-              first_repo=false
-            else
-              OUTPUT="$OUTPUT,"
-            fi
+            jq \
+              --arg id "$id" \
+              --arg repo "$owner/$repo" \
+              --arg display "$display" \
+              --arg workflow "$workflow" \
+              --arg status "$STATUS" \
+              '.repos[$id] = {
+                repo: $repo,
+                display_name: $display,
+                workflow: $workflow,
+                status: $status
+              }' \
+              meta-dashboard/meta-dashboard.json \
+              > meta-dashboard/tmp.json
 
-            OUTPUT="$OUTPUT\"$id\":{"
-            OUTPUT="$OUTPUT\"repo\":\"$owner/$repo\","
-            OUTPUT="$OUTPUT\"display_name\":\"$display\","
-            OUTPUT="$OUTPUT\"workflow\":\"$workflow\","
-            OUTPUT="$OUTPUT\"status\":\"$STATUS\"}"
+            mv meta-dashboard/tmp.json \
+              meta-dashboard/meta-dashboard.json
           done
 
-          OUTPUT="$OUTPUT}}"
-
-          echo "$OUTPUT" > meta-dashboard/meta-dashboard.json
-
-          echo "FINAL OUTPUT:"
+          echo "FINAL DASHBOARD JSON:"
           cat meta-dashboard/meta-dashboard.json
 
       - name: Commit Dashboard
