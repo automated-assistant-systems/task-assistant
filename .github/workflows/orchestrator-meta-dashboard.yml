@@ -17,7 +17,7 @@ jobs:
       GH_TOKEN: ${{ github.token }}
 
     steps:
-      - name: Checkout repo
+      - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Setup Node
@@ -28,11 +28,28 @@ jobs:
       - name: Install jq
         run: sudo apt-get install -y jq
 
+      - name: Debug file structure
+        run: |
+          echo "WORKING DIRECTORY:"
+          pwd
+          echo "FILE LIST:"
+          ls -R .
+          echo "CHECKING repos.json:"
+          if [ -f "./meta-dashboard/repos.json" ]; then
+            echo "repos.json exists."
+          else
+            echo "ERROR: repos.json is missing!"
+          fi
+
       - name: Build meta-dashboard.json
         run: |
           mkdir -p meta-dashboard
 
-          repos=$(jq -c '.repositories[]' meta-dashboard/repos.json)
+          # Load repository list
+          repos=$(jq -c '.repositories[]' "./meta-dashboard/repos.json")
+
+          echo "DEBUG: Parsed repos list:"
+          echo "$repos"
 
           OUTPUT="{\"generated_at\":\"$(date -u +"%Y-%m-%dT%H:%M:%SZ")\","
           OUTPUT="$OUTPUT\"meta_version\":\"1.1.0\",\"repos\":{"
@@ -46,10 +63,13 @@ jobs:
             workflow=$(echo "$r" | jq -r '.workflow')
             display=$(echo "$r" | jq -r '.display_name')
 
-            # Construct workflow path
+            # Build workflow API path safely
             WF_PATH="repos/$owner/$repo/actions/workflows/$workflow/runs"
 
-            STATUS=$(gh api "$WF_PATH" --jq '.workflow_runs[0].conclusion')
+            # Fetch workflow status
+            STATUS=$(gh api "$WF_PATH" \
+              --jq '.workflow_runs[0].conclusion' \
+              2>/dev/null || echo "unknown")
 
             if [ "$first_repo" = true ]; then
               first_repo=false
@@ -68,7 +88,10 @@ jobs:
 
           echo "$OUTPUT" > meta-dashboard/meta-dashboard.json
 
-      - name: Commit dashboard
+          echo "FINAL OUTPUT:"
+          cat meta-dashboard/meta-dashboard.json
+
+      - name: Commit Dashboard
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
           commit_message: "Update meta-dashboard.json"
