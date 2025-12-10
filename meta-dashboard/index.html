@@ -1,45 +1,82 @@
 <!DOCTYPE html>
 <html>
-  <head>
-    <title>MindForge Orchestrator — Meta Dashboard</title>
-    <style>
-      body { font-family: Arial; background: #111; color: #eee; padding: 20px; }
-      .repo { padding: 15px; margin: 20px 0; background: #222; border-radius: 8px; }
-      .ok { color: #8f8; }
-      .fail { color: #f88; }
-      .unknown { color: #ff8; }
-      h1 { color: #6cf; }
-    </style>
-  </head>
-  <body>
-    <h1>MindForge Orchestrator — Meta Dashboard</h1>
+<head>
+  <meta charset="UTF-8">
+  <title>MindForge Orchestrator — Meta Dashboard</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #111;
+      color: #eee;
+      padding: 20px;
+    }
+    h1 {
+      color: #4DA3FF;
+    }
+    .card {
+      background: #1c1c1c;
+      padding: 15px;
+      border-radius: 10px;
+      margin-bottom: 20px;
+    }
+    .status {
+      font-weight: bold;
+    }
+    .status-success {
+      color: #4CAF50;
+    }
+    .status-failure {
+      color: #FF5252;
+    }
+    .status-unknown {
+      color: #FFD740;
+    }
+  </style>
+</head>
+<body>
 
-    <script>
-      async function load() {
-        const res = await fetch('./meta-dashboard.json');
-        const data = await res.json();
+<h1>MindForge Orchestrator — Meta Dashboard</h1>
+<p id="generated"></p>
 
-        document.body.innerHTML += `<p>Generated at: ${data.generated_at}</p>`;
+<div id="repos"></div>
 
-        Object.entries(data.repos).forEach(([id, r]) => {
-          const color =
-            r.status === "success"
-              ? "ok"
-              : r.status === "failure"
-              ? "fail"
-              : "unknown";
+<script>
+async function loadDashboard() {
+  const response = await fetch('meta-dashboard.json');
+  const data = await response.json();
 
-          document.body.innerHTML += `
-            <div class="repo">
-              <h2>${r.display_name}</h2>
-              <p><strong>Repository:</strong> ${r.repo}</p>
-              <p><strong>Workflow:</strong> ${r.workflow}</p>
-              <p><strong>Status:</strong> <span class="${color}">${r.status}</span></p>
-            </div>
-          `;
-        });
-      }
-      load();
-    </script>
-  </body>
+  document.getElementById("generated").innerText =
+    "Generated at: " + data.generated_at;
+
+  const container = document.getElementById("repos");
+  container.innerHTML = "";
+
+  for (const id of Object.keys(data.repos)) {
+    const entry = data.repos[id];
+
+    const statusClass =
+      entry.status === "success" ? "status-success" :
+      entry.status === "failure" ? "status-failure" :
+      "status-unknown";
+
+    const card = `
+      <div class="card">
+        <h2>${entry.display_name}</h2>
+        <p><strong>Repository:</strong> ${entry.repo}</p>
+        <p><strong>Workflow:</strong> ${entry.workflow}</p>
+        <p class="status ${statusClass}">
+          Status: ${entry.status}
+        </p>
+      </div>
+    `;
+
+    container.innerHTML += card;
+  }
+}
+
+loadDashboard();
+</script>
+
+</body>
 </html>
