@@ -41,6 +41,18 @@ jobs:
             echo "ERROR: repos.json is missing!"
           fi
 
+      - name: Diagnostic – Show Workspace
+        run: |
+          echo "PWD:"
+          pwd
+          echo "Directory tree:"
+          ls -R .
+          echo "Check meta-dashboard file:"
+          ls -l meta-dashboard || echo "meta-dashboard missing"
+          echo "repos.json contents:"
+          cat meta-dashboard/repos.json \
+            || echo "repos.json missing or unreadable"
+
       - name: Build meta-dashboard.json
         run: |
           mkdir -p meta-dashboard
