@@ -13,6 +13,8 @@ permissions:
 jobs:
   build-meta-dashboard:
     runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
 
     steps:
       - name: Checkout repo
