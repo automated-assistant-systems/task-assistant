@@ -1,13 +1,13 @@
-# Automated Task Assistant  
+# Task Assistant  
 ### GitHub App · Automated Workflows · Repo Hygiene · Dashboards
 
-Automated Task Assistant is a GitHub App that automates repository hygiene, sprint consistency,  
+Task Assistant (formerly Mindforge Orchestrator) is a GitHub App that automates repository hygiene, sprint consistency,  
 and issue lifecycle management using a rules-based workflow engine.
 
 It applies **track labels**, enforces **milestones**, generates **telemetry**, and produces  
 a real-time **dashboard.json** inside your repository — with zero external dependencies.
 
-Automated Task Assistant gives your team clarity, consistency, and visibility across your development workflow.
+Task Assistant gives your team clarity, consistency, and visibility across your development workflow.
 
 ---
 
@@ -51,7 +51,7 @@ No cloud backend is required.
 
 # 🛠 Installation
 
-1. Install the **Automated Task Assistant GitHub App** (coming soon).  
+1. Install the **Task Assistant GitHub App** (coming soon).  
 2. Create the configuration file:
 
 .github/orchestrator.yml
@@ -79,7 +79,7 @@ stale:
   days_until_stale: 14
   days_until_close: 7
 
-Add the Orchestrator workflows:
+Add the Task Assistant workflows:
 .github/workflows/
   orchestrator-issue-events.yml
   orchestrator-nightly-sweep.yml
@@ -88,13 +88,13 @@ Add the Orchestrator workflows:
 
 Run the Self-Test workflow:
 
-GitHub Actions → Orchestrator • Self Test
+GitHub Actions → Task Assistant • Self Test
 
 This validates labels, telemetry directories, config parsing, and permissions.
 
 🚀 How It Works (Architecture)
 ┌──────────────────────────┐
-│   MindForge Orchestrator │  (GitHub App)
+│       Task Assistant     │  (GitHub App)
 └──────────────┬───────────┘
                │ Installs
                ▼
@@ -102,18 +102,18 @@ This validates labels, telemetry directories, config parsing, and permissions.
 │ Repo Workflows (.github/workflows/*.yml) │
 │ - issue events                           │
 │ - nightly sweeps                         │
-│ - dashboard builds                        │
-│ - self tests                              │
+│ - dashboard builds                       │
+│ - self tests                             │
 └──────────────┬───────────────────────────┘
                │ calls
                ▼
 ┌──────────────────────────────────────────┐
 │   orchestrator-core (GitHub Action)      │
 │   https://github.com/garybayes/mindforge │
-│   - classification                        │
-│   - milestone logic                       │
-│   - stale handling                        │
-│   - telemetry writing                     │
+│   - classification                       │
+│   - milestone logic                      │
+│   - stale handling                       │
+│   - telemetry writing                    │
 └──────────────┬───────────────────────────┘
                │ writes
                ▼
@@ -153,14 +153,14 @@ Future MindForge SaaS
 🔗 Related Repository
 This project relies on:
 
-MindForge Orchestrator Core (GitHub Action)
+Task Assistant Core (GitHub Action)
 https://github.com/garybayes/mindforge-orchestrator-core
 
 Add the Action to your workflows using:
 uses: garybayes/mindforge-orchestrator-core@v1
 
 🧪 Self-Test Workflow
-Orchestrator includes a self-diagnostic workflow that checks:
+Task Assistant includes a self-diagnostic workflow that checks:
 
 Repo permissions
 
@@ -177,7 +177,7 @@ Run before onboarding a team or starting a sprint.
 📝 Documentation
 See the /docs folder for:
 
-Orchestrator Technical Design
+Task Assistant Technical Design
 
 Feature Roadmap
 

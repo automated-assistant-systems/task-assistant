@@ -5,21 +5,21 @@
       "owner": "garybayes",
       "repo": "mindforge-orchestrator-core",
       "workflow": "build.yml",
-      "display_name": "Orchestrator Core Engine"
+      "display_name": "Task Assistant Core Engine"
     },
     {
       "id": "orchestrator_app",
       "owner": "garybayes",
       "repo": "mindforge-orchestrator",
       "workflow": "orchestrator-self-test.yml",
-      "display_name": "Orchestrator GitHub App"
+      "display_name": "Task Assistant GitHub App"
     },
     {
       "id": "saas_app",
       "owner": "garybayes",
       "repo": "saas-app",
       "workflow": "build-and-test.yml",
-      "display_name": "MindForge SaaS Platform"
+      "display_name": "Work Assistant SaaS Platform"
     },
     {
       "id": "book_repo",

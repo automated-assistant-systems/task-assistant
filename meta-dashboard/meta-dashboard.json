@@ -4,19 +4,19 @@
   "repos": {
     "orchestrator_core": {
       "repo": "garybayes/mindforge-orchestrator-core",
-      "display_name": "Orchestrator Core Engine",
+      "display_name": "Task Assistant Core Engine",
       "workflow": "build.yml",
       "status": "success"
     },
     "orchestrator_app": {
       "repo": "garybayes/mindforge-orchestrator",
-      "display_name": "Orchestrator GitHub App",
+      "display_name": "Task Assistant GitHub App",
       "workflow": "orchestrator-self-test.yml",
       "status": "success"
     },
     "saas_app": {
       "repo": "garybayes/saas-app",
-      "display_name": "MindForge SaaS Platform",
+      "display_name": "Work Assistant SaaS Platform",
       "workflow": "build-and-test.yml",
       "status": "{\"message\":\"Not Found\",\"documentation_url\":\"https://docs.github.com/rest/actions/workflow-runs#list-workflow-runs-for-a-workflow\",\"status\":\"404\"}unknown"
     },
