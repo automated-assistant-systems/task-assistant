@@ -1,5 +1,5 @@
 #Authoritative - supersedes all prior docs
-MindForge Orchestrator — System Summary (Authoritative)
+Task Assistant — System Summary (Authoritative)
 
 Status: ✅ GitHub App + Core fully operational
 Date: 2025-12-14
@@ -7,11 +7,11 @@ Phase: Post-MVP / Stabilized Infrastructure
 
 1. System Overview
 
-MindForge Orchestrator is split into two deliberately separate components:
+Task Assistant is split into two deliberately separate components:
 
-A. mindforge-orchestrator-core (Engine)
+A. task-assistant-core (Engine)
 
-Pure orchestration engine
+Pure task assistant engine
 
 No GitHub App concepts
 
@@ -31,7 +31,7 @@ GitHub Apps
 
 Local/test harnesses
 
-B. mindforge-orchestrator (GitHub App)
+B. task-assistant (GitHub App)
 
 GitHub App + webhook server
 
@@ -139,7 +139,7 @@ Telemetry output
 
 5. Core Responsibilities (Final)
 
-mindforge-orchestrator-core does only:
+task-assistant-core does only:
 
 Issue classification
 
@@ -151,7 +151,7 @@ Milestone enforcement
 
 Telemetry generation
 
-Deterministic orchestration logic
+Deterministic task assistant logic
 
 Core never:
 
@@ -228,7 +228,7 @@ npm run dev
 
 Core packaged and consumable as library
 
-Orchestrator app successfully processes real GitHub issues
+Task Assistant app successfully processes real GitHub issues
 
 10. What Comes Next (New Thread Scope)
 
