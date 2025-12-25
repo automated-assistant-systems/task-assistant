@@ -94,7 +94,7 @@ This validates labels, telemetry directories, config parsing, and permissions.
 
 🚀 How It Works (Architecture)
 ┌──────────────────────────┐
-│   MindForge Orchestrator │  (GitHub App)
+│       Task Assistant     │  (GitHub App)
 └──────────────┬───────────┘
                │ Installs
                ▼
@@ -102,18 +102,18 @@ This validates labels, telemetry directories, config parsing, and permissions.
 │ Repo Workflows (.github/workflows/*.yml) │
 │ - issue events                           │
 │ - nightly sweeps                         │
-│ - dashboard builds                        │
-│ - self tests                              │
+│ - dashboard builds                       │
+│ - self tests                             │
 └──────────────┬───────────────────────────┘
                │ calls
                ▼
 ┌──────────────────────────────────────────┐
 │   orchestrator-core (GitHub Action)      │
 │   https://github.com/garybayes/mindforge │
-│   - classification                        │
-│   - milestone logic                       │
-│   - stale handling                        │
-│   - telemetry writing                     │
+│   - classification                       │
+│   - milestone logic                      │
+│   - stale handling                       │
+│   - telemetry writing                    │
 └──────────────┬───────────────────────────┘
                │ writes
                ▼
@@ -153,7 +153,7 @@ Future MindForge SaaS
 🔗 Related Repository
 This project relies on:
 
-MindForge Orchestrator Core (GitHub Action)
+Task Assistant Core (GitHub Action)
 https://github.com/garybayes/mindforge-orchestrator-core
 
 Add the Action to your workflows using:
