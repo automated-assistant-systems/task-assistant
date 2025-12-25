@@ -1,7 +1,7 @@
 import "dotenv/config";
 
 /**
- * Environment configuration for the MindForge Orchestrator GitHub App.
+ * Environment configuration for the Task Assistant GitHub App.
  *
  * Responsibilities:
  * - GitHub App authentication (App ID + private key)

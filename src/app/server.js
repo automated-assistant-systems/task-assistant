@@ -8,5 +8,5 @@ app.use(express.json({ limit: "2mb" }));
 // Webhook endpoint
 app.post("/github/webhook", githubWebhookRoute);
 app.listen(env.PORT, () => {
-    console.log(`🚀 Orchestrator GitHub App running on port ${env.PORT}`);
+    console.log(`🚀 Task Assistant GitHub App running on port ${env.PORT}`);
 });
