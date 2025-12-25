@@ -1,12 +1,12 @@
-🗂 SPRINT PLAN — MindForge Orchestrator 1.0
+🗂 SPRINT PLAN — Task Assistant 1.0
 Duration: 2–3 Weeks
 Goal: Marketplace-ready GitHub App + GitHub Action
 🚀 SPRINT 1 (Days 1–7 ) — Core Stabilization & Testbed Deployment
 🎯 Objectives
 
-Finalize orchestrator-core Action
+Finalize task-assistant-core Action
 
-Finalize orchestrator App repo
+Finalize task-assistant App repo
 
 Validate workflows + telemetry
 
@@ -14,7 +14,7 @@ Deploy into a test repo
 
 Run the first complete E2E flow
 
-Day 1–2 — Orchestrator-Core Stabilization
+Day 1–2 — Task Assistant-Core Stabilization
 
 Tasks
 
@@ -32,13 +32,13 @@ Validate GitHub Action metadata (action.yml)
 
 Exit Criteria
 
-mindforge-orchestrator-core compiles cleanly
+task-assistant-core compiles cleanly
 
 GitHub Action workflow passes on main
 
 A stable v1 tag exists
 
-Day 3 — Orchestrator Repo Stabilization
+Day 3 — Task Assistant Repo Stabilization
 
 Tasks
 
@@ -68,9 +68,9 @@ README provides correct install instructions
 
 Self-Test workflow passes locally
 
-Day 4–5 — Create a Testbed Repo & Deploy Orchestrator
+Day 4–5 — Create a Testbed Repo & Deploy Task Assistant
 
-Repo: mindforge-orchestrator-test
+Repo: task-assistant-sandbox
 
 Tasks
 
@@ -118,7 +118,7 @@ Document expected directory structure
 
 Finalize dashboard.json schema
 
-Improve error messages in orchestrator-core
+Improve error messages in task-assistant-core
 
 Add basic examples to docs
 
@@ -128,28 +128,28 @@ All documentation inside /docs validated
 
 No workflow errors appear in testbed
 
-Orchestrator 1.0 is now test-deployable
+Task Assistant 1.0 is now test-deployable
 
-🌙 END OF SPRINT 1: Orchestrator is functional.
+🌙 END OF SPRINT 1: Task Assistant is functional.
 🚀 SPRINT 2 (Days 8–14) — Dogfooding + SaaS-App Migration
 🎯 Objectives
 
-Run Orchestrator on real repos
+Run Task Assistant on real repos
 
 Retire Codex from SaaS-App
 
-Validate Orchestrator under high complexity
+Validate Task Assistant under high complexity
 
 Ensure telemetry stability
 
 Confirm self-healing logic in production-like environment
 
-Day 8–9 — Dogfood in Orchestrator Repos
+Day 8–9 — Dogfood in Task Assistant Repos
 
 Deploy into:
 
-📌 mindforge-orchestrator
-📌 mindforge-orchestrator-core
+📌 task-assistant
+📌 task-assistant-core
 
 Tasks
 
@@ -169,7 +169,7 @@ Validate recursion safety (self-hosting edge cases)
 
 Exit Criteria
 
-Orchestrator can manage itself
+Task Assistant can manage itself
 
 No infinite loops
 
@@ -181,7 +181,7 @@ Tasks
 
 Remove old Codex workflows
 
-Install Orchestrator App
+Install Task Assistant App
 
 Add workflows and orchestrator.yml
 
@@ -205,7 +205,7 @@ Resolve file conflicts (telemetry merges)
 
 Exit Criteria
 
-SaaS-App repo operates exclusively under Orchestrator
+SaaS-App repo operates exclusively under Task Assistant
 
 All tests pass
 
@@ -219,7 +219,7 @@ Tasks
 
 Fix any telemetry merge collisions
 
-Harden orchestrator-core for null fields
+Harden task-assistant-core for null fields
 
 Add retry logic for GitHub API rate limits
 
@@ -237,11 +237,11 @@ No telemetry write errors
 
 No stale edge-case failures
 
-🌙 END OF SPRINT 2: Orchestrator is production-ready.
+🌙 END OF SPRINT 2: Task Assistant is production-ready.
 🚀 SPRINT 3 (Days 15–21) — Book Repo, Marketplace Prep, Final Release
 🎯 Objectives
 
-Validate Orchestrator in a documentation-heavy repo
+Validate Task Assistant in a documentation-heavy repo
 
 Prepare GitHub Marketplace listing
 
@@ -253,7 +253,7 @@ Day 15–16 — Deploy to the Book Repo
 
 Tasks
 
-Install Orchestrator in book repo
+Install Task Assistant in book repo
 
 Add workflows
 
@@ -277,7 +277,7 @@ Dashboard.json showing chapter readiness
 
 Exit Criteria
 
-Orchestrator works outside engineering repos
+Task Assistant works outside engineering repos
 
 Dashboards reflect progress correctly
 
@@ -343,7 +343,7 @@ Exit Criteria
 
 GitHub Marketplace submission complete
 
-Orchestrator v1.0 is ready for users
+Task Assistant v1.0 is ready for users
 
 ⭐ Total Expected Duration: 2–3 weeks
 

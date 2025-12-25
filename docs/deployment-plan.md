@@ -2,21 +2,21 @@ Refined Deployment Sequence (the optimal order)
 
 Here is the ideal refined version of your plan:
 
-PHASE 1 — Stabilize Orchestrator + orchestrator-core (current)
+PHASE 1 — Stabilize Task Assistant + task-assistant-core (current)
 
 Goal: The engine builds, workflows validate, telemetry & dashboard generate correctly.
 
 Checklist:
 
- orchestrator-core compiles cleanly (tsc)
+ task-assistant-core compiles cleanly (tsc)
 
  Release v1 tag
 
- All 4 orchestrator workflows validate (actions/linter)
+ All 4 task assistant workflows validate (actions/linter)
 
- orchestrator README finalized
+ task-assistant README finalized
 
- orchestrator-core README finalized
+ task-assistant-core README finalized
 
  self-test workflow passes
 
@@ -28,7 +28,7 @@ PHASE 2 — Deploy to a Test Repository
 
 Use a clean repo, e.g.:
 
-mindforge-orchestrator-testbed
+task-assistant-sandbox
 
 Install the GitHub App + workflows + config.
 
@@ -48,19 +48,19 @@ Verify:
 
 Outcome: Confidence that core logic behaves correctly.
 
-PHASE 3 — Dogfood Deployment: Install Orchestrator inside its own repos
+PHASE 3 — Dogfood Deployment: Install Task Assistant inside its own repos
 
 Yes — this is absolutely recommended.
 
 Deploy in:
 
-mindforge-orchestrator-core
+task-assistant-core
 
-mindforge-orchestrator
+task-assistant
 
 This ensures:
 
-Orchestrator can manage its own issues
+Task Assistant can manage its own issues
 
 Milestones stay consistent
 
@@ -76,7 +76,7 @@ You will:
 
 Deprecate Codex workflows
 
-Install Orchestrator GitHub App
+Install Task Assistant GitHub App
 
 Add orchestrator.yml tuned for SaaS-App
 
@@ -89,11 +89,11 @@ This is a critical step because:
 ✔ SaaS-App is a highly active repo
 ✔ It includes multiple workflows
 ✔ Complexity exposes missed edge cases
-✔ It validates Orchestrator on a real product development cycle
+✔ It validates Task Assistant on a real product development cycle
 
 Outcome: Validated performance under real & complex usage.
 
-PHASE 5 — Deploy Orchestrator into the Book Repo
+PHASE 5 — Deploy Task Assistant into the Book Repo
 
 The Book repo is:
 
@@ -133,7 +133,7 @@ Marketplace requirements:
 
 Then publish.
 
-Outcome: MindForge Orchestrator becomes a public GitHub App.
+Outcome: Automated Task Assistant becomes a public GitHub App.
 
 ⏱️ 3. Timeline Estimate (REALISTIC for a solo founder)
 
@@ -165,14 +165,14 @@ Risk 3 — dashboard.json schema drift
 
 Fix: Generate a JSON schema and validate during workflow.
 
-Risk 4 — recursive Orchestrator installs can cause double-firing workflows
+Risk 4 — recursive Task Assistant installs can cause double-firing workflows
 
 Fix: Use App → Action separation (already implemented).
 Workflows run normally.
 
 Risk 5 — SaaS-App complexity may expose race conditions
 
-Fix: Enable safe-guarding in orchestrator-core for missing fields.
+Fix: Enable safe-guarding in task-assistant-core for missing fields.
 
 🧩 5. Deployment Milestone Chart
 [██████████░░░░░░] Phase 1 — Stabilization
