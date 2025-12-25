@@ -1,10 +1,10 @@
-Orchestrator GitHub App — Architecture
+Task Assistant (formerly MindForge Orchestrator) GitHub App — Architecture
 1. Purpose & Scope
 
 Goal:
-Make Orchestrator a GitHub-native automation layer that any repo can adopt via the GitHub Marketplace:
+Make Task Assistant a GitHub-native automation layer that any repo can adopt via the GitHub Marketplace:
 
-Install Orchestrator →
+Install Task Assistant →
 
 Repo gets state-machine-based workflows, telemetry, and dashboards →
 
@@ -18,15 +18,15 @@ Future Codex SaaS can plug into this by consuming the same telemetry/webhooks, b
 2. High-Level Architecture
 2.1 Main Components
 
-Orchestrator GitHub App
+Task Assistant GitHub App
 
 Installed from GitHub Marketplace.
 
-Grants Orchestrator access to Issues, Repo Contents, Metadata, Projects (optional), Actions (read).
+Grants Task Assistant access to Issues, Repo Contents, Metadata, Projects (optional), Actions (read).
 
 Optionally receives webhooks (for future SaaS/telemetry service).
 
-Repo-Level Workflows (Orchestrator Bundle)
+Repo-Level Workflows (Task Assistant Bundle)
 
 Stored in .github/workflows/ in the user’s repo:
 
@@ -40,7 +40,7 @@ orchestrator-self-test.yml
 
 Trigger on issues events + schedule + workflow_dispatch.
 
-Orchestrator Configuration
+Task Assistant Configuration
 
 Stored in the repository as:
 
@@ -53,15 +53,13 @@ orchestrator-core GitHub Action
 
 A separate action repo, e.g.:
 
-mindforge/orchestrator-core
-
+automated-assistant-systems/task-assistant-core
 
 Implements classification, milestone enforcement, and telemetry writing.
 
 Called from the workflows with:
 
-uses: mindforge/orchestrator-core@v1
-
+uses: automated-assistant-systems/task-assistant-core@v1
 
 Telemetry + Dashboard Files
 
@@ -77,7 +75,7 @@ dashboard/
   index.html (optional for gh-pages or static hosting)
 
 
-(Optional / Future) Orchestrator Backend
+(Optional / Future) Task Assistant Backend
 
 A minimal server that can:
 
@@ -92,25 +90,25 @@ Not needed for Orchestrator 1.0.
 3. Installation & Onboarding Flow
 3.1 User Flow (from the developer’s POV)
 
-User finds MindForge Orchestrator on GitHub Marketplace.
+User finds Automated Assistant Systems Task Assistant on GitHub Marketplace.
 
 Clicks Install → selects organization and repositories.
 
 After installation, user is guided to:
 
-Add Orchestrator configuration:
+Add Task Assistant configuration:
 
 .github/orchestrator.yml
 
-Add Orchestrator workflows:
+Add Task Assistant workflows:
 
 Use repo template / manual copy / script.
 
 User runs Self-Test workflow once to verify setup:
 
-Orchestrator • Self-Test in Actions tab.
+Task Assistant • Self-Test in Actions tab.
 
-After that, Orchestrator runs continuously:
+After that, Task Assistant runs continuously:
 
 On each issue event.
 
@@ -179,11 +177,11 @@ Usage tracking
 Org analytics
 
 Important:
-For Orchestrator 1.0, all logic is inside repo workflows using GITHUB_TOKEN.
+For Task Assistant 1.0, all logic is inside repo workflows using GITHUB_TOKEN.
 The App mainly exists for installation + branding + future expansion.
 
 5. Execution Flows
-5.1 Issue Event Flow (Core Orchestrator Behavior)
+5.1 Issue Event Flow (Core Task Assistant Behavior)
 
 Trigger:
 Developer opens/edits/labels an issue.
@@ -196,11 +194,11 @@ Workflow: .github/workflows/orchestrator-issue-events.yml runs:
 
 Uses actions/checkout@v4.
 
-Calls mindforge/orchestrator-core@v1 with:
+Calls automated-assistant-systems/task-assistant-core@v1 with:
 
 config-path: .github/orchestrator.yml
 
-orchestrator-core:
+task-assistant-core:
 
 Loads config.
 
@@ -311,7 +309,7 @@ Fail the workflow if essentials are missing.
 6. Security & Identity Model
 6.1 Action Execution Identity
 
-In Orchestrator 1.0, the workflows use:
+In Task Assistant 1.0, the workflows use:
 
 GITHUB_TOKEN (automatically provided per repo/workflow run).
 
@@ -337,9 +335,9 @@ Enforce cross-repo rules.
 
 7. Multi-Repo & Org-Level View (Future Codex SaaS)
 
-Longer-term (beyond Orchestrator 1.0):
+Longer-term (beyond Task Assistant 1.0):
 
-Each repo runs Orchestrator workflows and writes telemetry locally.
+Each repo runs Task Assistant workflows and writes telemetry locally.
 
 The GitHub App also sends events to a backend.
 
@@ -365,7 +363,7 @@ But none of this is required for Orchestrator 1.0; the repo-local dashboard is e
 
 8. Architecture Summary (In One Paragraph)
 
-Orchestrator GitHub App is the installable identity that connects to a repository. Inside that repository, a set of Orchestrator workflows call the orchestrator-core GitHub Action, which reads .github/orchestrator.yml, enforces consistent track/milestone rules, performs self-healing where allowed, and writes telemetry into telemetry/. A dashboard build workflow then aggregates this telemetry into dashboard/dashboard.json, which can power a GitHub Pages or static dashboard. The App’s webhooks and installation context become the foundation for a future Codex SaaS, but Orchestrator 1.0 runs fully within GitHub with no external infrastructure.
+Task Assistant GitHub App is the installable identity that connects to a repository. Inside that repository, a set of Task Assistant workflows call the task-assistant-core GitHub Action, which reads .github/orchestrator.yml, enforces consistent track/milestone rules, performs self-healing where allowed, and writes telemetry into telemetry/. A dashboard build workflow then aggregates this telemetry into dashboard/dashboard.json, which can power a GitHub Pages or static dashboard. The App’s webhooks and installation context become the foundation for a future Codex SaaS, but Task Assistant 1.0 runs fully within GitHub with no external infrastructure.
 
 9. Practical Next Steps
 
@@ -373,11 +371,11 @@ Now that the architecture is defined, here’s what to do in what order:
 
 Confirm repo split:
 
-mindforge-orchestrator (App + workflows + docs)
+task-assistant (App + workflows + docs)
 
-mindforge-orchestrator-core (GitHub Action)
+task-assistant-core (GitHub Action)
 
-Create the Orchestrator GitHub App in GitHub:
+Create the Task Assistant GitHub App in GitHub:
 
 Use a manifest based on the permissions above.
 
@@ -385,7 +383,7 @@ Set a placeholder webhook URL for now (or none).
 
 Wire your workflows to use:
 
-uses: mindforge/orchestrator-core@v1
+uses: automated-assistant-systems/task-assistant-core@v1
 
 
 Finalize .github/orchestrator.yml schema and add a basic example.
