@@ -315,7 +315,7 @@ Branding and configuration entry point.
 
 4.3 Workflows
 
-We define a minimal set of workflows that are Orchestrator 1.0.
+We define a minimal set of workflows that are Task Assistant 1.0.
 
 4.3.1 orchestrator-issue-events.yml
 
@@ -451,7 +451,7 @@ Summary via ::notice:: and ::error:: annotations.
 
 4.4 Directory Structure Conventions
 
-Primary repo structure for Orchestrator 1.0:
+Primary repo structure for Task Assistant 1.0:
 
 .github/
   orchestrator.yml
@@ -781,7 +781,7 @@ Phase 1: Side-by-side
 
 Introduce .github/orchestrator.yml without removing old configs.
 
-Add new workflows with Orchestrator naming.
+Add new workflows with Task Assistant naming.
 
 Keep old telemetry structure but add new fields required by 1.0.
 
@@ -799,7 +799,7 @@ Remove obsolete variables / configs.
 
 10. Future Extensions Beyond 1.0
 
-Multi-repo orchestration via Codex SaaS.
+Multi-repo Task Assistant via a SaaS.
 
 Org-wide dashboards.
 
@@ -835,6 +835,6 @@ orchestrator-dashboard-build.yml
 
 orchestrator-self-test.yml
 
-Align your existing Codex telemetry & dashboard to the schemas in §5.
+Align your existing Task Assistant telemetry & dashboard to the schemas in §5.
 
 Set up a dedicated test repo and start dry-runs.
