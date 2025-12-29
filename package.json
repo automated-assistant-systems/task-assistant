@@ -13,7 +13,8 @@
     "dotenv": "^17.2.3",
     "express": "^5.2.1",
     "octokit": "^5.0.5",
-    "task-assistant-core": "file:../task-assistant-core"
+    "task-assistant-core": "file:../task-assistant-core",
+    "yaml": "^2.8.2"
   },
   "devDependencies": {
     "@types/express": "^5.0.6",
