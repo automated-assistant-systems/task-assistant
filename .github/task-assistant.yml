@@ -77,21 +77,30 @@ labels:
 # Prep script MUST create these
 # ──────────────────────────────
 milestones:
-  # Phase milestones (long-running)
-  - title: "Phase 3.1 – Telemetry Enhancements"
-    description: Telemetry schema, evidence capture, and reporting improvements
+  - id: phase-3-1
+    title: "Phase 3.1 – Telemetry Enhancements"
+    description: "Telemetry schema, evidence capture, and reporting improvements"
+    due_offset_days: 14
 
-  - title: "Phase 3.2 – Hygiene & Enforcement"
-    description: Label normalization, track enforcement, and safety rules
+  - id: phase-3-2
+    title: "Phase 3.2 – Hygiene & Enforcement"
+    description: "Label normalization, track enforcement, and safety rules"
+    due_offset_days: 28
 
-  - title: "Phase 3.3 – UX & Config Experience"
-    description: Repo configuration UX, validation, and onboarding flow
+  - id: phase-3-3
+    title: "Phase 3.3 – UX & Config Experience"
+    description: "Repo configuration UX, validation, and onboarding flow"
+    due_offset_days: 42
 
-  - title: "Phase 3.4 – Marketplace Readiness"
-    description: Hardening for GitHub Marketplace release
+  - id: phase-3-4
+    title: "Phase 3.4 – Marketplace Readiness"
+    description: "Hardening for GitHub Marketplace release"
+    due_offset_days: 56
 
-  - title: "Phase 3.5 – Post-Release Hardening"
-    description: Observability, performance, and edge-case handling
+  - id: phase-3-5
+    title: "Phase 3.5 – Post-Release Hardening"
+    description: "Observability, performance, and edge-case handling"
+    due_offset_days: 70
 
 # ──────────────────────────────
 # ENFORCEMENT RULES
