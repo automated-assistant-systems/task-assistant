@@ -1,0 +1,146 @@
+---
+# Task Assistant – Codex Execution Contract
+# Status: Authoritative
+# Version: 1.0.0
+# Scope: Autonomous code execution via GitHub Issues
+
+contract:
+  name: codex-execution-contract
+  owner: task-assistant
+  version: 1.0.0
+  last_updated: 2025-01-01
+
+principle:
+  statement: "Task Assistant executes. Humans decide."
+  non_negotiable: true
+
+roles:
+  human:
+    title: Architect / Supervisor
+    responsibilities:
+      - define_intent
+      - approve_or_reject_results
+      - set_policy_boundaries
+    prohibited_actions:
+      - manual_code_entry_required
+
+  task_assistant:
+    title: Autonomous Execution Agent
+    authority_level: limited
+    may:
+      - read_repository
+      - create_branches
+      - commit_code
+      - run_tests
+      - open_pull_requests
+      - comment_status
+    may_not:
+      - merge_pull_requests
+      - close_issues
+      - delete_branches
+      - change_repo_settings
+      - modify_secrets
+      - alter_auth_or_billing
+      - escalate_permissions
+
+execution_triggers:
+  allowed:
+    - type: issue_label
+      value: codex:execute
+    - type: issue_command
+      value: "/codex run"
+    - type: api
+      value: task-assistant.execute
+  ignored_if:
+    - issue_closed
+    - issue_draft
+    - missing_required_sections
+
+issue_contract:
+  required_sections:
+    - goal
+    - constraints
+    - acceptance_criteria
+    - out_of_scope
+  optional_sections:
+    - context
+  validation:
+    missing_section_status: BLOCKED
+    ambiguous_scope_status: BLOCKED
+
+scope_rules:
+  source_of_truth:
+    - issue_body
+    - repository_config
+    - existing_tests
+  forbidden_behaviors:
+    - infer_additional_features
+    - refactor_unrelated_code
+    - fix_adjacent_bugs_without_permission
+
+execution_pipeline:
+  phases:
+    - name: intake_validation
+      on_failure: BLOCKED
+
+    - name: planning
+      internal_only: true
+      on_ambiguity: BLOCKED
+
+    - name: implementation
+      rules:
+        - minimal_diff
+        - no_format_only_commits
+        - no_unrelated_refactors
+
+    - name: verification
+      required:
+        - run_tests
+      on_test_failure: PARTIAL
+
+    - name: reporting
+      required_output: pull_request
+
+output_contract:
+  output_type: pull_request
+  pr_requirements:
+    must_include:
+      - summary
+      - changes
+      - test_results
+      - known_limitations
+    must_not_include:
+      - raw_code_in_comments
+
+status_codes:
+  SUCCESS:
+    description: "PR opened and all tests passing"
+  PARTIAL:
+    description: "PR opened but tests failing"
+  BLOCKED:
+    description: "Invalid input or ambiguous scope"
+  FAILED:
+    description: "Execution error"
+
+safety_guardrails:
+  immediate_abort_if:
+    - touches_auth_logic
+    - modifies_security_controls
+    - alters_secrets_handling
+    - changes_billing_or_licensing
+    - bypasses_tests
+
+telemetry:
+  required: true
+  schema:
+    issue_id: number
+    status: string
+    files_changed: number
+    tests_run: number
+    duration_seconds: number
+
+human_review:
+  mandatory: true
+  assumptions:
+    rejection_is_normal: true
+    no_auto_merge: true

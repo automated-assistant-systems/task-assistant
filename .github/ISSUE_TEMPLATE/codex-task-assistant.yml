@@ -1,0 +1,111 @@
+---
+name: "Codex Task Execution (Task Assistant)"
+description: "Declarative task request for autonomous execution by Task Assistant (Codex)"
+title: "[Codex] <concise task description>"
+labels:
+  - codex:execute
+  - task-assistant
+body:
+
+  - type: markdown
+    attributes:
+      value: |
+        ## ⚠️ Codex Execution Contract
+        This issue is a **machine-consumed task request**.
+        Task Assistant will execute **only** what is explicitly declared.
+        Missing or ambiguous sections will cause execution to BLOCK.
+
+  - type: textarea
+    id: goal
+    attributes:
+      label: Goal
+      description: |
+        What concrete outcome should exist after execution?
+        Focus on *results*, not implementation details.
+      placeholder: |
+        Example:
+        Enforce milestone validity when issues change tracks.
+    validations:
+      required: true
+
+  - type: textarea
+    id: constraints
+    attributes:
+      label: Constraints
+      description: |
+        Rules that MUST NOT be violated.
+        If a rule matters, list it explicitly.
+      placeholder: |
+        Example:
+        - No hard-coded labels
+        - Must be config-driven
+        - No breaking schema changes
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance Criteria
+      description: |
+        Objective conditions for success.
+        Task Assistant must be able to self-verify these.
+      placeholder: |
+        Example:
+        - Unit tests added
+        - All tests pass
+        - Behavior documented
+    validations:
+      required: true
+
+  - type: textarea
+    id: out_of_scope
+    attributes:
+      label: Out of Scope
+      description: |
+        Explicit exclusions.
+        Anything not listed here is considered out of scope by default.
+      placeholder: |
+        Example:
+        - UI changes
+        - Refactors outside target module
+        - Performance optimizations
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Context / References (Optional)
+      description: |
+        Relevant files, issues, PRs, or docs.
+        Links only — no inline code dumps.
+      placeholder: |
+        Example:
+        - docs/track-system.md
+        - Issue #142
+        - PR #137
+    validations:
+      required: false
+
+  - type: dropdown
+    id: execution_mode
+    attributes:
+      label: Execution Mode
+      description: |
+        Determines how aggressively Task Assistant proceeds.
+      options:
+        - Autonomous (open PR when complete)
+        - Draft (open PR marked as draft)
+    validations:
+      required: true
+
+  - type: markdown
+    attributes:
+      value: |
+        ---
+        ### ✅ Execution Notes
+        - Task Assistant will **only** respond by opening a Pull Request
+        - No code will be pasted into comments
+        - Failures will be reported with explicit status codes
+        - Human review is mandatory before merge
