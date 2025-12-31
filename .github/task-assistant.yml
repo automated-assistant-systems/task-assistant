@@ -33,46 +33,6 @@ tracks:
 # Prep script MUST create these
 # ──────────────────────────────
 labels:
-  # Track labels (authoritative)
-  - name: track/sprint
-    color: "0052CC"
-    description: Sprint-scoped work
-
-  - name: track/backlog
-    color: "5319E7"
-    description: Backlog work
-
-  - name: track/support
-    color: "FBCA04"
-    description: Support tasks
-
-  - name: track/ops
-    color: "0E8A16"
-    description: Operational work
-
-  # Priority labels
-  - name: priority/high
-    color: "D93F0B"
-    description: High priority
-
-  - name: priority/medium
-    color: "FBCA04"
-    description: Medium priority
-
-  - name: priority/low
-    color: "0E8A16"
-    description: Low priority
-
-  # State labels
-  - name: state/stale
-    color: "CCCCCC"
-    description: Issue is stale
-
-  - name: state/pinned
-    color: "0052CC"
-    description: Issue is pinned
-
-  # managed labels
   - name: phase-3
     description: Phase 3 work
     color: "0E8A16"
@@ -96,6 +56,22 @@ labels:
   - name: marketplace
     description: Marketplace readiness
     color: "D93F0B"
+
+  - name: SUCCESS
+    description: PR opened, tests passing
+    color: "28A745"
+
+  - name: PARTIAL
+    description: PR opened, tests failing
+    color: "007BFF"
+
+  - name: BLOCKED
+    description: Invalid or incomplete issue
+    color: "6C757D"
+
+  - name: FAILED
+    description: Execution error
+    color: "DC3545"
 
 # ──────────────────────────────
 # MILESTONE DEFINITIONS
