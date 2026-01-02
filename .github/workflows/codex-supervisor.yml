@@ -58,8 +58,8 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           CODEX_APP_ID: ${{ secrets.CODEX_APP_ID }}
           CODEX_PRIVATE_KEY: ${{ secrets.CODEX_PRIVATE_KEY }}
-          TELEMETRY_REPO: ${{ secrets.TELEMETRY_REPO }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TELEMETRY_REPO: ${{ vars.TELEMETRY_REPO }}
         run: |
           echo "Starting Codex execution for issue #${{ github.event.issue.number }}"
           echo "Repository: ${{ github.repository }}"
