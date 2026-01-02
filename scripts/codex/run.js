@@ -36,10 +36,8 @@ function requireArg(name, value) {
 }
 
 function run(cmd) {
-  if (typeof cmd !== "string" || !cmd.trim()) {
-    throw new Error(`Invalid shell command: ${cmd}`);
-  }
-  return execSync(cmd, { stdio: "inherit" });
+  console.log(`$ ${cmd}`);
+  execSync(cmd, { stdio: "inherit" });
 }
 
 /* ────────────────────────────── */
@@ -127,7 +125,9 @@ try {
     path.join(os.tmpdir(), "codex-telemetry-")
   );
 
-  run(`gh repo clone ${telemetryRepo} ${tmpDir}`);
+  run(
+    `git clone https://x-access-token:${process.env.GITHUB_TOKEN}@github.com/${telemetryRepo}.git ${tmpDir}`
+  );
 
   const outDir = path.join(tmpDir, "codex");
   fs.mkdirSync(outDir, { recursive: true });
