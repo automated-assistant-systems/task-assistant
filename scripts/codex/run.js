@@ -36,6 +36,9 @@ function requireArg(name, value) {
 }
 
 function run(cmd) {
+  if (typeof cmd !== "string" || !cmd.trim()) {
+    throw new Error(`Invalid shell command: ${cmd}`);
+  }
   return execSync(cmd, { stdio: "inherit" });
 }
 
@@ -124,13 +127,20 @@ try {
     path.join(os.tmpdir(), "codex-telemetry-")
   );
 
+  run(`gh repo clone ${telemetryRepo} ${tmpDir}`);
+
   const outDir = path.join(tmpDir, "codex");
   fs.mkdirSync(outDir, { recursive: true });
 
-  const fileName = `${telemetry.generated_at.replace(/[:.]/g, "-")}-${correlationId}.json`;
-  const outFile = path.join(outDir, fileName);
+  const fileName =
+    `${telemetry.generated_at.replace(/[:.]/g, "-")}-${correlationId}.json`;
 
+  const outFile = path.join(outDir, fileName);
   fs.writeFileSync(outFile, JSON.stringify(telemetry, null, 2));
+
+  run(`git -C ${tmpDir} add .`);
+  run(`git -C ${tmpDir} commit -m "telemetry: codex.execute ${correlationId}"`);
+  run(`git -C ${tmpDir} push`);
 
   try {
     run(`gh repo clone ${telemetryRepo} ${tmpDir}`);
