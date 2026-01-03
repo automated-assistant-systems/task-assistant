@@ -7,6 +7,7 @@ import os from "os";
 import path from "path";
 import crypto from "crypto";
 import { execSync } from "child_process";
+import { getInstallationToken } from "./github-app-auth.js";
 
 /**
  * Codex runner with telemetry emission.
@@ -125,12 +126,20 @@ try {
     }
   };
 
+  const [owner] = telemetryRepo.split("/");
+
+  const installationToken = getInstallationToken({
+    appId: process.env.CODEX_APP_ID,
+    privateKey: process.env.CODEX_PRIVATE_KEY,
+    owner
+  });
+
   const tmpDir = fs.mkdtempSync(
     path.join(os.tmpdir(), "codex-telemetry-")
   );
 
   run(
-    `git clone https://x-access-token:${process.env.GITHUB_TOKEN}@github.com/${telemetryRepo}.git ${tmpDir}`
+    `git clone https://x-access-token:${installationToken}@github.com/${telemetryRepo}.git ${tmpDir}`
   );
 
   const outDir = path.join(tmpDir, "codex");
@@ -139,8 +148,10 @@ try {
   const fileName =
     `${telemetry.generated_at.replace(/[:.]/g, "-")}-${correlationId}.json`;
 
-  const outFile = path.join(outDir, fileName);
-  fs.writeFileSync(outFile, JSON.stringify(telemetry, null, 2));
+  fs.writeFileSync(
+    path.join(outDir, fileName),
+    JSON.stringify(telemetry, null, 2)
+  );
 
   run(`git -C ${tmpDir} add .`);
   run(`git -C ${tmpDir} commit -m "telemetry: codex.execute ${correlationId}"`);
