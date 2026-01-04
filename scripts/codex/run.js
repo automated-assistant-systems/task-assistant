@@ -142,6 +142,9 @@ try {
     `git clone https://x-access-token:${installationToken}@github.com/${telemetryRepo}.git ${tmpDir}`
   );
 
+  run(`git -C ${tmpDir} config user.name "task-assistant[bot]"`);
+  run(`git -C ${tmpDir} config user.email "task-assistant[bot]@users.noreply.github.com"`);
+
   const outDir = path.join(tmpDir, "codex");
   fs.mkdirSync(outDir, { recursive: true });
 
