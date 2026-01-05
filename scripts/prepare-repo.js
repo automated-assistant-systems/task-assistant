@@ -57,12 +57,21 @@ function correlationId() {
    Telemetry
    ────────────────────────────── */
 
-const TELEMETRY_REPO = process.env.TELEMETRY_REPO;
+if (!process.env.TELEMETRY_REPO) {
+  console.error(`
+TELEMETRY_REPO env var is required.
 
-if (!TELEMETRY_REPO) {
-  console.error("TELEMETRY_REPO env var is required");
+Expected:
+- Organization variable TELEMETRY_REPO
+- Typically set by bootstrap-codex-app-secrets.sh
+
+Example:
+export TELEMETRY_REPO=automated-assistant-systems/task-assistant-telemetry
+`);
   process.exit(1);
 }
+
+const TELEMETRY_REPO = process.env.TELEMETRY_REPO;
 
 const TELEMETRY = {
   schema_version: "1.0",

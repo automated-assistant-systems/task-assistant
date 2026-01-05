@@ -41,6 +41,22 @@ labels:
     description: Phase 3.1 Telemetry Enhancements
     color: "1D76DB"
 
+  - name: phase-3.2
+    color: "5319E7"
+    description: Phase 3.2 – Hygiene & Enforcement
+
+  - name: phase-3.3
+    color: "FBCA04"
+    description: Phase 3.3 – UX & Config Experience
+
+  - name: phase-3.4
+    color: "D93F0B"
+    description: Phase 3.4 – Marketplace Readiness
+
+  - name: phase-3.5
+    color: "B60205"
+    description: Phase 3.5 – Post-Release Hardening
+
   - name: telemetry
     description: Telemetry and evidence
     color: "5319E7"
