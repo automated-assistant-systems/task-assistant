@@ -4,30 +4,26 @@ name: Codex Supervisor
 
 on:
   issues:
-    types:
-      - opened
-      - edited
-      - labeled
+    types: [opened, edited, labeled]
   issue_comment:
-    types:
-      - created
+    types: [created]
 
 permissions:
   contents: write
   issues: write
   pull-requests: write
-  actions: read
-  statuses: write
+
+env:
+  TELEMETRY_REPO: ${{ vars.TELEMETRY_REPO }}
 
 jobs:
-  codex-supervisor:
-    name: Evaluate Codex Execution
+  intent-check:
+    name: Evaluate Codex Intent
     runs-on: ubuntu-latest
-
+    outputs:
+      execute: ${{ steps.intent.outputs.execute }}
+      reason: ${{ steps.intent.outputs.reason }}
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-
       - name: Determine execution intent
         id: intent
         uses: actions/github-script@v7
@@ -36,30 +32,48 @@ jobs:
             const issue = context.payload.issue;
             if (!issue) {
               core.setOutput("execute", "false");
+              core.setOutput("reason", "not-an-issue-event");
               return;
             }
 
             const labels = issue.labels.map(l => l.name);
             const hasExecuteLabel = labels.includes("codex:execute");
 
-            const comment = context.payload.comment?.body || "";
-            const hasSlashCommand = comment.trim().startsWith("/codex execute");
+            const commentBody = context.payload.comment?.body || "";
+            const hasSlashCommand = commentBody.trim().startsWith("/codex execute");
 
-            const shouldExecute = hasExecuteLabel || hasSlashCommand;
-            core.setOutput("execute", shouldExecute ? "true" : "false");
+            if (hasExecuteLabel || hasSlashCommand) {
+              core.setOutput("execute", "true");
+              core.setOutput("reason", "explicit-intent");
+            } else {
+              core.setOutput("execute", "false");
+              core.setOutput("reason", "no-intent");
+            }
 
-      - name: Exit if execution not requested
-        if: steps.intent.outputs.execute != 'true'
+  codex-run:
+    name: Run Codex Task
+    needs: intent-check
+    if: needs.intent-check.outputs.execute == 'true'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Validate telemetry configuration
         run: |
-          echo "Codex execution not requested. Exiting."
+          if [ -z "${TELEMETRY_REPO}" ]; then
+            echo "❌ TELEMETRY_REPO is not configured"
+            exit 1
+          fi
 
-      - name: Invoke Codex
+      - name: Start Codex execution
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           CODEX_APP_ID: ${{ secrets.CODEX_APP_ID }}
           CODEX_PRIVATE_KEY: ${{ secrets.CODEX_PRIVATE_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TELEMETRY_REPO: ${{ vars.TELEMETRY_REPO }}
         run: |
           echo "Starting Codex execution for issue #${{ github.event.issue.number }}"
@@ -68,5 +82,16 @@ jobs:
 
           node scripts/codex/run.js \
             --repo "${{ github.repository }}" \
-            --issue "${{ github.event.issue.number }}" \
-            --telemetry-repo "${TELEMETRY_REPO}"
+            --issue "${{ github.event.issue.number }}"
+
+  no-op:
+    name: No Codex Action Required
+    needs: intent-check
+    if: needs.intent-check.outputs.execute == 'false'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Exit cleanly
+        run: |
+          echo "ℹ️ No Codex intent detected."
+          echo "Reason: ${{ needs.intent-check.outputs.reason }}"
+
