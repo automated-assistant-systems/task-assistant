@@ -1,0 +1,135 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/task-assistant/telemetry-schema-v1.json",
+  "title": "Task Assistant Telemetry Schema v1",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schema_version",
+    "generated_at",
+    "correlation_id",
+    "actor",
+    "action",
+    "entity",
+    "outcome",
+    "reason",
+    "execution"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "1.0"
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "correlation_id": {
+      "type": "string",
+      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
+    },
+    "actor": {
+      "type": "string",
+      "minLength": 1
+    },
+    "action": {
+      "type": "string",
+      "minLength": 1
+    },
+    "entity": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["type", "repo"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["repository", "issue", "pull_request", "workflow_run", "job"]
+        },
+        "repo": {
+          "type": "string",
+          "pattern": "^[^/]+/[^/]+$"
+        },
+        "number": {
+          "type": ["integer", "null"],
+          "minimum": 1
+        }
+      }
+    },
+    "outcome": {
+      "type": "string",
+      "enum": ["success", "partial", "blocked", "failed"]
+    },
+    "reason": {
+      "type": ["string", "null"]
+    },
+    "execution": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["started_at", "finished_at", "runner"],
+      "properties": {
+        "started_at": { "type": ["string", "null"], "format": "date-time" },
+        "finished_at": { "type": ["string", "null"], "format": "date-time" },
+        "runner": { "type": ["string", "null"] }
+      }
+    },
+    "decisions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["id", "kind", "rule", "subject", "decision", "outcome", "reason"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "kind": {
+            "type": "string",
+            "enum": ["validation", "enforcement", "mutation", "routing"]
+          },
+          "rule": { "type": "string", "minLength": 1 },
+          "subject": { "type": "string", "minLength": 1 },
+          "decision": {
+            "type": "string",
+            "enum": ["allow", "deny", "create", "update", "skip", "route"]
+          },
+          "outcome": {
+            "type": "string",
+            "enum": ["success", "partial", "blocked", "failed"]
+          },
+          "reason": { "type": ["string", "null"] },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true,
+              "required": ["key", "value"],
+              "properties": {
+                "key": { "type": "string" },
+                "value": { "type": "string" }
+              }
+            },
+            "default": []
+          }
+        }
+      }
+    },
+    "artifacts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["kind", "path"],
+        "properties": {
+          "kind": { "type": "string" },
+          "path": { "type": "string" }
+        }
+      }
+    },
+    "metrics": {
+      "type": "object",
+      "additionalProperties": { "type": "number" }
+    },
+    "links": {
+      "type": "object",
+      "additionalProperties": { "type": "string" }
+    }
+  }
+}
