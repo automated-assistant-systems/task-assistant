@@ -271,10 +271,14 @@ async function main() {
     );
     applyExclusiveStatusLabel(repo, issueNumber, "FAILED");
   } finally {
+      console.log(
+        "ENFORCEMENT TELEMETRY TASK TYPE:",
+        typeof TASK_ENGINES["enforcement-telemetry"]
+      );
     // 🔒 Phase 3.2 invariant: telemetry ALWAYS emits
     await TASK_ENGINES["enforcement-telemetry"]({
-      telemetry,
-      enforcementReport,
+      telemetry: telemetry,
+      enforcementReport: enforcementReport,
     });
   }
 }

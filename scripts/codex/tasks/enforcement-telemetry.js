@@ -23,7 +23,17 @@ async function githubRequest({ method, url, token, body }) {
   return res.json();
 }
 
-export async function run({ telemetry, enforcementReport }) {
+export async function run(context) {
+  const telemetry = context.telemetry;
+  const enforcementReport = context.enforcementReport;
+
+  if (!telemetry) {
+    throw new Error("enforcement-telemetry: telemetry missing from context");
+  }
+  if (!telemetry.generated_at) {
+    throw new Error("enforcement-telemetry: telemetry.generated_at missing");
+  }
+
   const token =
     process.env.GITHUB_TOKEN || process.env.GH_TOKEN;
   if (!token) {
