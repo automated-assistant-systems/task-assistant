@@ -50,6 +50,11 @@ export async function run(context) {
   }
 
   const [owner, repo] = telemetryRepo.split("/");
+  if (!owner || !repo) {
+    throw new Error(
+      `enforcement-telemetry: invalid TELEMETRY_REPO value: ${telemetryRepo}`
+    );
+  }
   const date = telemetry.generated_at.slice(0, 10);
   const path =
     `enforcement-telemetry/v1/${date}/${telemetry.correlation_id}.jsonl`;
