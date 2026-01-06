@@ -86,6 +86,12 @@ export async function run(context) {
     `gh repo clone ${telemetryRepo} "${tmpDir}"`,
     { stdio: "inherit" }
   );
+
+  execSync("gh auth setup-git", {
+    cwd: tmpDir,
+    stdio: "inherit",
+  });
+
   execSync(
     'git config user.name "Task Assistant Bot"',
     { cwd: tmpDir }
