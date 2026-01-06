@@ -92,6 +92,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TELEMETRY_REPO: ${{ vars.TELEMETRY_REPO }}
+          TELEMETRY_BRANCH: main
           ISSUE_NUMBER: ${{ github.event.issue.number }}
           REPO: ${{ github.repository }}
           ISSUE_URL: ${{ github.event.issue.html_url }}

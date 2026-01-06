@@ -108,7 +108,7 @@ export async function run(context) {
         `telemetry(v1): enforcement ${enforcementReport.final_state} ` +
         `(${telemetry.correlation_id})`,
       content: Buffer.from(content).toString("base64"),
-      branch: "main",
+      branch: process.env.TELEMETRY_BRANCH || "main",
     },
   });
 
