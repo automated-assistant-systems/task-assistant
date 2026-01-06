@@ -1,9 +1,6 @@
 #!/usr/bin/env node
 
 import crypto from "crypto";
-import jwt from "jsonwebtoken";
-import fetch from "node-fetch";
-
 import { execSync } from "child_process";
 import { USER_TASKS, INTERNAL_TASKS } from "./tasks/index.js";
 import { createTaskUtils } from "./task-utils.js";
