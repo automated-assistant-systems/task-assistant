@@ -67,6 +67,14 @@ jobs:
             exit 1
           fi
 
+      - name: Preflight – log issue context
+      run: |
+        echo "Starting Codex execution for issue #${ISSUE_NUMBER}"
+        gh issue view ${ISSUE_NUMBER} --repo ${REPO} --json body | jq -r '.body'
+      env:
+        ISSUE_NUMBER: ${{ github.event.issue.number }}
+        REPO: ${{ github.repository }}
+
       - name: Start Codex execution
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
@@ -80,7 +88,6 @@ jobs:
           echo "Repository: ${{ github.repository }}"
           echo "Issue URL: ${{ github.event.issue.html_url }}"
 
-          gh issue view $ISSUE --json body | jq -r '.body'
           node scripts/codex/run.js \
             --repo "${{ github.repository }}" \
             --issue "${{ github.event.issue.number }}"
