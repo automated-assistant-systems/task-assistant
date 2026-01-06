@@ -1,19 +1,42 @@
 // scripts/codex/tasks/enforcement-telemetry.js
 
-export async function run({ octokit, telemetry, enforcementReport }) {
-  if (!octokit) {
-    throw new Error("enforcement-telemetry: octokit is required");
+const GITHUB_API = "https://api.github.com";
+
+async function githubRequest({ method, url, token, body }) {
+  const res = await fetch(`${GITHUB_API}${url}`, {
+    method,
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: "application/vnd.github+json",
+      "Content-Type": "application/json",
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(
+      `GitHub API error ${res.status}: ${text}`
+    );
   }
-  if (!telemetry?.correlation_id || !telemetry?.generated_at) {
-    throw new Error("enforcement-telemetry: invalid telemetry context");
-  }
-  if (!enforcementReport?.final_state) {
-    throw new Error("enforcement-telemetry: missing enforcementReport");
+
+  return res.json();
+}
+
+export async function run({ telemetry, enforcementReport }) {
+  const token =
+    process.env.GITHUB_TOKEN || process.env.GH_TOKEN;
+  if (!token) {
+    throw new Error(
+      "enforcement-telemetry: GITHUB_TOKEN is required"
+    );
   }
 
   const telemetryRepo = process.env.TELEMETRY_REPO;
   if (!telemetryRepo) {
-    throw new Error("TELEMETRY_REPO is not configured");
+    throw new Error(
+      "enforcement-telemetry: TELEMETRY_REPO is not configured"
+    );
   }
 
   const [owner, repo] = telemetryRepo.split("/");
@@ -21,8 +44,7 @@ export async function run({ octokit, telemetry, enforcementReport }) {
   const path =
     `enforcement-telemetry/v1/${date}/${telemetry.correlation_id}.jsonl`;
 
-  // ── Build schema-v1 records (inline, deterministic) ──
-
+  // ── Build schema-v1 records ──
   const records = [];
 
   records.push({
@@ -66,15 +88,18 @@ export async function run({ octokit, telemetry, enforcementReport }) {
   const content =
     records.map(r => JSON.stringify(r)).join("\n") + "\n";
 
-  await octokit.repos.createOrUpdateFileContents({
-    owner,
-    repo,
-    path,
-    message:
-      `telemetry(v1): enforcement ${enforcementReport.final_state} ` +
-      `(${telemetry.correlation_id})`,
-    content: Buffer.from(content).toString("base64"),
-    branch: "main",
+  // ── Create file (no read / no append) ──
+  await githubRequest({
+    method: "PUT",
+    url: `/repos/${owner}/${repo}/contents/${path}`,
+    token,
+    body: {
+      message:
+        `telemetry(v1): enforcement ${enforcementReport.final_state} ` +
+        `(${telemetry.correlation_id})`,
+      content: Buffer.from(content).toString("base64"),
+      branch: "main",
+    },
   });
 
   return {

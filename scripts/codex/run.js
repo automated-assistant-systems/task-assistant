@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 
 import crypto from "crypto";
-import { Octokit } from "@octokit/rest";
 import { execSync } from "child_process";
 import { TASK_ENGINES } from "./tasks/index.js";
 import { createTaskUtils } from "./task-utils.js";
@@ -150,10 +149,6 @@ async function main() {
     notes: [],
   };
 
-  const octokit = new Octokit({
-    auth: process.env.GITHUB_TOKEN || process.env.GH_TOKEN,
-  });
-
   try {
     const issue = JSON.parse(
       run(`gh issue view ${issueNumber} --repo ${repo} --json body`)
@@ -278,7 +273,6 @@ async function main() {
   } finally {
     // 🔒 Phase 3.2 invariant: telemetry ALWAYS emits
     await TASK_ENGINES["enforcement-telemetry"]({
-      octokit,
       telemetry,
       enforcementReport,
     });
