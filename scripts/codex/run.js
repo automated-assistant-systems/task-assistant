@@ -271,10 +271,6 @@ async function main() {
     // 🔒 Phase 3.2 invariant:
     // Telemetry MUST be attempted, but MUST NEVER fail enforcement
     try {
-      console.log(
-        "Telemetry target:",
-        `${owner}/${repo}@${process.env.TELEMETRY_BRANCH || "main"}:${path}`
-      );
       await INTERNAL_TASKS["enforcement-telemetry"]({
         telemetry,
         enforcementReport,
