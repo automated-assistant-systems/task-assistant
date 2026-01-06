@@ -266,12 +266,21 @@ async function main() {
       `❌ **FAILED**\n\n\`\`\`\n${err.message}\n\`\`\``
     );
     applyExclusiveStatusLabel(repo, issueNumber, "FAILED");
-  } finally {
-    // 🔒 Phase 3.2 invariant: telemetry ALWAYS emits
-    await INTERNAL_TASKS["enforcement-telemetry"]({
-      telemetry,
-      enforcementReport,
-    });
+  }
+  finally {
+    // 🔒 Phase 3.2 invariant:
+    // Telemetry MUST be attempted, but MUST NEVER fail enforcement
+    try {
+      await INTERNAL_TASKS["enforcement-telemetry"]({
+        telemetry,
+        enforcementReport,
+      });
+    } catch (err) {
+      console.error(
+        "⚠️ Telemetry emission failed (non-fatal):",
+        err.message
+      );
+    }
   }
 }
 
