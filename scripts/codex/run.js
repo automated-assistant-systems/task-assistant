@@ -1,6 +1,9 @@
 #!/usr/bin/env node
 
 import crypto from "crypto";
+import jwt from "jsonwebtoken";
+import fetch from "node-fetch";
+
 import { execSync } from "child_process";
 import { USER_TASKS, INTERNAL_TASKS } from "./tasks/index.js";
 import { createTaskUtils } from "./task-utils.js";
@@ -15,6 +18,76 @@ const TERMINAL_LABELS = ["SUCCESS", "PARTIAL", "BLOCKED", "FAILED"];
    Utilities
    ────────────────────────────── */
 
+/**
+ * Generate a GitHub App installation token and
+ * export it as GH_TOKEN for gh CLI usage.
+ */
+async function mintInstallationToken() {
+  const appId = process.env.CODEX_APP_ID;
+  const privateKey = process.env.CODEX_PRIVATE_KEY;
+
+  if (!appId || !privateKey) {
+    throw new Error(
+      "Missing CODEX_APP_ID or CODEX_PRIVATE_KEY for GitHub App auth"
+    );
+  }
+
+  // 1. Create JWT (valid for 10 minutes)
+  const now = Math.floor(Date.now() / 1000);
+  const jwtToken = jwt.sign(
+    {
+      iat: now - 60,
+      exp: now + 600,
+      iss: appId,
+    },
+    privateKey,
+    { algorithm: "RS256" }
+  );
+
+  // 2. Get installation ID (for this repo)
+  const repo = process.env.REPO;
+  const res = await fetch(
+    `https://api.github.com/repos/${repo}/installation`,
+    {
+      headers: {
+        Authorization: `Bearer ${jwtToken}`,
+        Accept: "application/vnd.github+json",
+      },
+    }
+  );
+
+  if (!res.ok) {
+    throw new Error(
+      `Failed to resolve GitHub App installation for ${repo}`
+    );
+  }
+
+  const installation = await res.json();
+
+  // 3. Mint installation access token
+  const tokenRes = await fetch(
+    `https://api.github.com/app/installations/${installation.id}/access_tokens`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${jwtToken}`,
+        Accept: "application/vnd.github+json",
+      },
+    }
+  );
+
+  if (!tokenRes.ok) {
+    throw new Error("Failed to mint GitHub App installation token");
+  }
+
+  const tokenData = await tokenRes.json();
+
+  // 4. Export for gh CLI
+  process.env.GH_TOKEN = tokenData.token;
+  process.env.GITHUB_TOKEN = tokenData.token;
+
+  return tokenData.token;
+}
 function now() {
   return new Date().toISOString();
 }
@@ -152,6 +225,7 @@ async function main() {
   };
 
   try {
+    await mintInstallationToken();
     // ── load issue ──
     const issue = JSON.parse(
       run(`gh issue view ${issueNumber} --repo ${repo} --json body`)
