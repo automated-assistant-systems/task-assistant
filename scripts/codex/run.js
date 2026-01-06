@@ -2,8 +2,7 @@
 
 import crypto from "crypto";
 import { execSync } from "child_process";
-import { USER_TASKS } from "./tasks/index.js";
-import { INTERNAL_TASKS } from "./tasks/index.js";
+import { USER_TASKS, INTERNAL_TASKS } from "./tasks/index.js";
 import { createTaskUtils } from "./task-utils.js";
 
 /* ──────────────────────────────
@@ -58,12 +57,12 @@ function applyExclusiveStatusLabel(repo, issueNumber, status) {
 
 function parseIntent(issueBody) {
   const match = issueBody.match(/```codex([\s\S]*?)```/);
-  if (!match) throw new Error("Missing ```codex``` intent block");
+  if (!match) return "Missing ```codex``` intent block";
 
   try {
     return JSON.parse(match[1]);
   } catch {
-    throw new Error("Invalid JSON in ```codex``` intent block");
+    return "Invalid JSON in ```codex``` intent block";
   }
 }
 
@@ -117,66 +116,65 @@ function remediationHints(result) {
    ────────────────────────────── */
 
 async function main() {
-  let exitEarly = false;
+  // ── args ─────────────────────
+  const args = process.argv.slice(2);
+  const repo = args[args.indexOf("--repo") + 1];
+  const issueNumber = args[args.indexOf("--issue") + 1];
+
+  if (!repo || !issueNumber) {
+    console.error("Usage: run.js --repo <owner/repo> --issue <number>");
+    process.exit(1);
+  }
+
+  // ── telemetry envelope (created ONCE) ──
+  const startedAt = now();
+  const telemetry = {
+    schema_version: "1.0",
+    correlation_id: newCorrelationId(),
+    generated_at: startedAt,
+  };
+
+  const enforcementReport = {
+    repo: {
+      owner: repo.split("/")[0],
+      repo: repo.split("/")[1],
+    },
+    issue: {
+      number: Number(issueNumber),
+    },
+    actor: {
+      login: "codex",
+    },
+    final_state: null,
+    checks: [],
+    actions: [],
+    notes: [],
+  };
+
   try {
-    const args = process.argv.slice(2);
-    const repo = args[args.indexOf("--repo") + 1];
-    const issueNumber = args[args.indexOf("--issue") + 1];
-
-    if (!repo || !issueNumber) {
-      console.error("Usage: run.js --repo <owner/repo> --issue <number>");
-      process.exit(1);
-    }
-
-    const startedAt = now();
-    const telemetry = {
-      schema_version: "1.0",
-      correlation_id: newCorrelationId(),
-      generated_at: startedAt,
-    };
-
-    const enforcementReport = {
-      repo: {
-        owner: repo.split("/")[0],
-        repo: repo.split("/")[1],
-      },
-      issue: {
-        number: Number(issueNumber),
-      },
-      actor: {
-        login: "codex",
-      },
-      final_state: null,
-      checks: [],
-      actions: [],
-      notes: [],
-    };
-
+    // ── load issue ──
     const issue = JSON.parse(
       run(`gh issue view ${issueNumber} --repo ${repo} --json body`)
     );
 
-    let intent;
-    try {
-      intent = parseIntent(issue.body);
-    } catch (err) {
+    // ── parse intent ──
+    const intentOrError = parseIntent(issue.body);
+    if (typeof intentOrError === "string") {
       enforcementReport.final_state = "BLOCKED";
       enforcementReport.checks.push({
         id: "intent.parse",
         outcome: "FAIL",
-        evidence: err.message,
+        evidence: intentOrError,
       });
 
-      comment(
-        issueNumber,
-        repo,
-        `⛔ **BLOCKED**\n\n${err.message}`
-      );
-
+      comment(issueNumber, repo, `⛔ **BLOCKED**\n\n${intentOrError}`);
       applyExclusiveStatusLabel(repo, issueNumber, "BLOCKED");
       return;
     }
 
+    const intent = intentOrError;
+
+    // ── validate intent ──
     const intentError = validateIntent(intent);
     if (intentError) {
       enforcementReport.final_state = "BLOCKED";
@@ -186,12 +184,7 @@ async function main() {
         evidence: intentError,
       });
 
-      comment(
-        issueNumber,
-        repo,
-        `⛔ **BLOCKED**\n\n${intentError}`
-      );
-
+      comment(issueNumber, repo, `⛔ **BLOCKED**\n\n${intentError}`);
       applyExclusiveStatusLabel(repo, issueNumber, "BLOCKED");
       return;
     }
@@ -201,6 +194,7 @@ async function main() {
       outcome: "PASS",
     });
 
+    // ── execute task ──
     const repoPath = process.cwd();
     const branch = `codex/${intent.task}/${issueNumber}`;
 
@@ -273,14 +267,10 @@ async function main() {
     );
     applyExclusiveStatusLabel(repo, issueNumber, "FAILED");
   } finally {
-      console.log(
-        "ENFORCEMENT TELEMETRY TASK TYPE:",
-        typeof TASK_ENGINES["enforcement-telemetry"]
-      );
     // 🔒 Phase 3.2 invariant: telemetry ALWAYS emits
     await INTERNAL_TASKS["enforcement-telemetry"]({
-      telemetry: telemetry,
-      enforcementReport: enforcementReport,
+      telemetry,
+      enforcementReport,
     });
   }
 }
