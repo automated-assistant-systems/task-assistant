@@ -24,6 +24,7 @@ async function githubRequest({ method, url, token, body }) {
 }
 
 export async function run(context) {
+  console.log("ENFORCEMENT TELEMETRY LOADED FROM:", import.meta.url);
   const telemetry = context.telemetry;
   const enforcementReport = context.enforcementReport;
 
