@@ -91,10 +91,13 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TELEMETRY_REPO: ${{ vars.TELEMETRY_REPO }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          REPO: ${{ github.repository }}
+          ISSUE_URL: ${{ github.event.issue.html_url }}
         run: |
-          echo "Starting Codex execution for issue #${{ github.event.issue.number }}"
-          echo "Repository: ${{ github.repository }}"
-          echo "Issue URL: ${{ github.event.issue.html_url }}"
+          echo "Starting Codex execution for issue #${ISSUE_NUMBER}"
+          echo "Repository: ${REPO}"
+          echo "Issue URL: ${ISSUE_URL}"
 
           node scripts/codex/run.js \
             --repo "${{ github.repository }}" \
