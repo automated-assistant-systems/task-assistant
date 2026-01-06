@@ -17,77 +17,115 @@ const TERMINAL_LABELS = ["SUCCESS", "PARTIAL", "BLOCKED", "FAILED"];
 /* ──────────────────────────────
    Utilities
    ────────────────────────────── */
+/**
+ * Base64url encode helper
+ */
+function base64url(input) {
+  return Buffer.from(input)
+    .toString("base64")
+    .replace(/=/g, "")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_");
+}
 
 /**
- * Generate a GitHub App installation token and
- * export it as GH_TOKEN for gh CLI usage.
+ * Create a GitHub App JWT using native crypto
+ */
+function createAppJWT(appId, privateKeyPem) {
+  const header = {
+    alg: "RS256",
+    typ: "JWT",
+  };
+
+  const now = Math.floor(Date.now() / 1000);
+
+  const payload = {
+    iat: now - 60,
+    exp: now + 600, // max 10 minutes
+    iss: appId,
+  };
+
+  const encodedHeader = base64url(JSON.stringify(header));
+  const encodedPayload = base64url(JSON.stringify(payload));
+  const data = `${encodedHeader}.${encodedPayload}`;
+
+  const signature = crypto.sign(
+    "RSA-SHA256",
+    Buffer.from(data),
+    privateKeyPem
+  );
+
+  return `${data}.${base64url(signature)}`;
+}
+
+/**
+ * Mint a GitHub App installation token and
+ * export it for gh CLI usage.
  */
 async function mintInstallationToken() {
   const appId = process.env.CODEX_APP_ID;
   const privateKey = process.env.CODEX_PRIVATE_KEY;
+  const repo = process.env.REPO;
 
   if (!appId || !privateKey) {
     throw new Error(
-      "Missing CODEX_APP_ID or CODEX_PRIVATE_KEY for GitHub App auth"
+      "Missing CODEX_APP_ID or CODEX_PRIVATE_KEY"
     );
   }
+  if (!repo) {
+    throw new Error("REPO env var is required");
+  }
 
-  // 1. Create JWT (valid for 10 minutes)
-  const now = Math.floor(Date.now() / 1000);
-  const jwtToken = jwt.sign(
-    {
-      iat: now - 60,
-      exp: now + 600,
-      iss: appId,
-    },
-    privateKey,
-    { algorithm: "RS256" }
-  );
+  const jwt = createAppJWT(appId, privateKey);
 
-  // 2. Get installation ID (for this repo)
-  const repo = process.env.REPO;
-  const res = await fetch(
+  // 1. Resolve installation for this repo
+  const instRes = await fetch(
     `https://api.github.com/repos/${repo}/installation`,
     {
       headers: {
-        Authorization: `Bearer ${jwtToken}`,
+        Authorization: `Bearer ${jwt}`,
         Accept: "application/vnd.github+json",
       },
     }
   );
 
-  if (!res.ok) {
+  if (!instRes.ok) {
+    const text = await instRes.text();
     throw new Error(
-      `Failed to resolve GitHub App installation for ${repo}`
+      `Failed to resolve installation: ${text}`
     );
   }
 
-  const installation = await res.json();
+  const installation = await instRes.json();
 
-  // 3. Mint installation access token
+  // 2. Mint installation token
   const tokenRes = await fetch(
     `https://api.github.com/app/installations/${installation.id}/access_tokens`,
     {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${jwtToken}`,
+        Authorization: `Bearer ${jwt}`,
         Accept: "application/vnd.github+json",
       },
     }
   );
 
   if (!tokenRes.ok) {
-    throw new Error("Failed to mint GitHub App installation token");
+    const text = await tokenRes.text();
+    throw new Error(
+      `Failed to mint installation token: ${text}`
+    );
   }
 
   const tokenData = await tokenRes.json();
 
-  // 4. Export for gh CLI
+  // 3. Export for gh + git
   process.env.GH_TOKEN = tokenData.token;
   process.env.GITHUB_TOKEN = tokenData.token;
 
   return tokenData.token;
 }
+
 function now() {
   return new Date().toISOString();
 }
