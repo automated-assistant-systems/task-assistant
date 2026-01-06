@@ -80,6 +80,7 @@ jobs:
           echo "Repository: ${{ github.repository }}"
           echo "Issue URL: ${{ github.event.issue.html_url }}"
 
+          gh issue view $ISSUE --json body | jq -r '.body'
           node scripts/codex/run.js \
             --repo "${{ github.repository }}" \
             --issue "${{ github.event.issue.number }}"
