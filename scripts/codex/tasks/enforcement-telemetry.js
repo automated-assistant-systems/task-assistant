@@ -86,6 +86,15 @@ export async function run(context) {
     `gh repo clone ${telemetryRepo} "${tmpDir}"`,
     { stdio: "inherit" }
   );
+  execSync(
+    'git config user.name "Task Assistant Bot"',
+    { cwd: tmpDir }
+  );
+
+  execSync(
+    'git config user.email "task-assistant-bot@users.noreply.github.com"',
+    { cwd: tmpDir }
+  );
 
   // ── Write telemetry file ──
   const telemetryFilePath = path.join(
