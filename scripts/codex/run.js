@@ -117,40 +117,41 @@ function remediationHints(result) {
    ────────────────────────────── */
 
 async function main() {
-  const args = process.argv.slice(2);
-  const repo = args[args.indexOf("--repo") + 1];
-  const issueNumber = args[args.indexOf("--issue") + 1];
-
-  if (!repo || !issueNumber) {
-    console.error("Usage: run.js --repo <owner/repo> --issue <number>");
-    process.exit(1);
-  }
-
-  const startedAt = now();
-  const telemetry = {
-    schema_version: "1.0",
-    correlation_id: newCorrelationId(),
-    generated_at: startedAt,
-  };
-
-  const enforcementReport = {
-    repo: {
-      owner: repo.split("/")[0],
-      repo: repo.split("/")[1],
-    },
-    issue: {
-      number: Number(issueNumber),
-    },
-    actor: {
-      login: "codex",
-    },
-    final_state: null,
-    checks: [],
-    actions: [],
-    notes: [],
-  };
-
+  let exitEarly = false;
   try {
+    const args = process.argv.slice(2);
+    const repo = args[args.indexOf("--repo") + 1];
+    const issueNumber = args[args.indexOf("--issue") + 1];
+
+    if (!repo || !issueNumber) {
+      console.error("Usage: run.js --repo <owner/repo> --issue <number>");
+      process.exit(1);
+    }
+
+    const startedAt = now();
+    const telemetry = {
+      schema_version: "1.0",
+      correlation_id: newCorrelationId(),
+      generated_at: startedAt,
+    };
+
+    const enforcementReport = {
+      repo: {
+        owner: repo.split("/")[0],
+        repo: repo.split("/")[1],
+      },
+      issue: {
+        number: Number(issueNumber),
+      },
+      actor: {
+        login: "codex",
+      },
+      final_state: null,
+      checks: [],
+      actions: [],
+      notes: [],
+    };
+
     const issue = JSON.parse(
       run(`gh issue view ${issueNumber} --repo ${repo} --json body`)
     );
