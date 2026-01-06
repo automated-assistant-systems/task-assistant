@@ -2,7 +2,7 @@
 
 import crypto from "crypto";
 import { execSync } from "child_process";
-import { TASKS } from "./tasks/index.js";
+import { TASK_ENGINES } from "./tasks/index.js";
 import { createTaskUtils } from "./task-utils.js";
 
 /* ──────────────────────────────
@@ -43,81 +43,12 @@ function applyExclusiveStatusLabel(repo, issueNumber, status) {
   if (toRemove.length) {
     run(
       `gh issue edit ${issueNumber} --repo ${repo} ` +
-      toRemove.map(l => `--remove-label "${l}"`).join(" ")
+        toRemove.map(l => `--remove-label "${l}"`).join(" ")
     );
   }
   run(
     `gh issue edit ${issueNumber} --repo ${repo} --add-label "${status}"`
   );
-}
-
-/* ──────────────────────────────
-   Telemetry (sink only — no local writes)
-   ────────────────────────────── */
-
-function emitTelemetry({
-  repo,
-  issueNumber,
-  outcome,
-  reason,
-  startedAt,
-  correlationId,
-}) {
-  const record = {
-    schema_version: "1.0",
-    generated_at: now(),
-    correlation_id: correlationId,
-    actor: "codex",
-    action: "codex.execute",
-    entity: {
-      type: "issue",
-      repo,
-      number: Number(issueNumber),
-    },
-    outcome,
-    reason: reason || null,
-    execution: {
-      started_at: startedAt,
-      finished_at: now(),
-      runner: "scripts/codex/run.js",
-    },
-  };
-
-  // Phase 3.2 contract:
-  // This function is a terminal sink hook.
-  // The supervisor or runner environment
-  // is responsible for routing this record
-  // to the telemetry repository.
-  console.log("TELEMETRY_RECORD", JSON.stringify(record));
-}
-
-/* ──────────────────────────────
-   Unified outcome handler
-   ────────────────────────────── */
-
-function applyOutcome({
-  status,
-  repo,
-  issueNumber,
-  startedAt,
-  correlationId,
-  reason,
-  commentBody,
-}) {
-  if (commentBody) {
-    comment(issueNumber, repo, commentBody);
-  }
-
-  applyExclusiveStatusLabel(repo, issueNumber, status);
-
-  emitTelemetry({
-    repo,
-    issueNumber,
-    outcome: status.toLowerCase(),
-    reason,
-    startedAt,
-    correlationId,
-  });
 }
 
 /* ──────────────────────────────
@@ -139,10 +70,14 @@ function validateIntent(intent) {
   if (!intent.task) return "Missing required field: task";
   if (!Array.isArray(intent.instructions))
     return "Missing or invalid instructions array";
-  if (!TASKS[intent.task])
+  if (!TASK_ENGINES[intent.task])
     return `Unknown Codex task: ${intent.task}`;
   return null;
 }
+
+/* ──────────────────────────────
+   Validation / remediation
+   ────────────────────────────── */
 
 function runValidation(validation, repoPath) {
   if (!validation?.commands) return;
@@ -150,10 +85,6 @@ function runValidation(validation, repoPath) {
     execSync(cmd, { cwd: repoPath, stdio: "inherit" });
   }
 }
-
-/* ──────────────────────────────
-   Remediation (PARTIAL)
-   ────────────────────────────── */
 
 function remediationHints(result) {
   const hints = [];
@@ -195,47 +126,85 @@ async function main() {
   }
 
   const startedAt = now();
-  const correlationId = newCorrelationId();
+  const telemetry = {
+    schema_version: "1.0",
+    correlation_id: newCorrelationId(),
+    generated_at: startedAt,
+  };
 
-  const issue = JSON.parse(
-    run(`gh issue view ${issueNumber} --repo ${repo} --json body`)
-  );
-
-  let intent;
-  try {
-    intent = parseIntent(issue.body);
-  } catch (err) {
-    return applyOutcome({
-      status: "BLOCKED",
-      repo,
-      issueNumber,
-      startedAt,
-      correlationId,
-      reason: err.message,
-      commentBody: `⛔ **BLOCKED**\n\n${err.message}`,
-    });
-  }
-
-  const intentError = validateIntent(intent);
-  if (intentError) {
-    return applyOutcome({
-      status: "BLOCKED",
-      repo,
-      issueNumber,
-      startedAt,
-      correlationId,
-      reason: intentError,
-      commentBody: `⛔ **BLOCKED**\n\n${intentError}`,
-    });
-  }
-
-  const repoPath = process.cwd();
-  const branch = `codex/${intent.task}/${issueNumber}`;
+  const enforcementReport = {
+    repo: {
+      owner: repo.split("/")[0],
+      repo: repo.split("/")[1],
+    },
+    issue: {
+      number: Number(issueNumber),
+    },
+    actor: {
+      login: "codex",
+    },
+    final_state: null,
+    checks: [],
+    actions: [],
+    notes: [],
+  };
 
   try {
+    const issue = JSON.parse(
+      run(`gh issue view ${issueNumber} --repo ${repo} --json body`)
+    );
+
+    let intent;
+    try {
+      intent = parseIntent(issue.body);
+    } catch (err) {
+      enforcementReport.final_state = "BLOCKED";
+      enforcementReport.checks.push({
+        id: "intent.parse",
+        outcome: "FAIL",
+        evidence: err.message,
+      });
+
+      comment(
+        issueNumber,
+        repo,
+        `⛔ **BLOCKED**\n\n${err.message}`
+      );
+
+      applyExclusiveStatusLabel(repo, issueNumber, "BLOCKED");
+      return;
+    }
+
+    const intentError = validateIntent(intent);
+    if (intentError) {
+      enforcementReport.final_state = "BLOCKED";
+      enforcementReport.checks.push({
+        id: "intent.validate",
+        outcome: "FAIL",
+        evidence: intentError,
+      });
+
+      comment(
+        issueNumber,
+        repo,
+        `⛔ **BLOCKED**\n\n${intentError}`
+      );
+
+      applyExclusiveStatusLabel(repo, issueNumber, "BLOCKED");
+      return;
+    }
+
+    enforcementReport.checks.push({
+      id: "intent.validate",
+      outcome: "PASS",
+    });
+
+    const repoPath = process.cwd();
+    const branch = `codex/${intent.task}/${issueNumber}`;
+
     run(`git checkout -b ${branch}`);
 
-    const result = await TASKS[intent.task]({
+    const result = await TASK_ENGINES[intent.task]({
       repoPath,
       intent,
       mode: "apply",
@@ -243,15 +212,14 @@ async function main() {
     });
 
     if (!result.changed) {
-      return applyOutcome({
-        status: "SUCCESS",
-        repo,
+      enforcementReport.final_state = "SUCCESS";
+      comment(
         issueNumber,
-        startedAt,
-        correlationId,
-        reason: "no_changes_required",
-        commentBody: `✅ **SUCCESS**\n\nNo changes were required.\n\n${result.summary}`,
-      });
+        repo,
+        `✅ **SUCCESS**\n\nNo changes were required.\n\n${result.summary}`
+      );
+      applyExclusiveStatusLabel(repo, issueNumber, "SUCCESS");
+      return;
     }
 
     let validationFailed = false;
@@ -276,38 +244,37 @@ async function main() {
     );
 
     if (validationFailed) {
-      return applyOutcome({
-        status: "PARTIAL",
-        repo,
+      enforcementReport.final_state = "PARTIAL";
+      comment(
         issueNumber,
-        startedAt,
-        correlationId,
-        reason: "validation_failed",
-        commentBody:
-          `🟡 **PARTIAL**\n\nPR opened but validation failed.\n\nPR: ${pr.url}\n\n` +
-          remediationHints(result),
-      });
+        repo,
+        `🟡 **PARTIAL**\n\nPR opened but validation failed.\n\nPR: ${pr.url}\n\n` +
+          remediationHints(result)
+      );
+      applyExclusiveStatusLabel(repo, issueNumber, "PARTIAL");
+      return;
     }
 
-    return applyOutcome({
-      status: "SUCCESS",
-      repo,
+    enforcementReport.final_state = "SUCCESS";
+    comment(
       issueNumber,
-      startedAt,
-      correlationId,
-      commentBody:
-        `✅ **SUCCESS**\n\nPR opened and validation passed.\n\nPR: ${pr.url}`,
-    });
+      repo,
+      `✅ **SUCCESS**\n\nPR opened and validation passed.\n\nPR: ${pr.url}`
+    );
+    applyExclusiveStatusLabel(repo, issueNumber, "SUCCESS");
   } catch (err) {
-    return applyOutcome({
-      status: "FAILED",
-      repo,
+    enforcementReport.final_state = "FAILED";
+    comment(
       issueNumber,
-      startedAt,
-      correlationId,
-      reason: err.message,
-      commentBody:
-        `❌ **FAILED**\n\n\`\`\`\n${err.message}\n\`\`\``,
+      repo,
+      `❌ **FAILED**\n\n\`\`\`\n${err.message}\n\`\`\``
+    );
+    applyExclusiveStatusLabel(repo, issueNumber, "FAILED");
+  } finally {
+    // 🔒 Phase 3.2 invariant: telemetry ALWAYS emits
+    await TASK_ENGINES["enforcement-telemetry"]({
+      telemetry,
+      enforcementReport,
     });
   }
 }
