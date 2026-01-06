@@ -102,11 +102,13 @@ export async function run(context) {
 
   const content =
     records.map(r => JSON.stringify(r)).join("\n") + "\n";
+  const repoSlug = `${owner}/${repo}`;
+  const url = `/repos/${repoSlug}/contents/${path}`;
 
   // ── Create file (no read / no append) ──
   await githubRequest({
     method: "PUT",
-    url: `/repos/${owner}/${repo}/contents/${path}`,
+    url,
     token,
     body: {
       message:
