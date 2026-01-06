@@ -2,7 +2,8 @@
 
 import crypto from "crypto";
 import { execSync } from "child_process";
-import { TASK_ENGINES } from "./tasks/index.js";
+import { USER_TASKS } from "./tasks/index.js";
+import { INTERNAL_TASKS } from "./tasks/index.js";
 import { createTaskUtils } from "./task-utils.js";
 
 /* ──────────────────────────────
@@ -70,8 +71,8 @@ function validateIntent(intent) {
   if (!intent.task) return "Missing required field: task";
   if (!Array.isArray(intent.instructions))
     return "Missing or invalid instructions array";
-  if (!TASK_ENGINES[intent.task])
-    return `Unknown Codex task: ${intent.task}`;
+  if (!USER_TASKS[intent.task])
+    return `Unknown or unsupported Codex task: ${intent.task}`;
   return null;
 }
 
@@ -204,7 +205,7 @@ async function main() {
 
     run(`git checkout -b ${branch}`);
 
-    const result = await TASK_ENGINES[intent.task]({
+    const result = await USER_TASKS[intent.task]({
       repoPath,
       intent,
       mode: "apply",
@@ -276,7 +277,7 @@ async function main() {
         typeof TASK_ENGINES["enforcement-telemetry"]
       );
     // 🔒 Phase 3.2 invariant: telemetry ALWAYS emits
-    await TASK_ENGINES["enforcement-telemetry"]({
+    await INTERNAL_TASKS["enforcement-telemetry"]({
       telemetry: telemetry,
       enforcementReport: enforcementReport,
     });
