@@ -12,8 +12,6 @@ permissions:
 env:
   CORRELATION_ID: ${{ github.run_id }}-${{ github.run_attempt }}
   TELEMETRY_REPO: ${{ vars.TELEMETRY_REPO }}
-  GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
-  GH_TOKEN: ${{ steps.app-token.outputs.token }}
 
 jobs:
   self_test:
@@ -57,7 +55,18 @@ jobs:
           git commit -m "Update diagnostics" || echo "No changes"
           git push || echo "No changes"
 
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.CODEX_APP_ID }}
+          private-key: ${{ secrets.CODEX_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+
       - name: Emit self-test start telemetry
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          TELEMETRY_REPO: ${{ vars.TELEMETRY_REPO }}
         run: |
           TELEMETRY_JSON=$(jq -n \
             --arg cid "$CORRELATION_ID" \
