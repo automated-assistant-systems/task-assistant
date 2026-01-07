@@ -82,4 +82,5 @@ jobs:
               },
               details: {}
             }'
+          )
           echo "$TELEMETRY_JSON" | node scripts/telemetry/emit.js
