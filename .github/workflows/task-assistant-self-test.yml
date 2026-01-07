@@ -9,6 +9,9 @@ permissions:
   issues: read
   contents: write
 
+env:
+  CORRELATION_ID: ${{ github.run_id }}-${{ github.run_attempt }}
+
 jobs:
   self_test:
     runs-on: ubuntu-latest
@@ -51,3 +54,32 @@ jobs:
           git commit -m "Update diagnostics" || echo "No changes"
           git push || echo "No changes"
 
+      - name: Emit self-test start telemetry
+        run: |
+          TELEMETRY_JSON=$(jq -n \
+            --arg cid "$CORRELATION_ID" \
+            --arg workflow "task-assistant-self-test.yml" \
+            --arg job "self-test" \
+            '{
+              schema_version: "1.0",
+              generated_at: (now | todate),
+              correlation_id: $cid,
+              source: {
+                workflow: $workflow,
+                job: $job,
+                run_id: env.GITHUB_RUN_ID
+              },
+              entity: {
+                type: "workflow",
+                owner: env.GITHUB_REPOSITORY_OWNER,
+                repo: env.GITHUB_REPOSITORY,
+                id: null
+              },
+              event: {
+                category: "self-test",
+                action: "start",
+                reason: null
+              },
+              details: {}
+            }'
+          echo "$TELEMETRY_JSON" | node scripts/telemetry/emit.js
