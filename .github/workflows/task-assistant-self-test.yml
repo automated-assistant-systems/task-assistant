@@ -12,6 +12,7 @@ permissions:
 env:
   CORRELATION_ID: ${{ github.run_id }}-${{ github.run_attempt }}
   TELEMETRY_REPO: ${{ vars.TELEMETRY_REPO }}
+  GH_TOKEN: ${{ github.token }}
 
 jobs:
   self_test:
