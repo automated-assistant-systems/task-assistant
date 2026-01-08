@@ -67,6 +67,14 @@ jobs:
           )
           echo "$TELEMETRY_JSON" | node scripts/telemetry/emit.js
 
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm ci
+
       - name: Validate repo hygiene (prepare-repo dry-run)
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
