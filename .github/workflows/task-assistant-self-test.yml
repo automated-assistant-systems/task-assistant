@@ -79,7 +79,9 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
-          RESULT=$(node scripts/prepare-repo.js "$REPO" --dry-run --json)
+          set +e
+          RESULT=$(node scripts/prepare-repo.js "$TELEMETRY_REPO" --dry-run --json)
+          set -e
 
           echo "$RESULT" | jq '{ ...map to telemetry schema... }' \
             | node scripts/telemetry/emit.js
