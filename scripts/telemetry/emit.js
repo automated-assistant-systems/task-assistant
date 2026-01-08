@@ -17,12 +17,14 @@ import { execSync } from "child_process";
    Helpers
    ────────────────────────────── */
 
-function run(cmd, options = {}) {
+function run(cmd, opts = {}) {
   return execSync(cmd, {
     stdio: "pipe",
-    encoding: "utf8",
-    ...options,
-  }).trim();
+    env: {
+      ...process.env,
+      ...(opts.env || {}),
+    },
+  }).toString().trim();
 }
 
 function fail(msg) {
