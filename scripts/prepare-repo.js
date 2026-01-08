@@ -4,23 +4,19 @@
  *
  * Responsibilities:
  * - Validate .github/task-assistant.yml
- * - Ensure required labels exist (tracks, system, managed)
+ * - Ensure required labels exist
  * - Ensure required milestones exist
- * - Emit telemetry for:
- *   - validation
- *   - label reconciliation
- *   - milestone reconciliation
  *
- * Telemetry:
- * - MUST be written to telemetry repo
- * - MUST NOT write locally
+ * Design (Phase 3.2):
+ * - NO telemetry emission
+ * - Structured result object
+ * - Exit code remains authoritative
+ * - Optional machine-readable JSON output
  */
 
 import fs from "fs";
 import path from "path";
-import os from "os";
 import { execSync } from "child_process";
-import crypto from "crypto";
 import yaml from "yaml";
 
 /* ──────────────────────────────
@@ -30,9 +26,10 @@ import yaml from "yaml";
 const args = process.argv.slice(2);
 const repo = args.find(a => !a.startsWith("--"));
 const dryRun = args.includes("--dry-run");
+const jsonOut = args.includes("--json");
 
 if (!repo) {
-  console.error("Usage: prepare-repo <owner/repo> [--dry-run]");
+  console.error("Usage: prepare-repo <owner/repo> [--dry-run] [--json]");
   process.exit(1);
 }
 
@@ -45,47 +42,18 @@ function run(cmd) {
   return execSync(cmd, { stdio: "pipe" }).toString().trim();
 }
 
-function now() {
-  return new Date().toISOString();
-}
-
-function correlationId() {
-  return crypto.randomUUID();
-}
-
 /* ──────────────────────────────
-   Telemetry
+   Structured Result
    ────────────────────────────── */
 
-if (!process.env.TELEMETRY_REPO) {
-  console.error(`
-TELEMETRY_REPO env var is required.
-
-Expected:
-- Organization variable TELEMETRY_REPO
-- Typically set by bootstrap-codex-app-secrets.sh
-
-Example:
-export TELEMETRY_REPO=automated-assistant-systems/task-assistant-telemetry
-`);
-  process.exit(1);
-}
-
-const TELEMETRY_REPO = process.env.TELEMETRY_REPO;
-
-const TELEMETRY = {
-  schema_version: "1.0",
-  generated_at: now(),
-  correlation_id: correlationId(),
-  actor: "prepare-repo",
-  action: "repo.prepare",
-  entity: {
-    type: "repository",
-    repo
-  },
-  outcome: "UNKNOWN",
-  reason: null,
-  validation: [],
+const result = {
+  tool: "prepare-repo",
+  version: "1.0",
+  repo,
+  mode: dryRun ? "dry-run" : "apply",
+  ok: true,
+  summary: "",
+  checks: [],
   labels: {
     created: [],
     updated: [],
@@ -94,76 +62,53 @@ const TELEMETRY = {
   milestones: {
     created: [],
     skipped: []
-  },
-  execution: {
-    started_at: now(),
-    finished_at: null,
-    dry_run: dryRun
   }
 };
 
-function emitTelemetryAndExit(code) {
-  TELEMETRY.execution.finished_at = now();
-
-  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "ta-telemetry-"));
-  run(`git clone https://github.com/${TELEMETRY_REPO}.git ${tmpDir}`);
-
-  run(`git -C ${tmpDir} config user.name "task-assistant[bot]"`);
-  run(`git -C ${tmpDir} config user.email "task-assistant[bot]@users.noreply.github.com"`);
-
-  const outDir = path.join(tmpDir, "prepare-repo");
-  fs.mkdirSync(outDir, { recursive: true });
-
-  const file = path.join(
-    outDir,
-    `${TELEMETRY.generated_at.replace(/[:.]/g, "-")}-${TELEMETRY.correlation_id}.json`
-  );
-
-  fs.writeFileSync(file, JSON.stringify(TELEMETRY, null, 2));
-
-  run(`git -C ${tmpDir} add .`);
-  run(`git -C ${tmpDir} commit -m "telemetry: repo.prepare ${TELEMETRY.correlation_id}"`);
-  run(`git -C ${tmpDir} push`);
-
-  process.exit(code);
+function recordCheck(id, outcome, details = null) {
+  result.checks.push({
+    id,
+    outcome, // PASS | FAIL | WARN
+    details
+  });
+  if (outcome === "FAIL") {
+    result.ok = false;
+  }
 }
 
 /* ──────────────────────────────
    Load + Validate Config
    ────────────────────────────── */
 
-let config;
 const configPath = ".github/task-assistant.yml";
+let config;
 
 try {
   const raw = fs.readFileSync(configPath, "utf8");
   config = yaml.parse(raw);
+  recordCheck("config.load", "PASS");
 } catch (err) {
-  TELEMETRY.outcome = "BLOCKED";
-  TELEMETRY.reason = "Missing or invalid .github/task-assistant.yml";
-  TELEMETRY.validation.push({
-    level: "error",
-    message: err.message
-  });
-  emitTelemetryAndExit(1);
+  recordCheck("config.load", "FAIL", err.message);
+  finalizeAndExit();
 }
 
-/* Required top-level sections */
+/* Required sections */
 const REQUIRED_SECTIONS = ["tracks", "labels", "milestones"];
 
 for (const section of REQUIRED_SECTIONS) {
   if (!Array.isArray(config[section])) {
-    TELEMETRY.validation.push({
-      level: "error",
-      message: `Missing or invalid '${section}' section`
-    });
+    recordCheck(
+      `config.section.${section}`,
+      "FAIL",
+      `Missing or invalid '${section}' section`
+    );
+  } else {
+    recordCheck(`config.section.${section}`, "PASS");
   }
 }
 
-if (TELEMETRY.validation.length) {
-  TELEMETRY.outcome = "BLOCKED";
-  TELEMETRY.reason = "Config validation failed";
-  emitTelemetryAndExit(1);
+if (!result.ok) {
+  finalizeAndExit();
 }
 
 /* ──────────────────────────────
@@ -178,24 +123,37 @@ for (const label of config.labels) {
   const match = existingLabels.find(l => l.name === label.name);
 
   if (!match) {
-    TELEMETRY.labels.created.push(label.name);
+    result.labels.created.push(label.name);
+    recordCheck(
+      `label.${label.name}`,
+      dryRun ? "WARN" : "PASS",
+      "Label missing"
+    );
     if (!dryRun) {
       run(
-        `gh label create "${label.name}" --repo ${repo} --color "${label.color}" --description "${label.description}"`
+        `gh label create "${label.name}" --repo ${repo} ` +
+        `--color "${label.color}" --description "${label.description}"`
       );
     }
   } else if (
     match.color !== label.color ||
     (match.description || "") !== (label.description || "")
   ) {
-    TELEMETRY.labels.updated.push(label.name);
+    result.labels.updated.push(label.name);
+    recordCheck(
+      `label.${label.name}`,
+      dryRun ? "WARN" : "PASS",
+      "Label differs from spec"
+    );
     if (!dryRun) {
       run(
-        `gh label edit "${label.name}" --repo ${repo} --color "${label.color}" --description "${label.description}"`
+        `gh label edit "${label.name}" --repo ${repo} ` +
+        `--color "${label.color}" --description "${label.description}"`
       );
     }
   } else {
-    TELEMETRY.labels.skipped.push(label.name);
+    result.labels.skipped.push(label.name);
+    recordCheck(`label.${label.name}`, "PASS");
   }
 }
 
@@ -210,20 +168,37 @@ const existingMilestones = JSON.parse(
 for (const m of config.milestones) {
   const exists = existingMilestones.find(x => x.title === m.title);
   if (!exists) {
-    TELEMETRY.milestones.created.push(m.title);
+    result.milestones.created.push(m.title);
+    recordCheck(
+      `milestone.${m.title}`,
+      dryRun ? "WARN" : "PASS",
+      "Milestone missing"
+    );
     if (!dryRun) {
       run(
         `gh api repos/${repo}/milestones -f title="${m.title}" -f state="open"`
       );
     }
   } else {
-    TELEMETRY.milestones.skipped.push(m.title);
+    result.milestones.skipped.push(m.title);
+    recordCheck(`milestone.${m.title}`, "PASS");
   }
 }
 
 /* ──────────────────────────────
-   Final Outcome
+   Finalize
    ────────────────────────────── */
 
-TELEMETRY.outcome = "SUCCESS";
-emitTelemetryAndExit(0);
+function finalizeAndExit() {
+  result.summary = result.ok
+    ? "Repository is compliant"
+    : "Repository requires preparation";
+
+  if (jsonOut) {
+    console.log(JSON.stringify(result, null, 2));
+  }
+
+  process.exit(result.ok ? 0 : 1);
+}
+
+finalizeAndExit();

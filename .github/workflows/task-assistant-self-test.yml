@@ -6,8 +6,8 @@ on:
   workflow_dispatch:
 
 permissions:
-  issues: read
   contents: write
+  issues: read
 
 env:
   CORRELATION_ID: ${{ github.run_id }}-${{ github.run_attempt }}
@@ -21,39 +21,12 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Validate config file
-        id: config
+      - name: Validate config file exists
         run: |
-          echo "Checking for .github/task-assistant.yml"
           if [ ! -f ".github/task-assistant.yml" ]; then
-            echo "::error file=.github/task-assistant.yml::Missing task-assistant.yml"
+            echo "::error::Missing .github/task-assistant.yml"
             exit 1
           fi
-          echo "::notice::Config file found"
-
-      - name: Validate Required Directories
-        run: |
-          mkdir -p telemetry
-          mkdir -p dashboard
-          echo "::notice::Telemetry and dashboard directories exist"
-
-      - name: Validate Required Labels (stub)
-        run: |
-          echo "::warning::Label validation stub — implement later"
-
-      - name: Write Diagnostics File
-        run: |
-          echo "{ \"status\": \"stub\", \"generated\": \"$(date -u +"%Y-%m-%dT%H:%M:%SZ")\" }" \
-            > telemetry/diagnostics.json
-          echo "Diagnostics file created"
-
-      - name: Commit Diagnostics
-        run: |
-          git config user.name "task-assistant-bot"
-          git config user.email "actions@github.com"
-          git add telemetry/diagnostics.json
-          git commit -m "Update diagnostics" || echo "No changes"
-          git push || echo "No changes"
 
       - name: Generate GitHub App token
         id: app-token
@@ -66,31 +39,100 @@ jobs:
       - name: Emit self-test start telemetry
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
-          TELEMETRY_REPO: ${{ vars.TELEMETRY_REPO }}
         run: |
           TELEMETRY_JSON=$(jq -n \
             --arg cid "$CORRELATION_ID" \
-            --arg workflow "task-assistant-self-test.yml" \
-            --arg job "self-test" \
             '{
               schema_version: "1.0",
               generated_at: (now | todate),
               correlation_id: $cid,
               source: {
-                workflow: $workflow,
-                job: $job,
+                workflow: "task-assistant-self-test.yml",
+                job: "self-test",
                 run_id: env.GITHUB_RUN_ID
               },
               entity: {
                 type: "workflow",
                 owner: env.GITHUB_REPOSITORY_OWNER,
-                repo: env.GITHUB_REPOSITORY,
+                repo: (env.GITHUB_REPOSITORY | split("/") | .[1]),
                 id: null
               },
               event: {
                 category: "self-test",
                 action: "start",
                 reason: null
+              },
+              details: {}
+            }'
+          )
+          echo "$TELEMETRY_JSON" | node scripts/telemetry/emit.js
+
+      - name: Validate repo hygiene (prepare-repo dry-run)
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          node scripts/prepare-repo.js \
+            "${{ github.repository }}" \
+            --dry-run
+
+      - name: Emit self-test success telemetry
+        if: success()
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          TELEMETRY_JSON=$(jq -n \
+            --arg cid "$CORRELATION_ID" \
+            '{
+              schema_version: "1.0",
+              generated_at: (now | todate),
+              correlation_id: $cid,
+              source: {
+                workflow: "task-assistant-self-test.yml",
+                job: "self-test",
+                run_id: env.GITHUB_RUN_ID
+              },
+              entity: {
+                type: "workflow",
+                owner: env.GITHUB_REPOSITORY_OWNER,
+                repo: (env.GITHUB_REPOSITORY | split("/") | .[1]),
+                id: null
+              },
+              event: {
+                category: "self-test",
+                action: "success",
+                reason: null
+              },
+              details: {}
+            }'
+          )
+          echo "$TELEMETRY_JSON" | node scripts/telemetry/emit.js
+
+      - name: Emit self-test failure telemetry
+        if: failure()
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          TELEMETRY_JSON=$(jq -n \
+            --arg cid "$CORRELATION_ID" \
+            '{
+              schema_version: "1.0",
+              generated_at: (now | todate),
+              correlation_id: $cid,
+              source: {
+                workflow: "task-assistant-self-test.yml",
+                job: "self-test",
+                run_id: env.GITHUB_RUN_ID
+              },
+              entity: {
+                type: "workflow",
+                owner: env.GITHUB_REPOSITORY_OWNER,
+                repo: (env.GITHUB_REPOSITORY | split("/") | .[1]),
+                id: null
+              },
+              event: {
+                category: "self-test",
+                action: "failed",
+                reason: "prepare-repo dry-run failed"
               },
               details: {}
             }'
