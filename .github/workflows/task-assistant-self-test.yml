@@ -44,11 +44,14 @@ jobs:
           private-key: ${{ secrets.CODEX_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
 
+      # ─────────────────────────────────────────────
+      # Emit START telemetry (guarded)
+      # ─────────────────────────────────────────────
       - name: Emit self-test start telemetry
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
-          jq -n \
+          PAYLOAD=$(jq -n \
             --arg cid "$CORRELATION_ID" \
             '{
               schema_version: "1.0",
@@ -70,9 +73,15 @@ jobs:
                 reason: null
               },
               details: {}
-            }' \
-          | node scripts/telemetry/emit.js
+            }'
+          )
 
+          echo "$PAYLOAD" | jq . >/dev/null
+          echo "$PAYLOAD" | node scripts/telemetry/emit.js
+
+      # ─────────────────────────────────────────────
+      # Run prepare-repo and emit RESULT telemetry
+      # ─────────────────────────────────────────────
       - name: Validate repo hygiene (prepare-repo dry-run)
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
@@ -82,7 +91,7 @@ jobs:
             --dry-run \
             --json)
 
-          echo "$RESULT" | jq '
+          PAYLOAD=$(echo "$RESULT" | jq '
             {
               schema_version: "1.0",
               generated_at: (now | todate),
@@ -103,15 +112,21 @@ jobs:
                 reason: .summary
               },
               details: .
-            }' \
-          | node scripts/telemetry/emit.js
+            }'
+          )
 
+          echo "$PAYLOAD" | jq . >/dev/null
+          echo "$PAYLOAD" | node scripts/telemetry/emit.js
+
+      # ─────────────────────────────────────────────
+      # Emit SUCCESS telemetry
+      # ─────────────────────────────────────────────
       - name: Emit self-test success telemetry
         if: success()
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
-          jq -n \
+          PAYLOAD=$(jq -n \
             --arg cid "$CORRELATION_ID" \
             '{
               schema_version: "1.0",
@@ -133,15 +148,21 @@ jobs:
                 reason: null
               },
               details: {}
-            }' \
-          | node scripts/telemetry/emit.js
+            }'
+          )
 
+          echo "$PAYLOAD" | jq . >/dev/null
+          echo "$PAYLOAD" | node scripts/telemetry/emit.js
+
+      # ─────────────────────────────────────────────
+      # Emit FAILURE telemetry
+      # ─────────────────────────────────────────────
       - name: Emit self-test failure telemetry
         if: failure()
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
-          jq -n \
+          PAYLOAD=$(jq -n \
             --arg cid "$CORRELATION_ID" \
             '{
               schema_version: "1.0",
@@ -163,5 +184,8 @@ jobs:
                 reason: "prepare-repo dry-run failed"
               },
               details: {}
-            }' \
-          | node scripts/telemetry/emit.js
+            }'
+          )
+
+          echo "$PAYLOAD" | jq . >/dev/null
+          echo "$PAYLOAD" | node scripts/telemetry/emit.js
