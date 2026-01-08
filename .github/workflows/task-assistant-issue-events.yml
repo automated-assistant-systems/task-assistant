@@ -50,7 +50,7 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
-          jq -n \
+          jq -n -c \
             --arg cid "$CORRELATION_ID" \
             --arg issue "${{ github.event.issue.number }}" \
             --arg etype "${{ github.event.action }}" \
@@ -103,7 +103,7 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
-          jq '
+          jq -c '
             {
               schema_version: "1.0",
               generated_at: (now | todate),

@@ -51,7 +51,7 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
-          PAYLOAD=$(jq -n \
+          PAYLOAD=$(jq -n -c \
             --arg cid "$CORRELATION_ID" \
             '{
               schema_version: "1.0",
@@ -91,7 +91,7 @@ jobs:
             --dry-run \
             --json)
 
-          PAYLOAD=$(echo "$RESULT" | jq '
+          PAYLOAD=$(echo "$RESULT" | jq -c '
             {
               schema_version: "1.0",
               generated_at: (now | todate),
@@ -126,7 +126,7 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
-          PAYLOAD=$(jq -n \
+          PAYLOAD=$(jq -n -c \
             --arg cid "$CORRELATION_ID" \
             '{
               schema_version: "1.0",
@@ -162,7 +162,7 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
-          PAYLOAD=$(jq -n \
+          PAYLOAD=$(jq -n -c \
             --arg cid "$CORRELATION_ID" \
             '{
               schema_version: "1.0",
