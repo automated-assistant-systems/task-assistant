@@ -18,6 +18,12 @@ import fs from "fs";
 import path from "path";
 import { execSync } from "child_process";
 import yaml from "yaml";
+try {
+  await import("yaml");
+} catch {
+  console.error("Missing dependency: yaml");
+  process.exit(1);
+}
 
 /* ──────────────────────────────
    CLI parsing
