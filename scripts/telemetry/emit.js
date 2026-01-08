@@ -112,7 +112,6 @@ run(`git -C "${tmp}" add .`);
 run(
   `git -C "${tmp}" commit -m "telemetry(v1): emit ${records.length} record(s)" || true`
 );
-run(`git -C "${tmp}" push`, {
-  env: { ...process.env, GH_TOKEN: token },
-  GIT_HTTP_EXTRAHEADER: `AUTHORIZATION: bearer ${token}`,
-});
+run(
+  `git -C "${tmp}" -c http.extraheader="AUTHORIZATION: bearer ${token}" push`
+);
