@@ -75,6 +75,9 @@ run(`git -C "${tmp}" config user.name "task-assistant[bot]"`);
 run(
   `git -C "${tmp}" config user.email "task-assistant[bot]@users.noreply.github.com"`
 );
+run(
+  `git -C "${tmp}" config http.https://github.com/.extraheader "AUTHORIZATION: bearer ${token}"`
+);
 
 /* ──────────────────────────────
    Write records
