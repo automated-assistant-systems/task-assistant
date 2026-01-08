@@ -178,9 +178,11 @@ async function main() {
     throw err;
   }
 
-  run(`git -C "${tmp}" push origin ${branch}`, {
-    env: { ...process.env, GH_TOKEN: TOKEN },
-  });
+  // Ensure git uses GH_TOKEN for HTTPS pushes (cross-repo)
+  run(
+    `git -C "${tmp}" config http.https://github.com/.extraheader "AUTHORIZATION: bearer ${TOKEN}"`
+  );
+  run(`git -C "${tmp}" push origin ${branch}`);
 }
 
 main().catch(err => {
