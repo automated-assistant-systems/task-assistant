@@ -78,6 +78,12 @@ run(
   `git -C "${tmp}" config user.email "task-assistant[bot]@users.noreply.github.com"`
 );
 
+// After clone
+run(
+  `git -C "${tmp}" remote set-url origin ` +
+  `"https://x-access-token:${token}@github.com/${telemetryRepo}.git"`
+);
+
 /* ──────────────────────────────
    Write records
    ────────────────────────────── */
@@ -112,6 +118,5 @@ run(`git -C "${tmp}" add .`);
 run(
   `git -C "${tmp}" commit -m "telemetry(v1): emit ${records.length} record(s)" || true`
 );
-run(
-  `git -C "${tmp}" -c http.extraheader="AUTHORIZATION: bearer ${token}" push`
-);
+run(`git -C "${tmp}" push`);
+
