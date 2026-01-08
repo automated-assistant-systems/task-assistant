@@ -24,6 +24,7 @@ import yaml from "yaml";
    ────────────────────────────── */
 
 const args = process.argv.slice(2);
+const jsonMode = args.includes("--json");
 const repo = args.find(a => !a.startsWith("--"));
 const dryRun = args.includes("--dry-run");
 const jsonOut = args.includes("--json");
@@ -38,7 +39,9 @@ if (!repo) {
    ────────────────────────────── */
 
 function run(cmd) {
-  console.log(`$ ${cmd}`);
+  if (!jsonMode) {
+    console.log(`$ ${cmd}`);
+  }
   return execSync(cmd, { stdio: "pipe" }).toString().trim();
 }
 
@@ -194,11 +197,10 @@ function finalizeAndExit() {
     ? "Repository is compliant"
     : "Repository requires preparation";
 
-  if (jsonOut) {
-    console.log(JSON.stringify(result, null, 2));
+  if (jsonMode) {
+    process.stdout.write(JSON.stringify(result));
+    process.exit(result.ok ? 0 : 1);
   }
-
-  process.exit(result.ok ? 0 : 1);
 }
 
 finalizeAndExit();
