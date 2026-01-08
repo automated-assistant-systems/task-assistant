@@ -14,46 +14,123 @@ on:
       - reopened
 
 permissions:
+  contents: read
   issues: write
-  contents: write
+
+env:
+  CORRELATION_ID: ${{ github.run_id }}-${{ github.run_attempt }}
+  TELEMETRY_REPO: ${{ vars.TELEMETRY_REPO }}
 
 jobs:
-  handle_issue_event:
+  issue_events:
     runs-on: ubuntu-latest
+    if: ${{ github.event.issue.number != '' }}
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Load Task Assistant config
-        id: config
-        run: |
-          if [ ! -f ".github/task-assistant.yml" ]; then
-            echo "Config file missing"
-            exit 1
-          fi
-          echo "Config loaded"
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
 
-      - name: Process Issue Event (stub)
-        id: task-assistant
-        run: |
-          echo "Running issue classification"
-          echo "Applying track/milestone rules (stub)"
-          # Call external action once implemented:
-          # uses: owner/task-assistant-core@v1
+      - name: Install dependencies
+        run: npm ci
 
-      - name: Write Telemetry Event (stub)
-        run: |
-          mkdir -p telemetry/events
-          FILE="telemetry/events/${{ github.event.issue.number }}-$(date -u +"%Y%m%dT%H%M%SZ").json"
-          echo "{ \"stub\": true }" > "$FILE"
-          echo "Telemetry written to $FILE"
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.CODEX_APP_ID }}
+          private-key: ${{ secrets.CODEX_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
 
-      - name: Commit Telemetry
-        if: always()
+      - name: Emit issue-events start telemetry
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
-          git config user.name "task-assistant-bot"
-          git config user.email "actions@github.com"
-          git add telemetry/events/*.json
-          git commit -m "Add telemetry event for issue #${{ github.event.issue.number }}" || echo "No changes"
-          git push || echo "No changes to push"
+          jq -n \
+            --arg cid "$CORRELATION_ID" \
+            --arg issue "${{ github.event.issue.number }}" \
+            --arg etype "${{ github.event.action }}" \
+            '{
+              schema_version: "1.0",
+              generated_at: (now | todate),
+              correlation_id: $cid,
+              source: {
+                workflow: "task-assistant-issue-events.yml",
+                job: "issue_events",
+                run_id: env.GITHUB_RUN_ID
+              },
+              entity: {
+                type: "issue",
+                owner: env.GITHUB_REPOSITORY_OWNER,
+                repo: (env.GITHUB_REPOSITORY | split("/") | .[1]),
+                id: ($issue | tonumber)
+              },
+              event: {
+                category: "issue-events",
+                action: "start",
+                reason: $etype
+              },
+              details: {}
+            }' \
+          | node scripts/telemetry/emit.js
 
+      - name: Enforce issue hygiene (structured)
+        id: enforce
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          set +e
+          RESULT=$(node scripts/enforcement/issue-events.js \
+            --repo "${{ github.repository }}" \
+            --issue "${{ github.event.issue.number }}" \
+            --event "${{ github.event.action }}" \
+            --json)
+          CODE=$?
+          set -e
+
+          echo "$RESULT" > issue-enforcement.json
+
+          echo "$RESULT" | jq -r '.ok' >/dev/null 2>&1 || true
+          OK_VALUE=$(echo "$RESULT" | jq -r '.ok' 2>/dev/null || echo "false")
+          echo "ok=${OK_VALUE}" >> "$GITHUB_OUTPUT"
+          echo "code=${CODE}" >> "$GITHUB_OUTPUT"
+
+      - name: Emit issue-events result telemetry
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          jq '
+            {
+              schema_version: "1.0",
+              generated_at: (now | todate),
+              correlation_id: env.CORRELATION_ID,
+              source: {
+                workflow: "task-assistant-issue-events.yml",
+                job: "issue_events",
+                run_id: env.GITHUB_RUN_ID
+              },
+              entity: {
+                type: "issue",
+                owner: env.GITHUB_REPOSITORY_OWNER,
+                repo: (env.GITHUB_REPOSITORY | split("/") | .[1]),
+                id: (.issue.number // null)
+              },
+              event: {
+                category: "issue-events",
+                action: "result",
+                reason: .summary
+              },
+              details: .
+            }
+          ' issue-enforcement.json \
+          | node scripts/telemetry/emit.js
+
+      - name: Fail workflow if enforcement failed
+        if: steps.enforce.outputs.code != '0'
+        run: |
+          echo "::error::Issue enforcement failed"
+          exit 1
