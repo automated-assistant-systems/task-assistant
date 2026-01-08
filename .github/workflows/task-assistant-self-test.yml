@@ -81,7 +81,7 @@ jobs:
         run: |
           node scripts/prepare-repo.js \
             "${{ github.repository }}" \
-            --dry-run
+            --dry-run --json
 
       - name: Emit self-test success telemetry
         if: success()
