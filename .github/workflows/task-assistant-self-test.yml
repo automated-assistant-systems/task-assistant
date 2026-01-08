@@ -28,6 +28,14 @@ jobs:
             exit 1
           fi
 
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm ci
+
       - name: Generate GitHub App token
         id: app-token
         uses: actions/create-github-app-token@v1
@@ -40,7 +48,7 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
-          TELEMETRY_JSON=$(jq -n \
+          jq -n \
             --arg cid "$CORRELATION_ID" \
             '{
               schema_version: "1.0",
@@ -52,10 +60,9 @@ jobs:
                 run_id: env.GITHUB_RUN_ID
               },
               entity: {
-                type: "workflow",
+                type: "repository",
                 owner: env.GITHUB_REPOSITORY_OWNER,
-                repo: (env.GITHUB_REPOSITORY | split("/") | .[1]),
-                id: null
+                repo: (env.GITHUB_REPOSITORY | split("/") | .[1])
               },
               event: {
                 category: "self-test",
@@ -63,35 +70,48 @@ jobs:
                 reason: null
               },
               details: {}
-            }'
-          )
-          echo "$TELEMETRY_JSON" | node scripts/telemetry/emit.js
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
-      - name: Install dependencies
-        run: npm ci
+            }' \
+          | node scripts/telemetry/emit.js
 
       - name: Validate repo hygiene (prepare-repo dry-run)
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
-          set +e
-          RESULT=$(node scripts/prepare-repo.js "$TELEMETRY_REPO" --dry-run --json)
-          set -e
+          RESULT=$(node scripts/prepare-repo.js \
+            "${{ github.repository }}" \
+            --dry-run \
+            --json)
 
-          echo "$RESULT" | jq '{ ...map to telemetry schema... }' \
-            | node scripts/telemetry/emit.js
+          echo "$RESULT" | jq '
+            {
+              schema_version: "1.0",
+              generated_at: (now | todate),
+              correlation_id: env.CORRELATION_ID,
+              source: {
+                workflow: "task-assistant-self-test.yml",
+                job: "self-test",
+                run_id: env.GITHUB_RUN_ID
+              },
+              entity: {
+                type: "repository",
+                owner: env.GITHUB_REPOSITORY_OWNER,
+                repo: (env.GITHUB_REPOSITORY | split("/") | .[1])
+              },
+              event: {
+                category: "self-test",
+                action: "result",
+                reason: .summary
+              },
+              details: .
+            }' \
+          | node scripts/telemetry/emit.js
 
       - name: Emit self-test success telemetry
         if: success()
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
-          TELEMETRY_JSON=$(jq -n \
+          jq -n \
             --arg cid "$CORRELATION_ID" \
             '{
               schema_version: "1.0",
@@ -103,10 +123,9 @@ jobs:
                 run_id: env.GITHUB_RUN_ID
               },
               entity: {
-                type: "workflow",
+                type: "repository",
                 owner: env.GITHUB_REPOSITORY_OWNER,
-                repo: (env.GITHUB_REPOSITORY | split("/") | .[1]),
-                id: null
+                repo: (env.GITHUB_REPOSITORY | split("/") | .[1])
               },
               event: {
                 category: "self-test",
@@ -114,16 +133,15 @@ jobs:
                 reason: null
               },
               details: {}
-            }'
-          )
-          echo "$TELEMETRY_JSON" | node scripts/telemetry/emit.js
+            }' \
+          | node scripts/telemetry/emit.js
 
       - name: Emit self-test failure telemetry
         if: failure()
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
-          TELEMETRY_JSON=$(jq -n \
+          jq -n \
             --arg cid "$CORRELATION_ID" \
             '{
               schema_version: "1.0",
@@ -135,10 +153,9 @@ jobs:
                 run_id: env.GITHUB_RUN_ID
               },
               entity: {
-                type: "workflow",
+                type: "repository",
                 owner: env.GITHUB_REPOSITORY_OWNER,
-                repo: (env.GITHUB_REPOSITORY | split("/") | .[1]),
-                id: null
+                repo: (env.GITHUB_REPOSITORY | split("/") | .[1])
               },
               event: {
                 category: "self-test",
@@ -146,6 +163,5 @@ jobs:
                 reason: "prepare-repo dry-run failed"
               },
               details: {}
-            }'
-          )
-          echo "$TELEMETRY_JSON" | node scripts/telemetry/emit.js
+            }' \
+          | node scripts/telemetry/emit.js
