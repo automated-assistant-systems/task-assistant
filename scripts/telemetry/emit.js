@@ -1,11 +1,12 @@
 #!/usr/bin/env node
 /**
- * Shared Telemetry Emitter
+ * scripts/telemetry/emit.js
  *
- * - Reads JSON from stdin (single object or JSONL stream)
- * - Appends records to a repo-scoped or meta-scoped JSONL file
- * - Writes ONLY to telemetry repo
- * - No local telemetry artifacts
+ * Task Assistant Telemetry Emitter
+ *
+ * HARD INVARIANT:
+ * - Task Assistant MUST ONLY emit repo-scoped telemetry
+ * - Meta telemetry is NOT allowed from this emitter
  */
 
 import fs from "fs";
@@ -14,109 +15,116 @@ import os from "os";
 import { execSync } from "child_process";
 
 /* ──────────────────────────────
-   Helpers
+   Utilities
    ────────────────────────────── */
 
 function run(cmd, opts = {}) {
   return execSync(cmd, {
     stdio: "pipe",
-    env: {
-      ...process.env,
-      ...(opts.env || {}),
-    },
-  }).toString().trim();
+    encoding: "utf8",
+    ...opts
+  }).trim();
 }
 
-function fail(msg) {
+function die(msg) {
   console.error(`⚠️ telemetry: ${msg}`);
   process.exit(0); // non-fatal by design
 }
 
 /* ──────────────────────────────
-   Read stdin
+   Read + validate input
    ────────────────────────────── */
 
-const input = fs.readFileSync(0, "utf8").trim();
-if (!input) fail("empty telemetry payload");
-
-const records = input
-  .split("\n")
-  .map(line => line.trim())
-  .filter(Boolean)
-  .map(line => {
-    try {
-      return JSON.parse(line);
-    } catch {
-      fail("invalid JSON input");
-    }
-  });
+let payload;
+try {
+  const input = fs.readFileSync(0, "utf8").trim();
+  if (!input) die("empty telemetry payload");
+  payload = JSON.parse(input);
+} catch {
+  die("invalid JSON input");
+}
 
 /* ──────────────────────────────
-   Environment
+   Enforce repo-only invariant
    ────────────────────────────── */
 
-const telemetryRepo = process.env.TELEMETRY_REPO;
-if (!telemetryRepo) fail("TELEMETRY_REPO is not set");
+const repo =
+  payload?.entity?.repo;
 
-const token = process.env.GH_TOKEN || process.env.GITHUB_TOKEN;
-if (!token) fail("GH_TOKEN is required");
+if (!repo || typeof repo !== "string") {
+  die("entity.repo is required — meta telemetry is forbidden");
+}
+
+if (repo.includes("/")) {
+  // guard against accidental owner/repo misuse
+  die("entity.repo must be repo name only (no owner)");
+}
 
 /* ──────────────────────────────
-   Clone telemetry repo
+   Required env
+   ────────────────────────────── */
+
+const TELEMETRY_REPO = process.env.TELEMETRY_REPO;
+const GH_TOKEN = process.env.GH_TOKEN;
+
+if (!TELEMETRY_REPO) {
+  die("TELEMETRY_REPO is not set");
+}
+if (!GH_TOKEN) {
+  die("GH_TOKEN is not set");
+}
+
+/* ──────────────────────────────
+   Path resolution (repo-only)
+   ────────────────────────────── */
+
+const date =
+  (payload.generated_at || new Date().toISOString()).slice(0, 10);
+
+const telemetryPath =
+  `telemetry/v1/repos/${repo}/${date}.jsonl`;
+
+/* ──────────────────────────────
+   Write via temp clone (proven pattern)
    ────────────────────────────── */
 
 const tmp = fs.mkdtempSync(
   path.join(os.tmpdir(), "task-assistant-telemetry-")
 );
 
-run(`gh repo clone ${telemetryRepo} "${tmp}"`, {
-  env: { ...process.env, GH_TOKEN: token },
-});
+try {
+  run(
+    `git clone https://github.com/${TELEMETRY_REPO}.git "${tmp}"`,
+    {
+      env: {
+        ...process.env,
+        GIT_ASKPASS: "echo",
+        GIT_TERMINAL_PROMPT: "0"
+      }
+    }
+  );
 
-run(`git -C "${tmp}" config user.name "task-assistant[bot]"`);
-run(
-  `git -C "${tmp}" config user.email "task-assistant[bot]@users.noreply.github.com"`
-);
+  run(`git -C "${tmp}" config user.name "task-assistant[bot]"`);
+  run(
+    `git -C "${tmp}" config user.email "task-assistant[bot]@users.noreply.github.com"`
+  );
 
-// After clone
-run(
-  `git -C "${tmp}" remote set-url origin ` +
-  `"https://x-access-token:${token}@github.com/${telemetryRepo}.git"`
-);
+  const outFile = path.join(tmp, telemetryPath);
+  fs.mkdirSync(path.dirname(outFile), { recursive: true });
 
-/* ──────────────────────────────
-   Write records
-   ────────────────────────────── */
+  fs.appendFileSync(
+    outFile,
+    JSON.stringify(payload) + "\n"
+  );
 
-for (const record of records) {
-  if (!record.generated_at || !record.entity?.type) {
-    fail("missing required telemetry fields");
-  }
+  run(`git -C "${tmp}" add "${telemetryPath}"`);
+  run(
+    `git -C "${tmp}" commit -m "telemetry(v1): ${payload.event?.category || "event"}"`
+  );
 
-  const date = record.generated_at.slice(0, 10);
-
-  let outDir;
-  if (record.entity.type === "repository") {
-    const repo = record.entity.repo;
-    if (!repo) fail("entity.repo missing for repository telemetry");
-    outDir = path.join("telemetry", "v1", "repos", repo);
-  } else {
-    outDir = path.join("telemetry", "v1", "meta");
-  }
-
-  fs.mkdirSync(path.join(tmp, outDir), { recursive: true });
-
-  const file = path.join(tmp, outDir, `${date}.jsonl`);
-  fs.appendFileSync(file, JSON.stringify(record) + "\n");
+  run(
+    `git -C "${tmp}" -c http.extraheader="AUTHORIZATION: bearer ${GH_TOKEN}" push`
+  );
+} catch (err) {
+  die(err.message);
 }
-
-/* ──────────────────────────────
-   Commit & push
-   ────────────────────────────── */
-
-run(`git -C "${tmp}" add .`);
-run(
-  `git -C "${tmp}" commit -m "telemetry(v1): emit ${records.length} record(s)" || true`
-);
-run(`git -C "${tmp}" push`);
-
