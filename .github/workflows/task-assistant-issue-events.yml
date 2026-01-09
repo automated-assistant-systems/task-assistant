@@ -27,6 +27,9 @@ jobs:
     if: ${{ github.event.issue.number != '' }}
 
     steps:
+      # ─────────────────────────────────────────────
+      # Checkout + runtime
+      # ─────────────────────────────────────────────
       - name: Checkout repository
         uses: actions/checkout@v4
 
@@ -38,6 +41,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # ─────────────────────────────────────────────
+      # GitHub App auth
+      # ─────────────────────────────────────────────
       - name: Generate GitHub App token
         id: app-token
         uses: actions/create-github-app-token@v1
@@ -46,11 +52,14 @@ jobs:
           private-key: ${{ secrets.CODEX_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
 
+      # ─────────────────────────────────────────────
+      # Emit START telemetry (repo-scoped only)
+      # ─────────────────────────────────────────────
       - name: Emit issue-events start telemetry
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
-          jq -n -c \
+          PAYLOAD=$(jq -n -c \
             --arg cid "$CORRELATION_ID" \
             --arg issue "${{ github.event.issue.number }}" \
             --arg etype "${{ github.event.action }}" \
@@ -75,35 +84,39 @@ jobs:
                 reason: $etype
               },
               details: {}
-            }' \
-          | node scripts/telemetry/emit.js
+            }'
+          )
 
+          echo "$PAYLOAD" | jq . >/dev/null
+          echo "$PAYLOAD" | node scripts/telemetry/emit.js
+
+      # ─────────────────────────────────────────────
+      # Enforce issue hygiene (phase-label logic lives here)
+      # ─────────────────────────────────────────────
       - name: Enforce issue hygiene (structured)
         id: enforce
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
-          set +e
           RESULT=$(node scripts/enforcement/issue-events.js \
             --repo "${{ github.repository }}" \
             --issue "${{ github.event.issue.number }}" \
             --event "${{ github.event.action }}" \
             --json)
-          CODE=$?
-          set -e
 
           echo "$RESULT" > issue-enforcement.json
 
-          echo "$RESULT" | jq -r '.ok' >/dev/null 2>&1 || true
-          OK_VALUE=$(echo "$RESULT" | jq -r '.ok' 2>/dev/null || echo "false")
+          OK_VALUE=$(echo "$RESULT" | jq -r '.ok // false')
           echo "ok=${OK_VALUE}" >> "$GITHUB_OUTPUT"
-          echo "code=${CODE}" >> "$GITHUB_OUTPUT"
 
+      # ─────────────────────────────────────────────
+      # Emit RESULT telemetry (repo-scoped only)
+      # ─────────────────────────────────────────────
       - name: Emit issue-events result telemetry
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
-          jq -c '
+          PAYLOAD=$(jq -c '
             {
               schema_version: "1.0",
               generated_at: (now | todate),
@@ -126,11 +139,16 @@ jobs:
               },
               details: .
             }
-          ' issue-enforcement.json \
-          | node scripts/telemetry/emit.js
+          ' issue-enforcement.json)
 
+          echo "$PAYLOAD" | jq . >/dev/null
+          echo "$PAYLOAD" | node scripts/telemetry/emit.js
+
+      # ─────────────────────────────────────────────
+      # Hard failure only if enforcement explicitly fails
+      # ─────────────────────────────────────────────
       - name: Fail workflow if enforcement failed
-        if: steps.enforce.outputs.code != '0'
+        if: steps.enforce.outputs.ok != 'true'
         run: |
           echo "::error::Issue enforcement failed"
           exit 1
