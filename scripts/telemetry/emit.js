@@ -99,7 +99,7 @@ for (const record of records) {
   // Always write repo-scoped telemetry.
   // Repo workflows must never write to meta.
   const repo =
-    payload?.entity?.repo ||
+    record?.entity?.repo ||
     (process.env.GITHUB_REPOSITORY ? process.env.GITHUB_REPOSITORY.split("/")[1] : null);
 
   if (!repo) {
