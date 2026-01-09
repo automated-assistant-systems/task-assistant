@@ -182,6 +182,19 @@ async function main() {
     return;
   }
 
+  import { validateConfig } from "../config/validate-config.js";
+
+  const validation = validateConfig(config);
+
+  if (!validation.ok) {
+    validation.errors.forEach(err =>
+      fail("config.schema", err)
+    );
+    return;
+  }
+
+  pass("config.schema.valid");
+
   const exclusivity = config?.enforcement?.exclusivity || {};
   pass("config.shape");
 
