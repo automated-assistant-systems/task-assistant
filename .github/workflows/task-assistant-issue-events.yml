@@ -28,6 +28,13 @@ jobs:
     if: ${{ github.event.issue.number != '' }}
 
     steps:
+      - name: Validate telemetry configuration
+        run: |
+          if [ -z "${TELEMETRY_REPO}" ]; then
+            echo "::error::TELEMETRY_REPO is not set"
+            exit 1
+          fi
+
       # ─────────────────────────────────────────────
       # Checkout + runtime
       # ─────────────────────────────────────────────
@@ -96,6 +103,7 @@ jobs:
       # ─────────────────────────────────────────────
       - name: Enforce issue hygiene (structured)
         id: enforce
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
@@ -103,10 +111,9 @@ jobs:
             --repo "${{ github.repository }}" \
             --issue "${{ github.event.issue.number }}" \
             --event "${{ github.event.action }}" \
-            --json)
+            --json || true)
 
           echo "$RESULT" > issue-enforcement.json
-
           OK_VALUE=$(echo "$RESULT" | jq -r '.ok // false')
           echo "ok=${OK_VALUE}" >> "$GITHUB_OUTPUT"
 

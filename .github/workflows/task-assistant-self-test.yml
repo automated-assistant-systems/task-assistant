@@ -19,6 +19,13 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Validate telemetry configuration
+        run: |
+          if [ -z "${TELEMETRY_REPO}" ]; then
+            echo "::error::TELEMETRY_REPO is not set"
+            exit 1
+          fi
+
       - name: Checkout repository
         uses: actions/checkout@v4
 
