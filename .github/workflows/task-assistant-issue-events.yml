@@ -16,6 +16,7 @@ on:
 permissions:
   contents: read
   issues: write
+  id-token: write
 
 env:
   CORRELATION_ID: ${{ github.run_id }}-${{ github.run_attempt }}
