@@ -31,11 +31,21 @@ const BOT_EMAIL =
    ────────────────────────────── */
 
 function run(cmd, opts = {}) {
-  return execSync(cmd, {
+  const out = execSync(cmd, {
     stdio: ["ignore", "pipe", "pipe"],
     encoding: "utf8",
     ...opts,
-  }).trim();
+  });
+  return typeof out === "string" ? out.trim() : "";
+}
+
+function runQuiet(cmd) {
+  try {
+    execSync(cmd, { stdio: "ignore" });
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function sleep(ms) {
