@@ -84,6 +84,14 @@ if (!result.ok) {
 }
 
 /* ──────────────────────────────
+   Load existing labels (shared)
+   ────────────────────────────── */
+
+const existingLabels = JSON.parse(
+  run(`gh label list --repo ${repo} --json name,color,description --limit 100`)
+);
+
+/* ──────────────────────────────
    Track Labels (authoritative)
    ────────────────────────────── */
 
@@ -121,10 +129,6 @@ for (const track of config.tracks) {
 /* ──────────────────────────────
    Labels
    ────────────────────────────── */
-
-const existingLabels = JSON.parse(
-  run(`gh label list --repo ${repo} --json name,color,description --limit 100`)
-);
 
 for (const label of config.labels) {
   const found = existingLabels.find(l => l.name === label.name);
