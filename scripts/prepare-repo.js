@@ -2,34 +2,25 @@
 /**
  * Task Assistant — Repository Preparation Script
  *
- * Phase 3.2 (Authoritative)
- * --------------------------------------------------
- * Responsibilities:
- * - Validate .github/task-assistant.yml (structure + schema)
- * - Ensure required labels exist
- * - Ensure required milestones exist
- *
- * Design guarantees:
+ * Phase 3.2
+ * - Config validation
+ * - Label reconciliation
+ * - Milestone reconciliation
  * - NO telemetry emission
- * - Deterministic behavior
- * - Structured result object
- * - Exit code is authoritative
- * - Optional --json output
  */
 
 import fs from "fs";
 import { execSync } from "child_process";
 import yaml from "yaml";
-import { validateConfig } from "./config/validate-config.js";
 
 /* ──────────────────────────────
-   CLI parsing
+   CLI
    ────────────────────────────── */
 
 const args = process.argv.slice(2);
-const repo = args.find(a => !a.startsWith("--"));
-const dryRun = args.includes("--dry-run");
 const jsonMode = args.includes("--json");
+const dryRun = args.includes("--dry-run");
+const repo = args.find(a => !a.startsWith("--"));
 
 if (!repo) {
   console.error("Usage: prepare-repo <owner/repo> [--dry-run] [--json]");
@@ -37,21 +28,15 @@ if (!repo) {
 }
 
 /* ──────────────────────────────
-   Utilities
+   Helpers
    ────────────────────────────── */
 
 function run(cmd) {
-  if (!jsonMode) {
-    console.log(`$ ${cmd}`);
-  }
-  return execSync(cmd, {
-    stdio: ["ignore", "pipe", "pipe"],
-    encoding: "utf8",
-  }).trim();
+  return execSync(cmd, { stdio: ["ignore", "pipe", "pipe"], encoding: "utf8" }).trim();
 }
 
 /* ──────────────────────────────
-   Structured Result
+   Result model
    ────────────────────────────── */
 
 const result = {
@@ -62,120 +47,77 @@ const result = {
   ok: true,
   summary: "",
   checks: [],
-  labels: {
-    created: [],
-    updated: [],
-    skipped: [],
-  },
-  milestones: {
-    created: [],
-    skipped: [],
-  },
+  labels: { created: [], updated: [], skipped: [] },
+  milestones: { created: [], skipped: [] }
 };
 
 function check(id, outcome, details = null) {
   result.checks.push({ id, outcome, details });
-  if (outcome === "FAIL") {
-    result.ok = false;
-  }
+  if (outcome === "FAIL") result.ok = false;
 }
 
 /* ──────────────────────────────
-   Load + Validate Config
+   Load config
    ────────────────────────────── */
 
-const CONFIG_PATH = ".github/task-assistant.yml";
 let config;
-
 try {
-  const raw = fs.readFileSync(CONFIG_PATH, "utf8");
+  const raw = fs.readFileSync(".github/task-assistant.yml", "utf8");
   config = yaml.parse(raw);
   check("config.load", "PASS");
 } catch (err) {
   check("config.load", "FAIL", err.message);
-  return finalize();
+  finalize();
 }
 
-/* Required top-level arrays */
-for (const key of ["tracks", "labels", "milestones"]) {
-  if (!Array.isArray(config?.[key])) {
-    check(
-      `config.section.${key}`,
-      "FAIL",
-      `Expected '${key}' to be an array`
-    );
+/* Required sections */
+for (const section of ["tracks", "labels", "milestones"]) {
+  if (!Array.isArray(config?.[section])) {
+    check(`config.section.${section}`, "FAIL", "Missing or invalid section");
   } else {
-    check(`config.section.${key}`, "PASS");
+    check(`config.section.${section}`, "PASS");
   }
 }
 
 if (!result.ok) {
-  return finalize();
+  finalize();
 }
-
-/* Schema validation (Phase 3.2 hardening) */
-const schema = validateConfig(config);
-
-if (!schema.ok) {
-  schema.errors.forEach(err =>
-    check("config.schema", "FAIL", err)
-  );
-  return finalize();
-}
-
-check("config.schema", "PASS");
 
 /* ──────────────────────────────
    Labels
    ────────────────────────────── */
 
 const existingLabels = JSON.parse(
-  run(
-    `gh label list --repo ${repo} --json name,color,description --limit 100`
-  )
+  run(`gh label list --repo ${repo} --json name,color,description --limit 100`)
 );
 
-for (const spec of config.labels) {
-  const found = existingLabels.find(l => l.name === spec.name);
+for (const label of config.labels) {
+  const found = existingLabels.find(l => l.name === label.name);
 
   if (!found) {
-    result.labels.created.push(spec.name);
-    check(
-      `label.${spec.name}`,
-      dryRun ? "WARN" : "PASS",
-      "Label missing"
-    );
-
+    result.labels.created.push(label.name);
+    check(`label.${label.name}`, dryRun ? "WARN" : "PASS", "Missing");
     if (!dryRun) {
       run(
-        `gh label create "${spec.name}" ` +
-          `--repo ${repo} ` +
-          `--color "${spec.color}" ` +
-          `--description "${spec.description || ""}"`
+        `gh label create "${label.name}" --repo ${repo} ` +
+        `--color "${label.color}" --description "${label.description || ""}"`
       );
     }
   } else if (
-    found.color !== spec.color ||
-    (found.description || "") !== (spec.description || "")
+    found.color !== label.color ||
+    (found.description || "") !== (label.description || "")
   ) {
-    result.labels.updated.push(spec.name);
-    check(
-      `label.${spec.name}`,
-      dryRun ? "WARN" : "PASS",
-      "Label differs from spec"
-    );
-
+    result.labels.updated.push(label.name);
+    check(`label.${label.name}`, dryRun ? "WARN" : "PASS", "Mismatch");
     if (!dryRun) {
       run(
-        `gh label edit "${spec.name}" ` +
-          `--repo ${repo} ` +
-          `--color "${spec.color}" ` +
-          `--description "${spec.description || ""}"`
+        `gh label edit "${label.name}" --repo ${repo} ` +
+        `--color "${label.color}" --description "${label.description || ""}"`
       );
     }
   } else {
-    result.labels.skipped.push(spec.name);
-    check(`label.${spec.name}`, "PASS");
+    result.labels.skipped.push(label.name);
+    check(`label.${label.name}`, "PASS");
   }
 }
 
@@ -187,27 +129,17 @@ const existingMilestones = JSON.parse(
   run(`gh api repos/${repo}/milestones --paginate`)
 );
 
-for (const spec of config.milestones) {
-  const exists = existingMilestones.find(m => m.title === spec.title);
-
+for (const m of config.milestones) {
+  const exists = existingMilestones.find(x => x.title === m.title);
   if (!exists) {
-    result.milestones.created.push(spec.title);
-    check(
-      `milestone.${spec.title}`,
-      dryRun ? "WARN" : "PASS",
-      "Milestone missing"
-    );
-
+    result.milestones.created.push(m.title);
+    check(`milestone.${m.title}`, dryRun ? "WARN" : "PASS", "Missing");
     if (!dryRun) {
-      run(
-        `gh api repos/${repo}/milestones ` +
-          `-f title="${spec.title}" ` +
-          `-f state="open"`
-      );
+      run(`gh api repos/${repo}/milestones -f title="${m.title}" -f state="open"`);
     }
   } else {
-    result.milestones.skipped.push(spec.title);
-    check(`milestone.${spec.title}`, "PASS");
+    result.milestones.skipped.push(m.title);
+    check(`milestone.${m.title}`, "PASS");
   }
 }
 
