@@ -134,8 +134,20 @@ function main(raw) {
           console.error(e?.stderr?.toString?.() || e?.message || String(e));
           process.exit(1);
         }
+
+        // HARD RESET STRATEGY (safe for append-only logs)
+        run(`git -C "${cloneDir}" fetch origin`);
+        run(`git -C "${cloneDir}" reset --hard origin/main`);
+
+        // Re-append payload
+        fs.appendFileSync(outFile, JSON.stringify(payload) + "\n");
+        run(`git -C "${cloneDir}" add "${outFile}"`);
+        run(
+          `git -C "${cloneDir}" commit --allow-empty -m "telemetry: ${payload.event?.category || "event"}"`,
+          { stdio: ["ignore", "ignore", "ignore"] }
+        );
+
         sleep(BASE_BACKOFF_MS * attempt);
-        run(`git -C "${cloneDir}" pull --rebase`);
       }
     }
   } catch (err) {
