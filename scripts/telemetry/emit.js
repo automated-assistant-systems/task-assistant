@@ -105,6 +105,15 @@ function main(input) {
     fs.appendFileSync(outFile, JSON.stringify(payload) + "\n");
 
     run(`git -C "${repoDir}" add "${outFile}"`);
+
+    try {
+      run(`git -C "${repoDir}" diff --cached --quiet`);
+      // No changes staged → telemetry already recorded
+      return;
+    } catch {
+      // Changes exist → proceed to commit
+    }
+
     run(
       `git -C "${repoDir}" commit -m "telemetry: ${payload.event?.category || "event"}"`,
       { stdio: ["ignore", "ignore", "ignore"] }
