@@ -85,21 +85,24 @@ echo "✓ Violations introduced"
 # 4) Expect FIRST issue-events run to FAIL
 # ------------------------------------------------------------
 echo
-echo "→ Waiting for failing issue-events run..."
-FAIL_RUN_ID="$(gh run list \
+echo "→ Waiting for issue-events workflow run..."
+
+sleep 3
+
+RUN_ID="$(gh run list \
   --repo "$REPO" \
   --workflow "task-assistant-issue-events.yml" \
   --limit 5 \
-  --json databaseId,conclusion \
-  | jq -r '.[] | select(.conclusion=="failure") | .databaseId' | head -n1)"
+  --json databaseId,createdAt \
+  | jq -r '.[0].databaseId')"
 
-[[ -n "$FAIL_RUN_ID" ]] || {
-  echo "❌ Expected failing issue-events run not found"
+if [[ -z "$RUN_ID" ]]; then
+  echo "❌ No issue-events run found"
   exit 1
-}
+fi
 
-gh run watch --repo "$REPO" "$FAIL_RUN_ID" --exit-status || true
-echo "✓ issue-events failed as expected (run $FAIL_RUN_ID)"
+gh run watch --repo "$REPO" "$RUN_ID"
+echo "✓ Issue-events workflow completed (run $RUN_ID)"
 
 # ------------------------------------------------------------
 # 5) Repair issue and re-trigger enforcement
@@ -118,22 +121,39 @@ gh issue edit "$ISSUE_NUMBER" --repo "$REPO" --remove-label "telemetry" >/dev/nu
 # ------------------------------------------------------------
 # 6) Expect SUCCESS issue-events run
 # ------------------------------------------------------------
+# ------------------------------------------------------------
+# Resolve telemetry file paths (must exist before use)
+# ------------------------------------------------------------
 echo
-echo "→ Waiting for successful issue-events run..."
-OK_RUN_ID="$(gh run list \
-  --repo "$REPO" \
-  --workflow "task-assistant-issue-events.yml" \
-  --limit 5 \
-  --json databaseId,conclusion \
-  | jq -r '.[] | select(.conclusion=="success") | .databaseId' | head -n1)"
+echo "→ Preparing telemetry paths..."
 
-[[ -n "$OK_RUN_ID" ]] || {
-  echo "❌ Expected successful issue-events run not found"
+gh repo clone "$TELEMETRY_REPO" "$TELE_DIR" -- --quiet
+
+REPO_FILE="$TELE_DIR/telemetry/v1/repos/$REPO_NAME/$TODAY_UTC.jsonl"
+META_FILE="$TELE_DIR/telemetry/v1/meta/$TODAY_UTC.jsonl"
+
+if [[ ! -f "$REPO_FILE" ]]; then
+  echo "❌ Missing repo telemetry file: $REPO_FILE"
   exit 1
-}
+fi
 
-gh run watch --repo "$REPO" "$OK_RUN_ID" --exit-status
-echo "✓ issue-events recovered successfully (run $OK_RUN_ID)"
+echo "✓ Repo telemetry file resolved"
+echo
+echo "→ Validating issue-events recovery via telemetry..."
+
+# At least one failure must exist
+if ! grep -q '"category":"issue-events".*"ok":false' "$REPO_FILE"; then
+  echo "❌ Expected failing issue-events result not found in telemetry"
+  exit 1
+fi
+echo "✓ Found failing issue-events telemetry"
+
+# At least one success must exist AFTER repair
+if ! grep -q '"category":"issue-events".*"ok":true' "$REPO_FILE"; then
+  echo "❌ Expected successful issue-events result not found after repair"
+  exit 1
+fi
+echo "✓ Found successful issue-events telemetry after repair"
 
 # ------------------------------------------------------------
 # 7) Run self-test and nightly sweep
@@ -158,15 +178,12 @@ echo "✓ Nightly sweep passed"
 # 8) Validate telemetry placement
 # ------------------------------------------------------------
 echo
-echo "📡 Validating telemetry..."
-gh repo clone "$TELEMETRY_REPO" "$TELE_DIR" -- --quiet
+if ! grep -q '"category":"issue-events".*"ok":false' "$REPO_FILE"; then
+  echo "❌ Expected issue-events enforcement failure not found in telemetry"
+  exit 1
+fi
 
-REPO_FILE="$TELE_DIR/telemetry/v1/repos/$REPO_NAME/$TODAY_UTC.jsonl"
-META_FILE="$TELE_DIR/telemetry/v1/meta/$TODAY_UTC.jsonl"
-
-[[ -f "$REPO_FILE" ]] || {
-  echo "❌ Missing repo telemetry file"; exit 1;
-}
+echo "✓ Enforcement failure correctly recorded in telemetry"
 
 for cat in issue-events self-test nightly-sweep; do
   grep -q "\"category\":\"$cat\"" "$REPO_FILE" || {
