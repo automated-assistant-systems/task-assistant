@@ -84,6 +84,41 @@ if (!result.ok) {
 }
 
 /* ──────────────────────────────
+   Track Labels (authoritative)
+   ────────────────────────────── */
+
+for (const track of config.tracks) {
+  if (!track.label) {
+    check(
+      `track.${track.id}`,
+      "FAIL",
+      "Track missing required label field"
+    );
+    continue;
+  }
+
+  const found = existingLabels.find(l => l.name === track.label);
+
+  if (!found) {
+    result.labels.created.push(track.label);
+    check(
+      `track.${track.id}`,
+      dryRun ? "WARN" : "PASS",
+      "Track label missing"
+    );
+
+    if (!dryRun) {
+      run(
+        `gh label create "${track.label}" --repo ${repo} ` +
+        `--color "C5DEF5" --description "${track.description || ""}"`
+      );
+    }
+  } else {
+    check(`track.${track.id}`, "PASS");
+  }
+}
+
+/* ──────────────────────────────
    Labels
    ────────────────────────────── */
 
