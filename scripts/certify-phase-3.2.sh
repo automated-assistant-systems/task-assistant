@@ -25,6 +25,14 @@ echo
 # 1. Reset sandbox to known state
 # ─────────────────────────────────────────────
 
+echo "📄 Installing Phase 3.2 canonical config..."
+
+gh api repos/"$REPO"/contents/.github/task-assistant.yml \
+  -X PUT \
+  -f message="chore: install Phase 3.2 Task Assistant config" \
+  -f content="$(base64 -w0 .github/task-assistant.yml)" \
+  -f sha="$(gh api repos/$REPO/contents/.github/task-assistant.yml --jq .sha 2>/dev/null || true)"
+
 echo "🧹 Resetting sandbox state..."
 
 gh issue list --repo "$REPO" --state open --json number \
