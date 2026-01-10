@@ -4,9 +4,9 @@
  *
  * Guarantees:
  * - Repo-scoped telemetry ONLY
- * - No writes to meta for repo events
- * - Concurrency-safe git push (rebase + retry)
- * - Deterministic failure after bounded retries
+ * - No writes to meta
+ * - Concurrency-safe (rebase before write)
+ * - Never fails on empty commits
  */
 
 import fs from "fs";
@@ -15,7 +15,7 @@ import path from "path";
 import { execSync } from "child_process";
 
 /* ──────────────────────────────
-   Configuration
+   Config
    ────────────────────────────── */
 
 const MAX_PUSH_ATTEMPTS = 5;
@@ -38,65 +38,53 @@ function sleep(ms) {
 }
 
 /* ──────────────────────────────
-   Read payload from stdin
+   Read stdin
    ────────────────────────────── */
 
-let payloadRaw = "";
+let input = "";
 process.stdin.setEncoding("utf8");
-process.stdin.on("data", chunk => (payloadRaw += chunk));
-process.stdin.on("end", () => main(payloadRaw));
+process.stdin.on("data", c => (input += c));
+process.stdin.on("end", () => main(input));
 
 /* ──────────────────────────────
    Main
    ────────────────────────────── */
 
-function main(input) {
-  if (!input) {
-    console.error("⚠️ telemetry: empty payload");
-    process.exit(1);
-  }
+function main(raw) {
+  if (!raw) process.exit(0);
 
   let payload;
   try {
-    payload = JSON.parse(input);
-  } catch (err) {
-    console.error("⚠️ telemetry: invalid JSON payload");
+    payload = JSON.parse(raw);
+  } catch {
+    console.error("⚠️ telemetry: invalid JSON");
     process.exit(1);
   }
 
   const telemetryRepo = process.env.TELEMETRY_REPO;
-  if (!telemetryRepo) {
-    console.error("⚠️ telemetry: TELEMETRY_REPO is not set");
-    process.exit(1);
-  }
-
   const ghToken = process.env.GH_TOKEN || process.env.GITHUB_TOKEN;
-  if (!ghToken) {
-    console.error("⚠️ telemetry: GH_TOKEN is not set");
+
+  if (!telemetryRepo || !ghToken) {
+    console.error("⚠️ telemetry: missing TELEMETRY_REPO or GH_TOKEN");
     process.exit(1);
   }
 
-  // Repo-scoped path ONLY
   const repoName = payload?.entity?.repo;
-  if (!repoName) {
-    console.error("⚠️ telemetry: missing entity.repo");
+  const date = payload?.generated_at?.slice(0, 10);
+
+  if (!repoName || !date) {
+    console.error("⚠️ telemetry: missing entity.repo or generated_at");
     process.exit(1);
   }
 
-  const date = payload.generated_at?.slice(0, 10);
-  if (!date) {
-    console.error("⚠️ telemetry: missing generated_at");
-    process.exit(1);
-  }
-
-  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "task-assistant-telemetry-"));
-  const repoDir = path.join(tmpDir, "telemetry");
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "task-assistant-telemetry-"));
+  const repoDir = path.join(tmp, "telemetry");
 
   try {
-    // Clone
-    run(
-      `git clone https://x-access-token:${ghToken}@github.com/${telemetryRepo}.git "${repoDir}"`
-    );
+    run(`git clone https://x-access-token:${ghToken}@github.com/${telemetryRepo}.git "${repoDir}"`);
+
+    // Always rebase BEFORE writing
+    run(`git -C "${repoDir}" pull --rebase`);
 
     const outDir = path.join(repoDir, "telemetry", "v1", "repos", repoName);
     fs.mkdirSync(outDir, { recursive: true });
@@ -106,34 +94,25 @@ function main(input) {
 
     run(`git -C "${repoDir}" add "${outFile}"`);
 
-    try {
-      run(`git -C "${repoDir}" diff --cached --quiet`);
-      // No changes staged → telemetry already recorded
-      return;
-    } catch {
-      // Changes exist → proceed to commit
-    }
-
+    // Never fail telemetry on empty commits
     run(
-      `git -C "${repoDir}" commit -m "telemetry: ${payload.event?.category || "event"}"`,
+      `git -C "${repoDir}" commit --allow-empty -m "telemetry: ${payload.event?.category || "event"}"`,
       { stdio: ["ignore", "ignore", "ignore"] }
     );
 
-    // Push with rebase + retry
     let attempt = 0;
     while (true) {
       try {
-        run(`git -C "${repoDir}" pull --rebase`);
         run(`git -C "${repoDir}" push`);
         break;
-      } catch (err) {
+      } catch {
         attempt++;
         if (attempt >= MAX_PUSH_ATTEMPTS) {
-          console.error("❌ telemetry: failed to push after retries");
-          throw err;
+          console.error("❌ telemetry: push failed after retries");
+          process.exit(1);
         }
-        const backoff = BASE_BACKOFF_MS * attempt;
-        sleep(backoff);
+        sleep(BASE_BACKOFF_MS * attempt);
+        run(`git -C "${repoDir}" pull --rebase`);
       }
     }
   } catch (err) {
@@ -141,6 +120,6 @@ function main(input) {
     console.error(err.stderr?.toString() || err.message);
     process.exit(1);
   } finally {
-    fs.rmSync(tmpDir, { recursive: true, force: true });
+    fs.rmSync(tmp, { recursive: true, force: true });
   }
 }
