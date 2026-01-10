@@ -12,6 +12,7 @@
 import fs from "fs";
 import yaml from "yaml";
 import { execSync } from "child_process";
+import { validateConfig } from "../config/validate-config.js";
 
 /* ──────────────────────────────
    CLI
@@ -181,8 +182,6 @@ async function main() {
     fail("config.load", err.message);
     return;
   }
-
-  import { validateConfig } from "../config/validate-config.js";
 
   const validation = validateConfig(config);
 
