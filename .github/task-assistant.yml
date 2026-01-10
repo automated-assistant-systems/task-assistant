@@ -33,30 +33,32 @@ tracks:
 # Prep script MUST create these
 # ──────────────────────────────
 labels:
+  # ── Phase labels (ordered, exclusive) ──
   - name: phase-3
     description: Phase 3 work
     color: "0E8A16"
 
   - name: phase-3.1
-    description: Phase 3.1 Telemetry Enhancements
+    description: Phase 3.1 – Telemetry Enhancements
     color: "1D76DB"
 
   - name: phase-3.2
-    color: "5319E7"
     description: Phase 3.2 – Hygiene & Enforcement
+    color: "5319E7"
 
   - name: phase-3.3
-    color: "FBCA04"
     description: Phase 3.3 – UX & Config Experience
+    color: "FBCA04"
 
   - name: phase-3.4
-    color: "D93F0B"
     description: Phase 3.4 – Marketplace Readiness
+    color: "D93F0B"
 
   - name: phase-3.5
-    color: "B60205"
     description: Phase 3.5 – Post-Release Hardening
+    color: "B60205"
 
+  # ── System / functional labels ──
   - name: telemetry
     description: Telemetry and evidence
     color: "5319E7"
@@ -73,6 +75,7 @@ labels:
     description: Marketplace readiness
     color: "D93F0B"
 
+  # ── Terminal state labels (system-mandated) ──
   - name: SUCCESS
     description: PR opened, tests passing
     color: "28A745"
@@ -124,20 +127,60 @@ milestones:
     due_offset_days: 70
 
 # ──────────────────────────────
-# ENFORCEMENT RULES
-# Runtime + validation expectations
+# PHASE 3.2 ENFORCEMENT RULES
+# Authoritative runtime behavior
 # ──────────────────────────────
 rules:
+
+  # ── Label exclusivity (Phase 3.2) ──
+  label_exclusivity:
+    groups:
+      tracks:
+        labels:
+          - track/sprint
+          - track/backlog
+          - track/support
+          - track/ops
+        mode: enforce        # remove conflicting labels automatically
+
+      phases:
+        labels:
+          - phase-3.1
+          - phase-3.2
+          - phase-3.3
+          - phase-3.4
+          - phase-3.5
+        mode: enforce        # highest phase wins
+
+  # ── Phase ordering & precedence ──
+  phase_order:
+    ordered: true
+    precedence: highest     # highest numeric phase takes priority
+
+  # ── Phase → milestone enforcement ──
+  phase_milestones:
+    phase-3.1: "Phase 3.1 – Telemetry Enhancements"
+    phase-3.2: "Phase 3.2 – Hygiene & Enforcement"
+    phase-3.3: "Phase 3.3 – UX & Config Experience"
+    phase-3.4: "Phase 3.4 – Marketplace Readiness"
+    phase-3.5: "Phase 3.5 – Post-Release Hardening"
+
+  milestone_enforcement:
+    require_matching_phase: true
+    auto_correct: true
+
+  # ── Track + milestone interaction ──
   track_hygiene:
     single_track_only: true
     normalize_on_change: true
 
-  milestone_enforcement:
     sprint_tracks_require_milestone: true
     non_sprint_tracks_forbid_milestone: true
 
+  # ── Idempotency & safety ──
   idempotency:
     allow_noop_edits: true
+    suppress_redundant_events: true
 
 # ──────────────────────────────
 # PREP BEHAVIOR
