@@ -19,11 +19,6 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: DEBUG app id
-        run: |
-          echo "RAW CODEX_APP_ID='${{ secrets.CODEX_APP_ID }}'"
-          echo "LENGTH=$(echo -n "${{ secrets.CODEX_APP_ID }}" | wc -c)"
-
       - name: Validate telemetry configuration
         run: |
           if [ -z "${TELEMETRY_REPO}" ]; then
