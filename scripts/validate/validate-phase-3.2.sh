@@ -178,6 +178,12 @@ echo "✓ Nightly sweep passed"
 # 8) Validate telemetry placement
 # ------------------------------------------------------------
 echo
+
+# Validate telemetry after all workflows have emitted
+until grep -q '"category":"nightly-sweep"' "$REPO_FILE"; do
+  sleep 2
+done
+
 if ! grep -q '"category":"issue-events".*"ok":false' "$REPO_FILE"; then
   echo "❌ Expected issue-events enforcement failure not found in telemetry"
   exit 1
