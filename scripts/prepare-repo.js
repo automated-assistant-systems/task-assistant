@@ -2,11 +2,11 @@
 /**
  * Task Assistant — Repository Preparation Script
  *
- * Phase 3.2
- * - Config validation
- * - Label reconciliation
- * - Milestone reconciliation
- * - NO telemetry emission
+ * Phase 3.3
+ * - Core config errors: FAIL
+ * - Enforcement config errors: WARN
+ * - Repo hygiene remains authoritative
+ * - No telemetry emitted here
  */
 
 import fs from "fs";
@@ -33,7 +33,10 @@ if (!repo) {
    ────────────────────────────── */
 
 function run(cmd) {
-  return execSync(cmd, { stdio: ["ignore", "pipe", "pipe"], encoding: "utf8" }).trim();
+  return execSync(cmd, {
+    stdio: ["ignore", "pipe", "pipe"],
+    encoding: "utf8"
+  }).trim();
 }
 
 /* ──────────────────────────────
@@ -72,64 +75,31 @@ try {
 }
 
 /* ──────────────────────────────
-   Config schema validation
+   Validate config
    ────────────────────────────── */
 
 const validation = validateConfig(config);
 
-/**
- * Enforcement config errors are WARN-only for prepare-repo.
- * Hygiene errors (tracks / labels / milestones) still fail later.
- */
+/* Enforcement warnings */
+for (const err of validation.enforcementErrors) {
+  check("config.enforcement", "WARN", err.message);
+}
+
+/* Core failures */
 if (!validation.ok) {
-  for (const err of validation.errors) {
-    // Treat enforcement errors as warnings
-    if (err.path?.startsWith("enforcement")) {
-      check(
-        "config.enforcement",
-        "WARN",
-        {
-          path: err.path,
-          problem: err.problem,
-          expected: err.expected,
-          fix: err.fix
-        }
-      );
-    } else {
-      // Unknown / non-enforcement schema errors are still failures
-      check(
-        "config.schema",
-        "FAIL",
-        {
-          path: err.path,
-          problem: err.problem,
-          expected: err.expected,
-          fix: err.fix
-        }
-      );
-    }
+  for (const err of validation.coreErrors) {
+    check("config.schema", "FAIL", err.message);
   }
-}
-
-if (validation.ok && config.enforcement !== undefined) {
-  check("config.enforcement", "PASS");
-}
-
-/* Required sections */
-for (const section of ["tracks", "labels", "milestones"]) {
-  if (!Array.isArray(config?.[section])) {
-    check(`config.section.${section}`, "FAIL", "Missing or invalid section");
-  } else {
-    check(`config.section.${section}`, "PASS");
-  }
-}
-
-if (!result.ok) {
   finalize();
 }
 
+/* Required sections (shape) */
+for (const section of ["tracks", "labels", "milestones"]) {
+  check(`config.section.${section}`, "PASS");
+}
+
 /* ──────────────────────────────
-   Load existing labels (shared)
+   Existing labels
    ────────────────────────────── */
 
 const existingLabels = JSON.parse(
@@ -137,16 +107,12 @@ const existingLabels = JSON.parse(
 );
 
 /* ──────────────────────────────
-   Track Labels (authoritative)
+   Track labels
    ────────────────────────────── */
 
 for (const track of config.tracks) {
   if (!track.label) {
-    check(
-      `track.${track.id}`,
-      "FAIL",
-      "Track missing required label field"
-    );
+    check(`track.${track.id}`, "FAIL", "Missing label");
     continue;
   }
 
@@ -154,12 +120,7 @@ for (const track of config.tracks) {
 
   if (!found) {
     result.labels.created.push(track.label);
-    check(
-      `track.${track.id}`,
-      dryRun ? "WARN" : "PASS",
-      "Track label missing"
-    );
-
+    check(`track.${track.id}`, dryRun ? "WARN" : "PASS", "Missing");
     if (!dryRun) {
       run(
         `gh label create "${track.label}" --repo ${repo} ` +

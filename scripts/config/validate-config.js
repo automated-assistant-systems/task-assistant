@@ -1,61 +1,57 @@
 /**
  * Task Assistant — Config Schema Validator
  *
- * Phase 3.3 compliant:
- * - deterministic
- * - human-readable errors
- * - no silent defaults
+ * Phase 3.3
+ * - Deterministic
+ * - Dependency-free
+ * - Error classification (core vs enforcement)
  */
 
 export function validateConfig(config) {
   const errors = [];
 
-  function fail({ path, problem, expected, fix }) {
-    errors.push({ path, problem, expected, fix });
+  function fail(scope, message) {
+    errors.push({ scope, message });
   }
 
-  // ---- Required top-level arrays ----
+  /* ──────────────────────────────
+     Core required sections
+     ────────────────────────────── */
+
   for (const key of ["tracks", "labels", "milestones"]) {
-    if (!Array.isArray(config[key])) {
-      fail({
-        path: key,
-        problem: "Value is missing or not an array.",
-        expected: "An array.",
-        fix: `Define '${key}' as an array in .github/task-assistant.yml.`,
-      });
+    if (!Array.isArray(config?.[key])) {
+      fail(
+        "core",
+        `Expected '${key}' to be an array`
+      );
     }
   }
 
-  // ---- Enforcement (optional but strict) ----
-  if (config.enforcement !== undefined) {
-    if (typeof config.enforcement !== "object") {
-      fail({
-        path: "enforcement",
-        problem: "Value must be an object.",
-        expected: "An object.",
-        fix: "Update enforcement to be a mapping, not a scalar.",
-      });
-    } else {
-      const excl = config.enforcement.exclusivity;
+  /* ──────────────────────────────
+     Enforcement (optional, warn-only)
+     ────────────────────────────── */
 
-      if (excl !== undefined && typeof excl !== "object") {
-        fail({
-          path: "enforcement.exclusivity",
-          problem: "Value must be an object.",
-          expected: "An object keyed by exclusivity groups.",
-          fix: "Define exclusivity groups as objects.",
-        });
-      }
+  if ("enforcement" in config) {
+    const enf = config.enforcement;
 
-      if (typeof excl === "object") {
-        for (const [group, rules] of Object.entries(excl)) {
+    if (typeof enf !== "object" || enf === null || Array.isArray(enf)) {
+      fail(
+        "enforcement",
+        "enforcement must be an object"
+      );
+    } else if (enf.exclusivity) {
+      if (typeof enf.exclusivity !== "object") {
+        fail(
+          "enforcement",
+          "enforcement.exclusivity must be an object"
+        );
+      } else {
+        for (const [group, rules] of Object.entries(enf.exclusivity)) {
           if (typeof rules !== "object") {
-            fail({
-              path: `enforcement.exclusivity.${group}`,
-              problem: "Group must be an object.",
-              expected: "An object with mode / strategy / terminal.",
-              fix: `Convert '${group}' to an object.`,
-            });
+            fail(
+              "enforcement",
+              `exclusivity.${group} must be an object`
+            );
             continue;
           }
 
@@ -63,41 +59,42 @@ export function validateConfig(config) {
             rules.mode &&
             !["enforce", "warn", "fail", "off"].includes(rules.mode)
           ) {
-            fail({
-              path: `enforcement.exclusivity.${group}.mode`,
-              problem: `Invalid value '${rules.mode}'.`,
-              expected: "One of: enforce, warn, fail, off.",
-              fix: "Replace with a supported mode.",
-            });
+            fail(
+              "enforcement",
+              `Invalid exclusivity.${group}.mode: ${rules.mode}`
+            );
           }
 
           if (
             rules.strategy &&
             !["highest", "lowest"].includes(rules.strategy)
           ) {
-            fail({
-              path: `enforcement.exclusivity.${group}.strategy`,
-              problem: `Invalid value '${rules.strategy}'.`,
-              expected: "One of: highest, lowest.",
-              fix: "Replace with a supported strategy.",
-            });
+            fail(
+              "enforcement",
+              `Invalid exclusivity.${group}.strategy: ${rules.strategy}`
+            );
           }
 
-          if (rules.terminal && !Array.isArray(rules.terminal)) {
-            fail({
-              path: `enforcement.exclusivity.${group}.terminal`,
-              problem: "Value must be an array.",
-              expected: "An array of terminal states.",
-              fix: "Convert terminal to an array.",
-            });
+          if (
+            rules.terminal &&
+            !Array.isArray(rules.terminal)
+          ) {
+            fail(
+              "enforcement",
+              `exclusivity.${group}.terminal must be an array`
+            );
           }
         }
       }
     }
   }
 
+  const coreErrors = errors.filter(e => e.scope === "core");
+  const enforcementErrors = errors.filter(e => e.scope === "enforcement");
+
   return {
-    ok: errors.length === 0,
-    errors,
+    ok: coreErrors.length === 0,
+    coreErrors,
+    enforcementErrors
   };
 }
