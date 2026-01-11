@@ -20,7 +20,7 @@ jobs:
         with:
           fetch-depth: 1
 
-      - name: Ensure dashboard directories exist
+      - name: Ensure dashboard root exists
         run: |
           mkdir -p telemetry/v1/dashboards
 
@@ -30,10 +30,10 @@ jobs:
           TELEMETRY_ROOT: telemetry/v1/repos
           DASHBOARD_ROOT: telemetry/v1/dashboards
 
-      - name: Commit dashboard updates
+      - name: Commit dashboard artifacts
         run: |
           git config user.name "task-assistant-bot"
           git config user.email "actions@github.com"
           git add telemetry/v1/dashboards
-          git commit -m "telemetry(v1): update dashboards" || echo "No changes"
-          git push || echo "No changes"
+          git commit -m "telemetry(v1): update dashboards" || echo "No dashboard changes"
+          git push || echo "No changes to push"
