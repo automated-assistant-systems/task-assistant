@@ -76,6 +76,7 @@ const validation = validateConfig(config);
 if (!validation.ok) {
   for (const err of validation.errors) {
     check("config.schema", "FAIL", err);
+    finalize();
   }
 }
 
