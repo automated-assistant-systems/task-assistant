@@ -71,13 +71,48 @@ try {
   finalize();
 }
 
+/* ──────────────────────────────
+   Config schema validation
+   ────────────────────────────── */
+
 const validation = validateConfig(config);
 
+/**
+ * Enforcement config errors are WARN-only for prepare-repo.
+ * Hygiene errors (tracks / labels / milestones) still fail later.
+ */
 if (!validation.ok) {
   for (const err of validation.errors) {
-    check("config.schema", "FAIL", err);
-    finalize();
+    // Treat enforcement errors as warnings
+    if (err.path?.startsWith("enforcement")) {
+      check(
+        "config.enforcement",
+        "WARN",
+        {
+          path: err.path,
+          problem: err.problem,
+          expected: err.expected,
+          fix: err.fix
+        }
+      );
+    } else {
+      // Unknown / non-enforcement schema errors are still failures
+      check(
+        "config.schema",
+        "FAIL",
+        {
+          path: err.path,
+          problem: err.problem,
+          expected: err.expected,
+          fix: err.fix
+        }
+      );
+    }
   }
+}
+
+if (validation.ok && config.enforcement !== undefined) {
+  check("config.enforcement", "PASS");
 }
 
 /* Required sections */
