@@ -12,6 +12,7 @@
 import fs from "fs";
 import { execSync } from "child_process";
 import yaml from "yaml";
+import { validateConfig } from "./config/validate-config.js";
 
 /* ──────────────────────────────
    CLI
