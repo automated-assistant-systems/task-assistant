@@ -70,6 +70,21 @@ try {
   finalize();
 }
 
+const validation = validateConfig(config);
+
+if (!validation.ok) {
+  console.error("❌ Task Assistant configuration error\n");
+
+  for (const e of validation.errors) {
+    console.error(`Path: ${e.path}`);
+    console.error(`Problem: ${e.problem}`);
+    console.error(`Expected: ${e.expected}`);
+    console.error(`How to fix: ${e.fix}\n`);
+  }
+
+  process.exit(1);
+}
+
 /* Required sections */
 for (const section of ["tracks", "labels", "milestones"]) {
   if (!Array.isArray(config?.[section])) {
