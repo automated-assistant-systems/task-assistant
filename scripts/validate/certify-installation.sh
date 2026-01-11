@@ -9,4 +9,4 @@ if [[ -z "$REPO" ]]; then
 fi
 scripts/sandbox/reset-sandbox.sh "$REPO"
 scripts/sandbox/install-task-assistant.sh "$REPO"
-scripts/validate/validate-phase-3.2.sh "$REPO"
+scripts/validate/validate-workflows.sh "$REPO"
