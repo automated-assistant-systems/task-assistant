@@ -1,40 +1,39 @@
 ---
 name: Task Assistant • Dashboard Build
 
-# yamllinit disable rule:truthy
+# yamllint disable rule:truthy
 on:
   workflow_dispatch:
   schedule:
-    - cron: "0 * * * *"   # hourly
+    - cron: "15 * * * *"   # hourly, offset from emit jobs
 
 permissions:
-  contents: write
+  contents: write   # telemetry repo only
 
 jobs:
-  build_dashboard:
+  build_dashboards:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
+      - name: Checkout telemetry repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
 
-      - name: Ensure Dashboard Directory Exists
+      - name: Ensure dashboard directories exist
         run: |
-          mkdir -p dashboard
-          echo "Dashboard directory ready"
+          mkdir -p telemetry/v1/dashboards
 
-      - name: Aggregate Telemetry (stub)
-        id: aggregate
-        run: |
-          echo "Aggregating telemetry files (stub)"
-          # The final aggregator will parse telemetry/events and sweeps
-          echo "{ \"stub\": true, \"generated_at\": \"$(date -u +"%Y-%m-%dT%H:%M:%SZ")\" }" > dashboard/dashboard.json
+      - name: Build dashboards from telemetry
+        run: node scripts/build-dashboards.js
+        env:
+          TELEMETRY_ROOT: telemetry/v1/repos
+          DASHBOARD_ROOT: telemetry/v1/dashboards
 
-      - name: Commit Dashboard
+      - name: Commit dashboard updates
         run: |
           git config user.name "task-assistant-bot"
           git config user.email "actions@github.com"
-          git add dashboard/dashboard.json
-          git commit -m "Update dashboard snapshot" || echo "No changes"
+          git add telemetry/v1/dashboards
+          git commit -m "telemetry(v1): update dashboards" || echo "No changes"
           git push || echo "No changes"
-
