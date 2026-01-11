@@ -74,14 +74,9 @@ try {
 const validation = validateConfig(config);
 
 if (!validation.ok) {
-  emitTelemetry({
-    category: workflowCategory,
-    action: "result",
-    reason: "config.schema",
-    ok: false,
-    checks: validation.errors.map(...)
-  });
-  process.exit(1);
+  for (const err of validation.errors) {
+    check("config.schema", "FAIL", err);
+  }
 }
 
 /* Required sections */
