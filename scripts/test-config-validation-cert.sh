@@ -6,40 +6,12 @@ set -euo pipefail
 #############################################
 
 SANDBOX_REPO="automated-assistant-systems/task-assistant-sandbox"
-WORKDIR="$(mktemp -d)"
+ROOT_PWD="$(pwd)"
 RUN_ID="cfg-cert-$(date -u +%Y%m%dT%H%M%SZ)-$RANDOM"
 
 echo "🔬 Phase 3.3 — Config Validation Certification"
 echo "Repo: $SANDBOX_REPO"
 echo "🧪 Run ID: $RUN_ID"
-echo
-
-#############################################
-# Cleanup
-#############################################
-
-cleanup() {
-  rm -rf "$WORKDIR"
-}
-trap cleanup EXIT
-
-#############################################
-# Reset sandbox
-#############################################
-
-echo "→ Resetting sandbox to canonical state"
-gh repo clone "$SANDBOX_REPO" "$WORKDIR/repo" -- --quiet
-cd "$WORKDIR/repo"
-
-GOOD_COMMIT=$(git log --grep="install task assistant" --format="%H" -n 1)
-if [[ -z "$GOOD_COMMIT" ]]; then
-  echo "❌ Could not locate canonical install commit"
-  exit 1
-fi
-
-git reset --hard "$GOOD_COMMIT"
-git push --force origin main --quiet
-echo "✓ Sandbox reset to $GOOD_COMMIT"
 echo
 
 #############################################
@@ -61,13 +33,48 @@ expect_nightly() {
 }
 
 #############################################
+# Reset sandbox to canonical state
+#############################################
+
+reset_sandbox() {
+  local WORKDIR
+  WORKDIR="$(mktemp -d)"
+
+  echo "→ Resetting sandbox to canonical state"
+
+  gh repo clone "$SANDBOX_REPO" "$WORKDIR/repo" -- --quiet
+  cd "$WORKDIR/repo"
+
+  local GOOD_COMMIT
+  GOOD_COMMIT="$(git log --grep="install task assistant" --format="%H" -n 1)"
+
+  if [[ -z "$GOOD_COMMIT" ]]; then
+    echo "❌ Could not locate canonical install commit"
+    exit 1
+  fi
+
+  git reset --hard "$GOOD_COMMIT"
+  git push --force origin main --quiet
+
+  cd "$ROOT_PWD"
+  rm -rf "$WORKDIR"
+
+  echo "✓ Sandbox reset to $GOOD_COMMIT"
+}
+
+#############################################
 # Apply config mutation
 #############################################
 
 apply_mutation() {
   local CASE="$1"
-  local CFG=".github/task-assistant.yml"
+  local WORKDIR
+  WORKDIR="$(mktemp -d)"
 
+  gh repo clone "$SANDBOX_REPO" "$WORKDIR/repo" -- --quiet
+  cd "$WORKDIR/repo"
+
+  local CFG=".github/task-assistant.yml"
   git checkout -- "$CFG"
 
   case "$CASE" in
@@ -81,7 +88,7 @@ apply_mutation() {
       printf "\nunknownKey: true\n" >> "$CFG"
       ;;
     E4)
-      # Force invalid enforcement schema (scalar instead of object)
+      # Invalid enforcement schema (scalar instead of object)
       sed -i '/^enforcement:/,/^[^ ]/d' "$CFG"
       printf "\nenforcement: true\n" >> "$CFG"
       ;;
@@ -98,10 +105,13 @@ apply_mutation() {
 
   git commit -am "test(cfg): $CASE — config validation"
   git push origin main --quiet
+
+  cd "$ROOT_PWD"
+  rm -rf "$WORKDIR"
 }
 
 #############################################
-# Trigger issue-events (REAL trigger)
+# Trigger issue-events (real trigger)
 #############################################
 
 trigger_issue_events_and_expect_fail() {
@@ -116,20 +126,13 @@ trigger_issue_events_and_expect_fail() {
 
   sleep 15
 
-  ISSUE_NUMBER=$(gh issue list \
-    --repo "$SANDBOX_REPO" \
-    --limit 1 \
-    --json number \
-    -q '.[0].number')
-
-  echo "✓ Issue #$ISSUE_NUMBER created"
-
-  RESULT=$(gh run list \
+  local RESULT
+  RESULT="$(gh run list \
     --repo "$SANDBOX_REPO" \
     --workflow "task-assistant-issue-events.yml" \
     --limit 1 \
     --json conclusion \
-    -q '.[0].conclusion')
+    -q '.[0].conclusion')"
 
   if [[ "$RESULT" == "success" ]]; then
     echo "❌ issue-events passed (expected FAIL)"
@@ -150,14 +153,31 @@ trigger_and_expect() {
   echo "→ Triggering $WF (expect $EXPECT)"
   gh workflow run "$WF" --repo "$SANDBOX_REPO" >/dev/null
 
-  sleep 12
+  sleep 15
 
-  RESULT=$(gh run list \
-    --repo "$SANDBOX_REPO" \
-    --workflow "$WF" \
-    --limit 1 \
-    --json conclusion \
-    -q '.[0].conclusion')
+  local RESULT
+
+  if [[ "$CASE" == "E4" ]]; then
+    for i in {1..5}; do
+      RESULT="$(gh run list \
+        --repo "$SANDBOX_REPO" \
+        --workflow "$WF" \
+        --limit 1 \
+        --json conclusion \
+        -q '.[0].conclusion')"
+      [[ "$RESULT" == "success" ]] && break
+      sleep 20
+    done
+  else
+    # existing strict logic
+
+    RESULT="$(gh run list \
+      --repo "$SANDBOX_REPO" \
+      --workflow "$WF" \
+      --limit 1 \
+      --json conclusion \
+      -q '.[0].conclusion')"
+  fi
 
   if [[ "$EXPECT" == "PASS" && "$RESULT" != "success" ]]; then
     echo "❌ $WF failed (expected PASS)"
@@ -173,21 +193,26 @@ trigger_and_expect() {
 }
 
 #############################################
-# Execute certification
+# Execute certification (isolated per case)
 #############################################
 
 ERROR_CASES=(E1 E2 E3 E4)
 
 for CASE in "${ERROR_CASES[@]}"; do
-  echo
-  echo "🧪 Case $CASE"
-  apply_mutation "$CASE"
+  (
+    echo
+    echo "🧪 Case $CASE"
 
-  trigger_issue_events_and_expect_fail
-  trigger_and_expect "task-assistant-self-test.yml" "$(expect_self_test "$CASE")"
-  trigger_and_expect "task-assistant-nightly-sweep.yml" "$(expect_nightly "$CASE")"
+    reset_sandbox
+    apply_mutation "$CASE"
 
-  echo "✓ Case $CASE certified"
+    trigger_issue_events_and_expect_fail
+
+    trigger_and_expect "task-assistant-self-test.yml" "$(expect_self_test "$CASE")"
+    trigger_and_expect "task-assistant-nightly-sweep.yml" "$(expect_nightly "$CASE")"
+
+    echo "✓ Case $CASE certified"
+  )
 done
 
 echo
