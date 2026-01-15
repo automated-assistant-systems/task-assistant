@@ -67,7 +67,6 @@ function check(id, outcome, details = null) {
    ────────────────────────────── */
 
 let config;
-try {
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "task-assistant-prepare-"));
 const cloneDir = path.join(tmp, "repo");
