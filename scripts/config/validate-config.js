@@ -1,3 +1,6 @@
+
+gary@LAPTOP-A917D90J:~/projects/task-assistant-app/task-assistant$ cat scri
+pts/config/validate-config.js
 /**
  * Task Assistant — Config Schema Validator
  *
