@@ -29,36 +29,25 @@ jobs:
       TELEMETRY_REPO: ${{ inputs.telemetry_repo }}
 
     steps:
-      # ─────────────────────────────────────────────
-      # Checkout Task Assistant (host repo)
-      # ─────────────────────────────────────────────
-      - name: Checkout Task Assistant
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      # ─────────────────────────────────────────────
-      # Setup Node
-      # ─────────────────────────────────────────────
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 20
 
-      - name: Install dependencies
-        run: npm ci
+      - run: npm ci
 
       # ─────────────────────────────────────────────
-      # Parse target repo
+      # Parse target repo (bash, not expressions)
       # ─────────────────────────────────────────────
       - name: Parse target repo
         run: |
-          OWNER="${{ inputs.target_repo%%/* }}"
-          REPO="${{ inputs.target_repo##*/ }}"
-          echo "OWNER=$OWNER" >> $GITHUB_ENV
-          echo "REPO=$REPO" >> $GITHUB_ENV
+          TARGET="${{ inputs.target_repo }}"
+          OWNER="${TARGET%%/*}"
+          REPO="${TARGET##*/}"
+          echo "OWNER=$OWNER" >> "$GITHUB_ENV"
+          echo "REPO=$REPO" >> "$GITHUB_ENV"
 
-      # ─────────────────────────────────────────────
-      # Generate GitHub App token
-      # ─────────────────────────────────────────────
       - name: Generate GitHub App token
         id: app-token
         uses: actions/create-github-app-token@v1
@@ -67,11 +56,7 @@ jobs:
           private-key: ${{ secrets.CODEX_PRIVATE_KEY }}
           owner: ${{ env.OWNER }}
 
-      # ─────────────────────────────────────────────
-      # Run enforcement logic
-      # ─────────────────────────────────────────────
       - name: Enforce issue hygiene
-        id: enforce
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
@@ -79,9 +64,6 @@ jobs:
             "${{ inputs.target_repo }}" \
             --json > result.json
 
-      # ─────────────────────────────────────────────
-      # Emit enforcement telemetry
-      # ─────────────────────────────────────────────
       - name: Emit enforcement telemetry
         if: always()
         env:
@@ -110,6 +92,4 @@ jobs:
               details: .
             }' result.json
           )
-
-          echo "$PAYLOAD" | jq . >/dev/null
           echo "$PAYLOAD" | node scripts/telemetry/emit.js
