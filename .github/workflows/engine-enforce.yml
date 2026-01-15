@@ -1,0 +1,115 @@
+---
+name: Task Assistant • Engine • Enforce
+
+# yamllint disable rule:truthy
+on:
+  workflow_call:
+    inputs:
+      target_repo:
+        required: true
+        type: string
+      telemetry_repo:
+        required: true
+        type: string
+      correlation_id:
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  issues: write
+  id-token: write
+
+jobs:
+  enforce:
+    runs-on: ubuntu-latest
+
+    env:
+      CORRELATION_ID: ${{ inputs.correlation_id }}
+      TELEMETRY_REPO: ${{ inputs.telemetry_repo }}
+
+    steps:
+      # ─────────────────────────────────────────────
+      # Checkout Task Assistant (host repo)
+      # ─────────────────────────────────────────────
+      - name: Checkout Task Assistant
+        uses: actions/checkout@v4
+
+      # ─────────────────────────────────────────────
+      # Setup Node
+      # ─────────────────────────────────────────────
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm ci
+
+      # ─────────────────────────────────────────────
+      # Parse target repo
+      # ─────────────────────────────────────────────
+      - name: Parse target repo
+        run: |
+          OWNER="${{ inputs.target_repo%%/* }}"
+          REPO="${{ inputs.target_repo##*/ }}"
+          echo "OWNER=$OWNER" >> $GITHUB_ENV
+          echo "REPO=$REPO" >> $GITHUB_ENV
+
+      # ─────────────────────────────────────────────
+      # Generate GitHub App token
+      # ─────────────────────────────────────────────
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.CODEX_APP_ID }}
+          private-key: ${{ secrets.CODEX_PRIVATE_KEY }}
+          owner: ${{ env.OWNER }}
+
+      # ─────────────────────────────────────────────
+      # Run enforcement logic
+      # ─────────────────────────────────────────────
+      - name: Enforce issue hygiene
+        id: enforce
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          node scripts/enforcement/issue-events.js \
+            "${{ inputs.target_repo }}" \
+            --json > result.json
+
+      # ─────────────────────────────────────────────
+      # Emit enforcement telemetry
+      # ─────────────────────────────────────────────
+      - name: Emit enforcement telemetry
+        if: always()
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          PAYLOAD=$(jq -c '
+            {
+              schema_version: "1.0",
+              generated_at: (now | todate),
+              correlation_id: env.CORRELATION_ID,
+              source: {
+                workflow: "engine-enforce.yml",
+                job: "enforce",
+                run_id: env.GITHUB_RUN_ID
+              },
+              entity: {
+                type: "repository",
+                owner: env.OWNER,
+                repo: env.REPO
+              },
+              event: {
+                category: "enforce",
+                action: "issue-events",
+                reason: .summary
+              },
+              details: .
+            }' result.json
+          )
+
+          echo "$PAYLOAD" | jq . >/dev/null
+          echo "$PAYLOAD" | node scripts/telemetry/emit.js
