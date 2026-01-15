@@ -29,9 +29,6 @@ permissions:
   issues: write
   id-token: write
 
-env:
-  CORRELATION_ID: ${{ github.run_id }}-${{ github.run_attempt }}
-
 jobs:
   resolve:
     runs-on: ubuntu-latest
@@ -39,10 +36,13 @@ jobs:
       target_repo: ${{ steps.ctx.outputs.target_repo }}
       telemetry_repo: ${{ steps.ctx.outputs.telemetry_repo }}
       mode: ${{ steps.ctx.outputs.mode }}
+      correlation_id: ${{ steps.ctx.outputs.correlation_id }}
     steps:
       - id: ctx
         run: |
           set -euo pipefail
+
+          CORRELATION_ID="${{ github.run_id }}-${{ github.run_attempt }}"
 
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             TARGET_REPO="${{ inputs.target_repo }}"
@@ -58,9 +58,10 @@ jobs:
           OWNER="${TARGET_REPO%%/*}"
           TELEMETRY_REPO="${OWNER}/task-assistant-telemetry"
 
-          echo "target_repo=$TARGET_REPO" >> $GITHUB_OUTPUT
-          echo "telemetry_repo=$TELEMETRY_REPO" >> $GITHUB_OUTPUT
-          echo "mode=$MODE" >> $GITHUB_OUTPUT
+          echo "target_repo=$TARGET_REPO" >> "$GITHUB_OUTPUT"
+          echo "telemetry_repo=$TELEMETRY_REPO" >> "$GITHUB_OUTPUT"
+          echo "mode=$MODE" >> "$GITHUB_OUTPUT"
+          echo "correlation_id=$CORRELATION_ID" >> "$GITHUB_OUTPUT"
 
   self_test:
     if: needs.resolve.outputs.mode == 'self-test'
@@ -69,7 +70,7 @@ jobs:
     with:
       target_repo: ${{ needs.resolve.outputs.target_repo }}
       telemetry_repo: ${{ needs.resolve.outputs.telemetry_repo }}
-      correlation_id: ${{ env.CORRELATION_ID }}
+      correlation_id: ${{ needs.resolve.outputs.correlation_id }}
 
   validate:
     if: needs.resolve.outputs.mode == 'validate'
@@ -78,7 +79,7 @@ jobs:
     with:
       target_repo: ${{ needs.resolve.outputs.target_repo }}
       telemetry_repo: ${{ needs.resolve.outputs.telemetry_repo }}
-      correlation_id: ${{ env.CORRELATION_ID }}
+      correlation_id: ${{ needs.resolve.outputs.correlation_id }}
 
   enforce:
     if: needs.resolve.outputs.mode == 'enforce'
@@ -87,4 +88,4 @@ jobs:
     with:
       target_repo: ${{ needs.resolve.outputs.target_repo }}
       telemetry_repo: ${{ needs.resolve.outputs.telemetry_repo }}
-      correlation_id: ${{ env.CORRELATION_ID }}
+      correlation_id: ${{ needs.resolve.outputs.correlation_id }}
