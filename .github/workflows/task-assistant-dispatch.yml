@@ -103,6 +103,14 @@ jobs:
       # ─────────────────────────────────────────────
       # Route execution (Core disabled for Marketplace)
       # ─────────────────────────────────────────────
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm ci
+
       - name: Route to Task Assistant engine
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
