@@ -12,6 +12,8 @@
 import fs from "fs";
 import { execSync } from "child_process";
 import yaml from "yaml";
+import os from "os";
+import path from "path";
 import { validateConfig } from "./config/validate-config.js";
 
 /* ──────────────────────────────
@@ -66,12 +68,37 @@ function check(id, outcome, details = null) {
 
 let config;
 try {
-  const raw = fs.readFileSync(".github/task-assistant.yml", "utf8");
+
+const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "task-assistant-prepare-"));
+const cloneDir = path.join(tmp, "repo");
+
+try {
+  const token = process.env.GH_TOKEN || process.env.GITHUB_TOKEN;
+  if (!token) throw new Error("GH_TOKEN is required");
+
+  run(
+    `git clone https://x-access-token:${token}@github.com/${repo}.git "${cloneDir}"`
+  );
+
+  const configPath = path.join(
+    cloneDir,
+    ".github",
+    "task-assistant.yml"
+  );
+
+  if (!fs.existsSync(configPath)) {
+    check("config.load", "FAIL", "Missing .github/task-assistant.yml");
+    finalize();
+  }
+
+  const raw = fs.readFileSync(configPath, "utf8");
   config = yaml.parse(raw);
   check("config.load", "PASS");
 } catch (err) {
   check("config.load", "FAIL", err.message);
   finalize();
+} finally {
+  fs.rmSync(tmp, { recursive: true, force: true });
 }
 
 /* ──────────────────────────────
