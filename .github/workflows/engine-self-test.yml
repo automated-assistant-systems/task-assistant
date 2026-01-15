@@ -1,0 +1,64 @@
+---
+name: Task Assistant • Engine • Self-Test
+
+on:
+  workflow_call:
+    inputs:
+      target_repo:
+        required: true
+        type: string
+      telemetry_repo:
+        required: true
+        type: string
+      correlation_id:
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  issues: read
+  id-token: write
+
+jobs:
+  self_test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Task Assistant
+        uses: actions/checkout@v4
+
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.CODEX_APP_ID }}
+          private-key: ${{ secrets.CODEX_PRIVATE_KEY }}
+          owner: ${{ inputs.target_repo.split('/')[0] }}
+
+      - name: Run prepare-repo dry-run
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          node scripts/prepare-repo.js "${{ inputs.target_repo }}" --dry-run
+
+      - name: Emit telemetry
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          node scripts/telemetry/emit.js <<EOF
+          {
+            "schema_version": "1.0",
+            "generated_at": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
+            "correlation_id": "${{ inputs.correlation_id }}",
+            "entity": {
+              "type": "repository",
+              "owner": "${{ inputs.target_repo.split('/')[0] }}",
+              "repo": "${{ inputs.target_repo.split('/')[1] }}"
+            },
+            "event": {
+              "category": "self-test",
+              "action": "complete"
+            },
+            "details": {}
+          }
+          EOF

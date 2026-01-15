@@ -1,0 +1,167 @@
+---
+name: Task Assistant • Dispatch
+
+# yamllint disable rule:truthy
+on:
+  # ─────────────────────────────────────────────
+  # Manual operator execution (Marketplace-safe)
+  # ─────────────────────────────────────────────
+  workflow_dispatch:
+    inputs:
+      target_repo:
+        description: "Target repository (owner/repo)"
+        required: true
+      mode:
+        description: "Execution mode"
+        required: true
+        default: "self-test"
+        type: choice
+        options:
+          - self-test
+          - validate
+          - enforce
+
+  # ─────────────────────────────────────────────
+  # Event-driven triggers (non-destructive by default)
+  # ─────────────────────────────────────────────
+  issues:
+    types: [labeled]
+
+  # ─────────────────────────────────────────────
+  # Scheduled diagnostics (read-only)
+  # ─────────────────────────────────────────────
+  schedule:
+    - cron: "0 3 * * *"   # daily diagnostics (UTC)
+
+permissions:
+  contents: write
+  issues: write
+  id-token: write
+
+env:
+  CORRELATION_ID: ${{ github.run_id }}-${{ github.run_attempt }}
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+
+    steps:
+      # ─────────────────────────────────────────────
+      # Checkout Task Assistant (host repo)
+      # ─────────────────────────────────────────────
+      - name: Checkout Task Assistant
+        uses: actions/checkout@v4
+
+      # ─────────────────────────────────────────────
+      # Normalize context and determine target repo
+      # ─────────────────────────────────────────────
+      - name: Resolve target repository
+        id: context
+        run: |
+          set -euo pipefail
+
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TARGET_REPO="${{ inputs.target_repo }}"
+            MODE="${{ inputs.mode }}"
+          elif [ "${{ github.event_name }}" = "issues" ]; then
+            TARGET_REPO="${{ github.repository }}"
+            MODE="enforce"
+          elif [ "${{ github.event_name }}" = "schedule" ]; then
+            TARGET_REPO="${{ github.repository }}"
+            MODE="validate"
+          else
+            echo "::error::Unsupported trigger"
+            exit 1
+          fi
+
+          OWNER="${TARGET_REPO%%/*}"
+          REPO="${TARGET_REPO##*/}"
+          TELEMETRY_REPO="${OWNER}/task-assistant-telemetry"
+
+          echo "TARGET_REPO=$TARGET_REPO" >> $GITHUB_ENV
+          echo "TARGET_OWNER=$OWNER" >> $GITHUB_ENV
+          echo "TARGET_REPO_NAME=$REPO" >> $GITHUB_ENV
+          echo "TELEMETRY_REPO=$TELEMETRY_REPO" >> $GITHUB_ENV
+          echo "MODE=$MODE" >> $GITHUB_ENV
+
+          echo "Resolved:"
+          echo "  target_repo=$TARGET_REPO"
+          echo "  mode=$MODE"
+          echo "  telemetry_repo=$TELEMETRY_REPO"
+
+      # ─────────────────────────────────────────────
+      # Generate GitHub App token (cross-org safe)
+      # ─────────────────────────────────────────────
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.CODEX_APP_ID }}
+          private-key: ${{ secrets.CODEX_PRIVATE_KEY }}
+          owner: ${{ env.TARGET_OWNER }}
+
+      # ─────────────────────────────────────────────
+      # Route execution (Core disabled for Marketplace)
+      # ─────────────────────────────────────────────
+      - name: Route to Task Assistant engine
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          set -euo pipefail
+
+          echo "Routing mode: $MODE"
+
+          case "$MODE" in
+            self-test)
+              node scripts/prepare-repo.js "$TARGET_REPO" --dry-run
+              ;;
+            validate)
+              node scripts/config/validate-config.js "$TARGET_REPO"
+              ;;
+            enforce)
+              node scripts/enforcement/issue-events.js "$TARGET_REPO"
+              ;;
+            *)
+              echo "::error::Unknown mode: $MODE"
+              exit 1
+              ;;
+          esac
+
+      # ─────────────────────────────────────────────
+      # Emit telemetry (customer-owned repo)
+      # ─────────────────────────────────────────────
+      - name: Emit dispatch telemetry
+        if: always()
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          PAYLOAD=$(jq -n -c \
+            --arg cid "$CORRELATION_ID" \
+            --arg mode "$MODE" \
+            --arg owner "$TARGET_OWNER" \
+            --arg repo "$TARGET_REPO_NAME" \
+            '{
+              schema_version: "1.0",
+              generated_at: (now | todate),
+              correlation_id: $cid,
+              source: {
+                workflow: "task-assistant-dispatch.yml",
+                job: "dispatch",
+                run_id: env.GITHUB_RUN_ID
+              },
+              entity: {
+                type: "repository",
+                owner: $owner,
+                repo: $repo
+              },
+              event: {
+                category: "dispatch",
+                action: $mode,
+                reason: null
+              },
+              details: {}
+            }'
+          )
+
+          echo "$PAYLOAD" | jq . >/dev/null
+          echo "$PAYLOAD" | node scripts/telemetry/emit.js
