@@ -1,55 +1,15 @@
-version: 1
+schema_version: "1.0"
 
-meta:
-  name: Task Assistant
-  description: >
-    Task Assistant configuration defining track semantics, labels,
-    milestones, and enforcement rules. This file is the authoritative
-    contract used by prep and runtime automation.
-
-# ──────────────────────────────
-# TRACK DEFINITIONS
-# ──────────────────────────────
 tracks:
   - id: sprint
     label: track/sprint
     description: Active sprint work
-    default_milestone_pattern: "Sprint {{sprint}}"
 
   - id: backlog
     label: track/backlog
     description: Planned but unscheduled work
 
-  - id: support
-    label: track/support
-    description: User-facing or operational support work
-
-  - id: ops
-    label: track/ops
-    description: Infrastructure and maintenance tasks
-
-# ──────────────────────────────
-# LABEL DEFINITIONS
-# Prep script MUST create these
-# ──────────────────────────────
 labels:
-  # ── Phase labels (ordered, exclusive) ──
-  - name: phase-3
-    description: Phase 3 work
-    color: "0E8A16"
-
-  - name: phase-3.1
-    description: Phase 3.1 – Telemetry Enhancements
-    color: "1D76DB"
-
-  - name: phase-3.2
-    description: Phase 3.2 – Hygiene & Enforcement
-    color: "5319E7"
-
-  - name: phase-3.3
-    description: Phase 3.3 – UX & Config Experience
-    color: "FBCA04"
-
   - name: phase-3.4
     description: Phase 3.4 – Marketplace Readiness
     color: "D93F0B"
@@ -58,136 +18,12 @@ labels:
     description: Phase 3.5 – Post-Release Hardening
     color: "B60205"
 
-  # ── System / functional labels ──
-  - name: telemetry
-    description: Telemetry and evidence
-    color: "5319E7"
-
-  - name: enforcement
-    description: Enforcement logic
-    color: "B60205"
-
-  - name: quality-gate
-    description: Quality enforcement gates
-    color: "7057FF"
-
-  - name: marketplace
-    description: Marketplace readiness
-    color: "D93F0B"
-
-  # ── Terminal state labels (system-mandated) ──
-  - name: SUCCESS
-    description: PR opened, tests passing
-    color: "28A745"
-
-  - name: PARTIAL
-    description: PR opened, tests failing
-    color: "007BFF"
-
-  - name: BLOCKED
-    description: Invalid or incomplete issue
-    color: "6C757D"
-
-  - name: FAILED
-    description: Execution error
-    color: "DC3545"
-
-  - name: codex:execute
-    description: Codex Issue Trigger
-    color: "6C757D"
-
-# ──────────────────────────────
-# MILESTONE DEFINITIONS
-# Prep script MUST create these
-# ──────────────────────────────
 milestones:
-  - id: phase-3-1
-    title: "Phase 3.1 – Telemetry Enhancements"
-    description: "Telemetry schema, evidence capture, and reporting improvements"
-    due_offset_days: 14
+  - title: "Phase 3.4 – Marketplace Readiness"
+  - title: "Phase 3.5 – Post-Release Hardening"
 
-  - id: phase-3-2
-    title: "Phase 3.2 – Hygiene & Enforcement"
-    description: "Label normalization, track enforcement, and safety rules"
-    due_offset_days: 28
-
-  - id: phase-3-3
-    title: "Phase 3.3 – UX & Config Experience"
-    description: "Repo configuration UX, validation, and onboarding flow"
-    due_offset_days: 42
-
-  - id: phase-3-4
-    title: "Phase 3.4 – Marketplace Readiness"
-    description: "Hardening for GitHub Marketplace release"
-    due_offset_days: 56
-
-  - id: phase-3-5
-    title: "Phase 3.5 – Post-Release Hardening"
-    description: "Observability, performance, and edge-case handling"
-    due_offset_days: 70
-
-# ──────────────────────────────
-# PHASE 3.2 ENFORCEMENT RULES
-# Authoritative runtime behavior
-# ──────────────────────────────
-rules:
-
-  # ── Label exclusivity (Phase 3.2) ──
-  label_exclusivity:
-    groups:
-      tracks:
-        labels:
-          - track/sprint
-          - track/backlog
-          - track/support
-          - track/ops
-        mode: enforce        # remove conflicting labels automatically
-
-      phases:
-        labels:
-          - phase-3.1
-          - phase-3.2
-          - phase-3.3
-          - phase-3.4
-          - phase-3.5
-        mode: enforce        # highest phase wins
-
-  # ── Phase ordering & precedence ──
-  phase_order:
-    ordered: true
-    precedence: highest     # highest numeric phase takes priority
-
-  # ── Phase → milestone enforcement ──
-  phase_milestones:
-    phase-3.1: "Phase 3.1 – Telemetry Enhancements"
-    phase-3.2: "Phase 3.2 – Hygiene & Enforcement"
-    phase-3.3: "Phase 3.3 – UX & Config Experience"
-    phase-3.4: "Phase 3.4 – Marketplace Readiness"
-    phase-3.5: "Phase 3.5 – Post-Release Hardening"
-
-  milestone_enforcement:
-    require_matching_phase: true
-    auto_correct: true
-
-  # ── Track + milestone interaction ──
-  track_hygiene:
-    single_track_only: true
-    normalize_on_change: true
-
-    sprint_tracks_require_milestone: true
-    non_sprint_tracks_forbid_milestone: true
-
-  # ── Idempotency & safety ──
-  idempotency:
-    allow_noop_edits: true
-    suppress_redundant_events: true
-
-# ──────────────────────────────
-# PREP BEHAVIOR
-# Used explicitly by prep scripts
-# ──────────────────────────────
-prep:
-  create_missing_labels: true
-  create_missing_milestones: true
-  close_removed_milestones: false
-  dry_run_supported: true
+enforcement:
+  exclusivity:
+    phase:
+      mode: enforce
+      strategy: highest
