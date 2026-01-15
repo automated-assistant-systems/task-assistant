@@ -42,6 +42,27 @@ if (!owner || !repoName) {
   process.exit(1);
 }
 
+// ──────────────────────────────
+// Argument hardening (fail fast)
+// ──────────────────────────────
+
+const issueNum = Number(issueNumber);
+
+if (!Number.isInteger(issueNum) || issueNum <= 0) {
+  const msg =
+    "Invalid --issue value. Must be a positive integer. " +
+    "Usage: issue-events.js --repo <owner/repo> --issue <number> [--event <type>] [--json]";
+
+  process.stdout.write(
+    JSON.stringify({
+      ok: false,
+      summary: msg,
+      details: { repo: repoArg, issue: issueNumber },
+    })
+  );
+  process.exit(1);
+}
+
 /* ──────────────────────────────
    Helpers
    ────────────────────────────── */
@@ -162,15 +183,8 @@ function phaseNumber(label) {
   return Number(label.split("phase-")[1] || 0);
 }
 
-function phaseMilestoneForLabel(label) {
-  const map = {
-    "phase-3.1": "Phase 3.1 – Telemetry Enhancements",
-    "phase-3.2": "Phase 3.2 – Hygiene & Enforcement",
-    "phase-3.3": "Phase 3.3 – UX & Config Experience",
-    "phase-3.4": "Phase 3.4 – Marketplace Readiness",
-    "phase-3.5": "Phase 3.5 – Post-Release Hardening",
-  };
-  return map[label] || null;
+function phaseMilestoneForLabel(label, config) {
+  return config?.enforcement?.phase_milestones?.[label] || null;
 }
 
 /* ──────────────────────────────

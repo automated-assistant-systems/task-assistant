@@ -66,7 +66,9 @@ jobs:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           node scripts/enforcement/issue-events.js \
-            "${{ inputs.target_repo }}" \
+            --repo "${{ inputs.target_repo }}" \
+            --issue "${{ github.event.issue.number }}" \
+            --event labeled \
             --json > result.json
 
       - name: Emit enforcement telemetry
