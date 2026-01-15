@@ -19,12 +19,12 @@ import { validateConfig } from "../config/validate-config.js";
    ────────────────────────────── */
 
 const args = process.argv.slice(2);
-const repo = args[args.indexOf("--repo") + 1];
+const repoArg = args[args.indexOf("--repo") + 1];
 const issueNumber = args[args.indexOf("--issue") + 1];
 const eventType = args[args.indexOf("--event") + 1] || "unknown";
 const jsonMode = args.includes("--json");
 
-if (!repo || !issueNumber) {
+if (!repoArg || !issueNumber) {
   const msg =
     "Usage: issue-events.js --repo <owner/repo> --issue <number> [--event <type>] [--json]";
   if (jsonMode) {
@@ -32,6 +32,13 @@ if (!repo || !issueNumber) {
   } else {
     console.error(msg);
   }
+  process.exit(1);
+}
+
+const [owner, repoName] = repoArg.split("/");
+if (!owner || !repoName) {
+  const msg = `Invalid --repo value: ${repoArg}`;
+  process.stdout.write(JSON.stringify({ ok: false, summary: msg }));
   process.exit(1);
 }
 
@@ -67,7 +74,7 @@ function ghIssueRemoveLabel(ownerRepo, number, label) {
 const result = {
   tool: "issue-events",
   version: "1.1",
-  repo,
+  repo: repoArg,
   issue: { number: Number(issueNumber) },
   event: { type: eventType },
   mode: "apply",
@@ -129,13 +136,12 @@ function enforceExclusiveGroup({
     return;
   }
 
-  // enforce
   const sorted = orderFn ? matches.sort(orderFn) : matches;
   const keep = strategy === "highest" ? sorted.at(-1) : sorted[0];
   const remove = matches.filter(l => l !== keep);
 
   remove.forEach(label =>
-    ghIssueRemoveLabel(repo, issueNumber, label)
+    ghIssueRemoveLabel(repoArg, issueNumber, label)
   );
 
   result.actions.push({
@@ -172,7 +178,6 @@ function phaseMilestoneForLabel(label) {
    ────────────────────────────── */
 
 async function main() {
-  // Load config
   let config;
   try {
     const raw = fs.readFileSync(".github/task-assistant.yml", "utf8");
@@ -184,22 +189,16 @@ async function main() {
   }
 
   const validation = validateConfig(config);
-
   if (!validation.ok) {
-    validation.errors.forEach(err =>
-      fail("config.schema", err)
-    );
+    validation.errors.forEach(err => fail("config.schema", err));
     return;
   }
-
   pass("config.schema.valid");
 
   const exclusivity = config?.enforcement?.exclusivity || {};
   pass("config.shape");
 
-  // Load issue
-  const [owner, name] = repo.split("/");
-  const issue = ghApi(`/repos/${owner}/${name}/issues/${issueNumber}`);
+  const issue = ghApi(`/repos/${owner}/${repoName}/issues/${issueNumber}`);
   const labels = (issue.labels || []).map(l =>
     typeof l === "string" ? l : l.name
   );
@@ -210,7 +209,7 @@ async function main() {
     milestone: currentMilestone,
   });
 
-  /* ───────── Phase Exclusivity + Milestone ───────── */
+  /* Phase, Priority, Track, State enforcement unchanged */
 
   const phaseLabels = labels.filter(l => l.startsWith("phase-"));
   const phaseCfg = exclusivity.phase || { mode: "enforce", strategy: "highest" };
@@ -231,7 +230,7 @@ async function main() {
     } else if (currentMilestone === expected) {
       pass("phase.milestone.match", expected);
     } else {
-      ghIssueEditMilestone(repo, issueNumber, expected);
+      ghIssueEditMilestone(repoArg, issueNumber, expected);
       result.actions.push({
         id: "issue.milestone.set",
         from: currentMilestone,
@@ -242,8 +241,6 @@ async function main() {
       pass("phase.milestone.enforced", expected);
     }
   }
-
-  /* ───────── Priority Exclusivity ───────── */
 
   const priorities = labels.filter(l => l.startsWith("priority/"));
   const priorityOrder = ["priority/low", "priority/medium", "priority/high"];
@@ -257,8 +254,6 @@ async function main() {
       priorityOrder.indexOf(a) - priorityOrder.indexOf(b),
   });
 
-  /* ───────── Track Exclusivity ───────── */
-
   const tracks = labels.filter(l => l.startsWith("track/"));
   const trackCfg = exclusivity.track || { mode: "fail" };
 
@@ -267,8 +262,6 @@ async function main() {
     matches: tracks,
     mode: trackCfg.mode,
   });
-
-  /* ───────── State Exclusivity ───────── */
 
   const states = labels.filter(l => l.startsWith("state/"));
   const stateCfg = exclusivity.state || { mode: "enforce", terminal: [] };
@@ -282,7 +275,5 @@ async function main() {
 }
 
 await main();
-
-// Structured JSON only
 process.stdout.write(JSON.stringify(result));
 process.exit(result.ok ? 0 : 1);
