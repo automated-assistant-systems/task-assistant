@@ -101,7 +101,8 @@ jobs:
                 action: (if env.GITHUB_JOB_STATUS == "success" then "success" else "failed" end),
                 reason: null
               },
-              details: input
+              details: .
             }' result.json
           )
+
           echo "$PAYLOAD" | node scripts/telemetry/emit.js
