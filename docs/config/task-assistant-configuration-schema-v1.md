@@ -63,6 +63,7 @@ schema_version: "1.0"
 tracks: [...]
 labels: [...]
 milestones: [...]
+enforcement: {...}
 
 Guarantees
 
@@ -146,43 +147,84 @@ Matching is done by title only
 
 Missing milestone → created (unless dry-run)
 
-8. Phase Labels & Enforcement Semantics
-Phase Label Definition
+8. Phase Labels & Enforcement Semantics (Config-Driven)
 
 Phase labels are labels matching:
 
-phase-3.x
+phase-<number>
+
+Enforcement Rules:
+
+- Issues may have zero or more phase labels
+- Phase labels are mutually exclusive (highest wins by default)
+- Exclusivity behavior is defined in enforcement.exclusivity.phase
+
+Milestone Enforcement:
+
+- Occurs ONLY if enforcement.phase_milestones is defined
+- No implicit or hard-coded mappings exist
+- Task Assistant never invents milestone names
+
+9. Enforcement (Authoritative, Config-Driven)
+
+The enforcement section defines all behavioral rules applied by Task Assistant.
+
+No enforcement behavior may exist outside this section.
+
+If enforcement is omitted:
+- No issue mutation occurs
+- Runtime operates in advisory / validation-only mode
+9.1 Enforcement Schema
+yaml
+Copy code
+enforcement:
+  exclusivity:
+    phase:
+      mode: enforce | warn | fail | off
+      strategy: highest | lowest
+
+    priority:
+      mode: enforce | warn | fail | off
+
+    track:
+      mode: enforce | warn | fail | off
+
+    state:
+      mode: enforce | warn | fail | off
+      terminal: [state/done, state/closed]
+
+  phase_milestones:
+    <phase-label>: <milestone-title>
+9.2 Phase → Milestone Mapping (Config-Driven)
+md
+Copy code
+Phase milestone enforcement is OPTIONAL and entirely config-driven.
+
+If phase_milestones is omitted:
+- Phase labels are still exclusive
+- No milestone enforcement occurs
+- Outcome: PASS or WARN (no mutation)
+Example:
+
+yaml
+Copy code
+enforcement:
+  phase_milestones:
+    phase-1: "Planning"
+    phase-2: "Execution"
+    phase-3: "Release"
+Rules:
+
+Keys must match phase-* labels
+
+Values must be exact milestone titles
+
+Missing milestone → created (unless dry-run)
+
+Missing mapping → WARN, no mutation
 
 
-Where x is a numeric phase identifier.
-
-Enforcement Rules (Authoritative)
-
-Issues may have zero or more phase labels
-
-If no phase label is present:
-
-No milestone enforcement occurs
-
-If one or more phase labels are present:
-
-Exactly one milestone must be enforced
-
-The highest phase number wins
-
-Lower phase milestones are replaced
-
-Mapping (Canonical)
-Phase Label	Enforced Milestone
-phase-3.1	Phase 3.1 – Telemetry Enhancements
-phase-3.2	Phase 3.2 – Hygiene & Enforcement
-phase-3.3	Phase 3.3 – UX & Config Experience
-phase-3.4	Phase 3.4 – Marketplace Readiness
-phase-3.5	Phase 3.5 – Post-Release Hardening
-
-If mapping is missing → WARN, no mutation.
-
-9. Label Exclusivity (Config-Driven)
+10. Label Exclusivity (Config-Driven)
 
 Label exclusivity is config-driven, not hard-coded.
 
@@ -200,7 +242,7 @@ Enforced deterministically
 
 Backward compatible
 
-10. Runtime Scope & Responsibilities
+11. Runtime Scope & Responsibilities
 Component	Responsibilities
 prepare-repo	Config validation, label & milestone reconciliation
 issue-events	Issue hygiene & phase enforcement
@@ -211,7 +253,7 @@ emit.js	Telemetry emission only
 prepare-repo never emits telemetry.
 All telemetry emission occurs at workflow level.
 
-11. Telemetry (Out of Scope for Schema)
+12. Telemetry (Out of Scope for Schema)
 
 Telemetry configuration is not part of schema v1.
 
@@ -225,7 +267,7 @@ Host repositories are never mutated by telemetry
 
 Telemetry behavior is enforced by runtime, not configuration.
 
-12. Runtime Outcomes & Status Mapping (Canonical)
+13. Runtime Outcomes & Status Mapping (Canonical)
 Condition	Status	Meaning
 Config valid, no errors	SUCCESS	No remediation required
 Config valid, warnings	PARTIAL	Action taken or advisory
@@ -234,7 +276,7 @@ Runtime failure	FAILED	Execution error
 
 This mapping is shared across all workflows.
 
-13. Backward Compatibility Policy
+14. Backward Compatibility Policy
 
 Schema v1 is stable
 
@@ -248,7 +290,14 @@ Explicit migration plan
 
 Parallel runtime support
 
-14. Enforcement Summary (Non-Negotiable)
+v1 Compatibility Note:
+
+Repositories relying on implicit phase → milestone semantics must
+declare phase_milestones explicitly going forward.
+
+Omission of enforcement configuration results in non-destructive behavior.
+
+15. Enforcement Summary (Non-Negotiable)
 
 ❌ No runtime behavior without schema justification
 
