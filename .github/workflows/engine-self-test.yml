@@ -1,31 +1,48 @@
 ---
-name: Task Assistant • Engine • Self-Test
+name: Task Assistant • Self-Test
 
+# yamllint disable rule:truthy
 on:
-  workflow_call:
-    inputs:
-      target_repo:
-        required: true
-        type: string
-      telemetry_repo:
-        required: true
-        type: string
-      correlation_id:
-        required: true
-        type: string
+  workflow_dispatch:
 
 permissions:
   contents: write
   issues: read
   id-token: write
 
+env:
+  CORRELATION_ID: ${{ github.run_id }}-${{ github.run_attempt }}
+  TELEMETRY_REPO: ${{ vars.TELEMETRY_REPO }}
+
 jobs:
   self_test:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Task Assistant
+      - name: Validate telemetry configuration
+        run: |
+          if [ -z "${TELEMETRY_REPO}" ]; then
+            echo "::error::TELEMETRY_REPO is not set"
+            exit 1
+          fi
+
+      - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Validate config file exists
+        run: |
+          if [ ! -f ".github/task-assistant.yml" ]; then
+            echo "::error::Missing .github/task-assistant.yml"
+            exit 1
+          fi
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm ci
 
       - name: Generate GitHub App token
         id: app-token
@@ -33,32 +50,150 @@ jobs:
         with:
           app-id: ${{ secrets.CODEX_APP_ID }}
           private-key: ${{ secrets.CODEX_PRIVATE_KEY }}
-          owner: ${{ inputs.target_repo.split('/')[0] }}
+          owner: ${{ github.repository_owner }}
 
-      - name: Run prepare-repo dry-run
+      # ─────────────────────────────────────────────
+      # Emit START telemetry (guarded)
+      # ─────────────────────────────────────────────
+      - name: Emit self-test start telemetry
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
-          node scripts/prepare-repo.js "${{ inputs.target_repo }}" --dry-run
+          PAYLOAD=$(jq -n -c \
+            --arg cid "$CORRELATION_ID" \
+            '{
+              schema_version: "1.0",
+              generated_at: (now | todate),
+              correlation_id: $cid,
+              source: {
+                workflow: "task-assistant-self-test.yml",
+                job: "self-test",
+                run_id: env.GITHUB_RUN_ID
+              },
+              entity: {
+                type: "repository",
+                owner: env.GITHUB_REPOSITORY_OWNER,
+                repo: (env.GITHUB_REPOSITORY | split("/") | .[1])
+              },
+              event: {
+                category: "self-test",
+                action: "start",
+                reason: null
+              },
+              details: {}
+            }'
+          )
 
-      - name: Emit telemetry
+          echo "$PAYLOAD" | jq . >/dev/null
+          echo "$PAYLOAD" | node scripts/telemetry/emit.js
+
+      # ─────────────────────────────────────────────
+      # Run prepare-repo and emit RESULT telemetry
+      # ─────────────────────────────────────────────
+      - name: Validate repo hygiene (prepare-repo dry-run)
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
-          node scripts/telemetry/emit.js <<EOF
-          {
-            "schema_version": "1.0",
-            "generated_at": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
-            "correlation_id": "${{ inputs.correlation_id }}",
-            "entity": {
-              "type": "repository",
-              "owner": "${{ inputs.target_repo.split('/')[0] }}",
-              "repo": "${{ inputs.target_repo.split('/')[1] }}"
-            },
-            "event": {
-              "category": "self-test",
-              "action": "complete"
-            },
-            "details": {}
-          }
-          EOF
+          RESULT=$(node scripts/prepare-repo.js \
+            "${{ github.repository }}" \
+            --dry-run \
+            --json)
+
+          PAYLOAD=$(echo "$RESULT" | jq -c '
+            {
+              schema_version: "1.0",
+              generated_at: (now | todate),
+              correlation_id: env.CORRELATION_ID,
+              source: {
+                workflow: "task-assistant-self-test.yml",
+                job: "self-test",
+                run_id: env.GITHUB_RUN_ID
+              },
+              entity: {
+                type: "repository",
+                owner: env.GITHUB_REPOSITORY_OWNER,
+                repo: (env.GITHUB_REPOSITORY | split("/") | .[1])
+              },
+              event: {
+                category: "self-test",
+                action: "result",
+                reason: .summary
+              },
+              details: .
+            }'
+          )
+
+          echo "$PAYLOAD" | jq . >/dev/null
+          echo "$PAYLOAD" | node scripts/telemetry/emit.js
+
+      # ─────────────────────────────────────────────
+      # Emit SUCCESS telemetry
+      # ─────────────────────────────────────────────
+      - name: Emit self-test success telemetry
+        if: success()
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          PAYLOAD=$(jq -n -c \
+            --arg cid "$CORRELATION_ID" \
+            '{
+              schema_version: "1.0",
+              generated_at: (now | todate),
+              correlation_id: $cid,
+              source: {
+                workflow: "task-assistant-self-test.yml",
+                job: "self-test",
+                run_id: env.GITHUB_RUN_ID
+              },
+              entity: {
+                type: "repository",
+                owner: env.GITHUB_REPOSITORY_OWNER,
+                repo: (env.GITHUB_REPOSITORY | split("/") | .[1])
+              },
+              event: {
+                category: "self-test",
+                action: "success",
+                reason: null
+              },
+              details: {}
+            }'
+          )
+
+          echo "$PAYLOAD" | jq . >/dev/null
+          echo "$PAYLOAD" | node scripts/telemetry/emit.js
+
+      # ─────────────────────────────────────────────
+      # Emit FAILURE telemetry
+      # ─────────────────────────────────────────────
+      - name: Emit self-test failure telemetry
+        if: failure()
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          PAYLOAD=$(jq -n -c \
+            --arg cid "$CORRELATION_ID" \
+            '{
+              schema_version: "1.0",
+              generated_at: (now | todate),
+              correlation_id: $cid,
+              source: {
+                workflow: "task-assistant-self-test.yml",
+                job: "self-test",
+                run_id: env.GITHUB_RUN_ID
+              },
+              entity: {
+                type: "repository",
+                owner: env.GITHUB_REPOSITORY_OWNER,
+                repo: (env.GITHUB_REPOSITORY | split("/") | .[1])
+              },
+              event: {
+                category: "self-test",
+                action: "failed",
+                reason: "prepare-repo dry-run failed"
+              },
+              details: {}
+            }'
+          )
+
+          echo "$PAYLOAD" | jq . >/dev/null
+          echo "$PAYLOAD" | node scripts/telemetry/emit.js
