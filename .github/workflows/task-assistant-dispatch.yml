@@ -3,9 +3,6 @@ name: Task Assistant • Dispatch
 
 # yamllint disable rule:truthy
 on:
-  # ─────────────────────────────────────────────
-  # Manual operator execution (Marketplace-safe)
-  # ─────────────────────────────────────────────
   workflow_dispatch:
     inputs:
       target_repo:
@@ -21,17 +18,11 @@ on:
           - validate
           - enforce
 
-  # ─────────────────────────────────────────────
-  # Event-driven triggers (non-destructive by default)
-  # ─────────────────────────────────────────────
   issues:
     types: [labeled]
 
-  # ─────────────────────────────────────────────
-  # Scheduled diagnostics (read-only)
-  # ─────────────────────────────────────────────
   schedule:
-    - cron: "0 3 * * *"   # daily diagnostics (UTC)
+    - cron: "0 3 * * *"
 
 permissions:
   contents: write
@@ -42,20 +33,14 @@ env:
   CORRELATION_ID: ${{ github.run_id }}-${{ github.run_attempt }}
 
 jobs:
-  dispatch:
+  resolve:
     runs-on: ubuntu-latest
-
+    outputs:
+      target_repo: ${{ steps.ctx.outputs.target_repo }}
+      telemetry_repo: ${{ steps.ctx.outputs.telemetry_repo }}
+      mode: ${{ steps.ctx.outputs.mode }}
     steps:
-      # ─────────────────────────────────────────────
-      # Checkout Task Assistant (host repo)
-      # ─────────────────────────────────────────────
-      - name: Checkout Task Assistant
-        uses: actions/checkout@v4
-
-      # ─────────────────────────────────────────────
-      # Resolve target repo + mode
-      # ─────────────────────────────────────────────
-      - name: Resolve dispatch context
+      - id: ctx
         run: |
           set -euo pipefail
 
@@ -65,56 +50,41 @@ jobs:
           elif [ "${{ github.event_name }}" = "issues" ]; then
             TARGET_REPO="${{ github.repository }}"
             MODE="enforce"
-          elif [ "${{ github.event_name }}" = "schedule" ]; then
+          else
             TARGET_REPO="${{ github.repository }}"
             MODE="validate"
-          else
-            echo "::error::Unsupported trigger"
-            exit 1
           fi
 
           OWNER="${TARGET_REPO%%/*}"
           TELEMETRY_REPO="${OWNER}/task-assistant-telemetry"
 
-          echo "TARGET_REPO=$TARGET_REPO" >> $GITHUB_ENV
-          echo "TARGET_OWNER=$OWNER" >> $GITHUB_ENV
-          echo "TELEMETRY_REPO=$TELEMETRY_REPO" >> $GITHUB_ENV
-          echo "MODE=$MODE" >> $GITHUB_ENV
+          echo "target_repo=$TARGET_REPO" >> $GITHUB_OUTPUT
+          echo "telemetry_repo=$TELEMETRY_REPO" >> $GITHUB_OUTPUT
+          echo "mode=$MODE" >> $GITHUB_OUTPUT
 
-          echo "Resolved:"
-          echo "  target_repo=$TARGET_REPO"
-          echo "  mode=$MODE"
-          echo "  telemetry_repo=$TELEMETRY_REPO"
+  self_test:
+    if: needs.resolve.outputs.mode == 'self-test'
+    needs: resolve
+    uses: ./.github/workflows/engine-self-test.yml
+    with:
+      target_repo: ${{ needs.resolve.outputs.target_repo }}
+      telemetry_repo: ${{ needs.resolve.outputs.telemetry_repo }}
+      correlation_id: ${{ env.CORRELATION_ID }}
 
-      # ─────────────────────────────────────────────
-      # Dispatch → Engine: Self-Test
-      # ─────────────────────────────────────────────
-      - name: Run Self-Test Engine
-        if: env.MODE == 'self-test'
-        uses: ./.github/workflows/engine-self-test.yml
-        with:
-          target_repo: ${{ env.TARGET_REPO }}
-          telemetry_repo: ${{ env.TELEMETRY_REPO }}
-          correlation_id: ${{ env.CORRELATION_ID }}
+  validate:
+    if: needs.resolve.outputs.mode == 'validate'
+    needs: resolve
+    uses: ./.github/workflows/engine-validate.yml
+    with:
+      target_repo: ${{ needs.resolve.outputs.target_repo }}
+      telemetry_repo: ${{ needs.resolve.outputs.telemetry_repo }}
+      correlation_id: ${{ env.CORRELATION_ID }}
 
-      # ─────────────────────────────────────────────
-      # Dispatch → Engine: Validate
-      # ─────────────────────────────────────────────
-      - name: Run Validate Engine
-        if: env.MODE == 'validate'
-        uses: ./.github/workflows/engine-validate.yml
-        with:
-          target_repo: ${{ env.TARGET_REPO }}
-          telemetry_repo: ${{ env.TELEMETRY_REPO }}
-          correlation_id: ${{ env.CORRELATION_ID }}
-
-      # ─────────────────────────────────────────────
-      # Dispatch → Engine: Enforce
-      # ─────────────────────────────────────────────
-      - name: Run Enforce Engine
-        if: env.MODE == 'enforce'
-        uses: ./.github/workflows/engine-enforce.yml
-        with:
-          target_repo: ${{ env.TARGET_REPO }}
-          telemetry_repo: ${{ env.TELEMETRY_REPO }}
-          correlation_id: ${{ env.CORRELATION_ID }}
+  enforce:
+    if: needs.resolve.outputs.mode == 'enforce'
+    needs: resolve
+    uses: ./.github/workflows/engine-enforce.yml
+    with:
+      target_repo: ${{ needs.resolve.outputs.target_repo }}
+      telemetry_repo: ${{ needs.resolve.outputs.telemetry_repo }}
+      correlation_id: ${{ env.CORRELATION_ID }}
