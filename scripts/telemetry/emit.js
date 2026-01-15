@@ -114,6 +114,18 @@ function main(raw) {
     run(`git -C "${cloneDir}" config user.name "${BOT_NAME}"`);
     run(`git -C "${cloneDir}" config user.email "${BOT_EMAIL}"`);
 
+    // Detect missing default branch, emit a clear, actionable error
+    // and exit safely without retry loops
+    try {
+      execSync("git rev-parse --verify main", { stdio: "ignore" });
+    } catch {
+      console.error(
+        "❌ telemetry: repository is uninitialized (no main branch). " +
+        "Please create an initial commit in the telemetry repository."
+      );
+      process.exit(1);
+    }
+
     // Always rebase BEFORE writing to avoid creating commits on stale heads
     run(`git -C "${cloneDir}" pull --rebase`);
 
