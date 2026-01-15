@@ -161,6 +161,9 @@ function main(raw) {
         run(`git -C "${cloneDir}" fetch origin`);
         run(`git -C "${cloneDir}" reset --hard origin/main`);
 
+        // Re-ensure directory after hard reset
+        fs.mkdirSync(path.dirname(outFile), { recursive: true });
+
         // Re-append payload
         fs.appendFileSync(outFile, JSON.stringify(payload) + "\n");
         run(`git -C "${cloneDir}" add "${outFile}"`);
