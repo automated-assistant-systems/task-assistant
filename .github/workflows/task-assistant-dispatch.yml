@@ -95,6 +95,8 @@ jobs:
     uses: ./.github/workflows/engine-enforce.yml
     with:
       target_repo: ${{ needs.resolve.outputs.target_repo }}
+      issue_number: ${{ needs.resolve.outputs.issue_number }}
+      event_type: ${{ needs.resolve.outputs.event_type }}
       telemetry_repo: ${{ needs.resolve.outputs.telemetry_repo }}
       correlation_id: ${{ needs.resolve.outputs.correlation_id }}
     secrets:
