@@ -238,7 +238,7 @@ async function main() {
 
   const finalPhase = phaseLabels.sort((a, b) => phaseNumber(a) - phaseNumber(b)).at(-1);
   if (finalPhase) {
-    const expected = phaseMilestoneForLabel(finalPhase);
+    const expected = phaseMilestoneForLabel(finalPhase, config);
     if (!expected) {
       warn("phase.milestone.map", finalPhase);
     } else if (currentMilestone === expected) {
