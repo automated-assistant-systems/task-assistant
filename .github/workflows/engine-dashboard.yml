@@ -1,0 +1,95 @@
+---
+name: Task Assistant • Engine • Dashboard
+
+# yamllint disable rule:truthy
+on:
+  # Manual rebuild (operator / reviewer / debugging)
+  workflow_dispatch:
+
+  # Canonical rebuild cadence (daily is sufficient)
+  schedule:
+    - cron: "0 2 * * *"   # 02:00 UTC daily
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  ENGINE_NAME: dashboard
+  ENGINE_JOB: dashboard
+  REGISTRY_REPO: automated-assistant-systems/task-assistant-infra
+  REGISTRY_FILE: telemetry-registry.json
+
+jobs:
+  dashboard:
+    runs-on: ubuntu-latest
+
+    steps:
+      # ─────────────────────────────────────────────
+      # Checkout Task Assistant (engine + scripts)
+      # ─────────────────────────────────────────────
+      - name: Checkout Task Assistant
+        uses: actions/checkout@v4
+
+      # ─────────────────────────────────────────────
+      # Checkout Infrastructure Registry (read-only)
+      # ─────────────────────────────────────────────
+      - name: Checkout telemetry registry
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.REGISTRY_REPO }}
+          path: infra
+          fetch-depth: 1
+
+      # ─────────────────────────────────────────────
+      # Setup runtime
+      # ─────────────────────────────────────────────
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm ci
+
+      # ─────────────────────────────────────────────
+      # Generate GitHub App token (cross-org safe)
+      # ─────────────────────────────────────────────
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.CODEX_APP_ID }}
+          private-key: ${{ secrets.CODEX_PRIVATE_KEY }}
+
+      # ─────────────────────────────────────────────
+      # Validate Telemetry Registry
+      # ─────────────────────────────────────────────
+      - name: Validate telemetry registry
+        run: |
+          node scripts/registry/validate-registry.js \
+            infra/telemetry-registry.json
+
+      # ─────────────────────────────────────────────
+      # Build dashboards (registry-driven)
+      # ─────────────────────────────────────────────
+      - name: Build dashboards from telemetry
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          set -euo pipefail
+
+          node scripts/build-dashboards.js \
+            --registry "infra/${REGISTRY_FILE}"
+
+      # ─────────────────────────────────────────────
+      # Emit engine telemetry (single summary event)
+      # ─────────────────────────────────────────────
+      - name: Emit dashboard engine telemetry
+        if: always()
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          ENGINE_NAME="dashboard" \
+          ENGINE_JOB="dashboard" \
+          ./scripts/telemetry/emit-engine.sh

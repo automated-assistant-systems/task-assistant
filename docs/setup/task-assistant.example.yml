@@ -1,114 +1,24 @@
----
-# Task Assistant Configuration
-# Version: 1.0
-#
-# This file is the single source of truth for Task Assistant behavior.
-# All enforcement actions are explicit and deterministic.
-# Removing or invalidating this file disables enforcement.
+schema_version: "1.0"
 
-version: 1
+tracks:
+  - id: sprint
+    label: track/sprint
+    description: Active sprint work
 
-# ─────────────────────────────────────────────
-# Repository Identity (informational only)
-# ─────────────────────────────────────────────
-repository:
-  owner: automated-assistant-systems
-  name: task-assistant
+labels:
+  - name: phase-1
+    description: Initial development phase
+    color: "1D76DB"
 
-# ─────────────────────────────────────────────
-# Workflow Structure
-# Defines how work is organized in this repository
-# ─────────────────────────────────────────────
-workflow:
+milestones:
+  - title: "Phase 1"
 
-  # High-level phases (long-lived)
-  phases:
-    - id: phase-3.3
-      name: "Phase 3.3 – UX & Config Experience"
-      state: closed
-
-    - id: phase-3.4
-      name: "Phase 3.4 – Marketplace Readiness"
-      state: open
-
-  # Tracks represent parallel work streams
-  tracks:
-    - id: sprint
-      name: "Sprint"
-      default: true
-
-    - id: backlog
-      name: "Backlog"
-
-    - id: ops
-      name: "Operations"
-
-# ─────────────────────────────────────────────
-# Label & Milestone Mapping
-# Explicit mapping between workflow concepts and GitHub artifacts
-# ─────────────────────────────────────────────
-artifacts:
-
-  labels:
-    track_prefix: "track/"
-    phase_prefix: "phase-"
-    state_prefix: "state/"
-    priority_prefix: "priority/"
-
-  milestones:
-    phase_as_milestone: true
-    enforce_single_phase: true
-
-# ─────────────────────────────────────────────
-# Enforcement Rules
-# All rules are opt-in and non-destructive by default
-# ─────────────────────────────────────────────
 enforcement:
+  exclusivity:
+    phase:
+      mode: enforce
+      strategy: highest
 
-  enabled: true
+  phase_milestones:
+    phase-1: "Phase 1"
 
-  rules:
-
-    # Ensure issues belong to exactly one track
-    single_track:
-      enabled: true
-      severity: error
-
-    # Ensure issues mapped to a phase use the correct milestone
-    phase_milestone_alignment:
-      enabled: true
-      severity: warning
-
-    # Prevent issues from being in closed phases
-    closed_phase_guard:
-      enabled: true
-      severity: error
-
-# ─────────────────────────────────────────────
-# Telemetry & Observability
-# Telemetry is immutable and stored in a separate repository
-# ─────────────────────────────────────────────
-telemetry:
-
-  enabled: true
-  schema_version: "1.0"
-
-  repository:
-    owner: automated-assistant-systems
-    name: task-assistant-telemetry
-
-  emit_on:
-    - issue_opened
-    - issue_labeled
-    - issue_unlabeled
-    - issue_closed
-    - validation_run
-
-# ─────────────────────────────────────────────
-# Safety Guarantees (Explicit)
-# ─────────────────────────────────────────────
-safety:
-
-  allow_destructive_actions: false
-  require_explicit_config: true
-  fail_on_invalid_config: true

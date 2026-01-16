@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://automated-assistant-systems.com/schemas/telemetry-registry.v1.json",
+  "title": "Task Assistant Telemetry Registry",
+  "type": "object",
+  "required": ["registry_version", "orgs"],
+  "additionalProperties": false,
+
+  "properties": {
+    "registry_version": {
+      "type": "string",
+      "pattern": "^1\\.\\d+$"
+    },
+
+    "orgs": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["owner", "telemetry_repo", "repos"],
+        "additionalProperties": false,
+
+        "properties": {
+          "owner": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-zA-Z0-9_.-]+$"
+          },
+
+          "telemetry_repo": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9_.-]+/[a-zA-Z0-9_.-]+$"
+          },
+
+          "repos": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "pattern": "^[a-zA-Z0-9_.-]+$"
+            }
+          }
+        }
+      }
+    }
+  }
+}
