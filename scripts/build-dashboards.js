@@ -1,201 +1,112 @@
 #!/usr/bin/env node
 /**
- * Task Assistant — Dashboard Builder (Registry-Driven)
+ * Task Assistant — Dashboard Builder (Org-Scoped)
  *
  * Phase: 3.4
  *
- * Guarantees:
- * - No repo discovery
- * - No scanning GitHub
- * - Registry is authoritative
- * - Customer telemetry repos only
- * - Deterministic output paths
+ * Contract:
+ * - Operates on ONE telemetry repo only
+ * - No registry access
+ * - No git operations
+ * - Deterministic filesystem output
  */
 
 import fs from "fs";
 import path from "path";
-import { execSync } from "child_process";
 
 /* ──────────────────────────────
-   CLI
+   Environment
    ────────────────────────────── */
 
-const args = process.argv.slice(2);
-const registryArg = args[args.indexOf("--registry") + 1];
+const TELEMETRY_ROOT = process.env.TELEMETRY_ROOT;
+const DASHBOARD_ROOT = process.env.DASHBOARD_ROOT;
 
-if (!registryArg) {
+if (!TELEMETRY_ROOT || !DASHBOARD_ROOT) {
   console.error(
-    "Usage: build-dashboards.js --registry <path-to-telemetry-registry.json>"
+    "[dashboard] TELEMETRY_ROOT and DASHBOARD_ROOT are required"
   );
   process.exit(1);
 }
 
-if (!fs.existsSync(registryArg)) {
-  console.error(`[dashboard] Registry not found: ${registryArg}`);
-  process.exit(1);
+// Marketplace-safe: empty telemetry repo is valid
+if (!fs.existsSync(TELEMETRY_ROOT)) {
+  console.log("[dashboard] No telemetry root found — nothing to build");
+  process.exit(0);
 }
+
+fs.mkdirSync(DASHBOARD_ROOT, { recursive: true });
 
 /* ──────────────────────────────
-   Load Registry
+   Main
    ────────────────────────────── */
 
-let registry;
-try {
-  registry = JSON.parse(fs.readFileSync(registryArg, "utf8"));
-} catch (err) {
-  console.error("[dashboard] Invalid registry JSON");
-  console.error(err.message);
-  process.exit(1);
-}
+const repoDirs = fs
+  .readdirSync(TELEMETRY_ROOT, { withFileTypes: true })
+  .filter(d => d.isDirectory())
+  .map(d => d.name);
 
-if (!Array.isArray(registry.orgs)) {
-  console.error("[dashboard] Registry missing 'orgs' array");
-  process.exit(1);
+for (const repo of repoDirs) {
+  const repoTelemetryPath = path.join(TELEMETRY_ROOT, repo);
+  const repoDashboardPath = path.join(DASHBOARD_ROOT, repo);
+  const dashboardFile = path.join(
+    repoDashboardPath,
+    "dashboard.json"
+  );
+
+  fs.mkdirSync(repoDashboardPath, { recursive: true });
+
+  try {
+    const jsonlFiles = fs
+      .readdirSync(repoTelemetryPath)
+      .filter(f => f.endsWith(".jsonl"))
+      .sort();
+
+    if (jsonlFiles.length === 0) {
+      writeDashboard(dashboardFile, emptyDashboard(repo));
+      continue;
+    }
+
+    let totalEvents = 0;
+
+    for (const file of jsonlFiles) {
+      const lines = fs
+        .readFileSync(path.join(repoTelemetryPath, file), "utf8")
+        .split("\n")
+        .filter(Boolean);
+
+      totalEvents += lines.length;
+    }
+
+    writeDashboard(
+      dashboardFile,
+      successDashboard({
+        repo,
+        first: jsonlFiles[0],
+        last: jsonlFiles.at(-1),
+        days: jsonlFiles.length,
+        totalEvents,
+      })
+    );
+  } catch (err) {
+    writeDashboard(dashboardFile, errorDashboard(repo, err));
+    console.error(
+      `[dashboard] Failed for ${repo}: ${err.message}`
+    );
+  }
 }
 
 /* ──────────────────────────────
    Helpers
    ────────────────────────────── */
 
-function run(cmd) {
-  return execSync(cmd, {
-    stdio: ["ignore", "pipe", "pipe"],
-    encoding: "utf8",
-  }).trim();
-}
-
 function writeDashboard(file, payload) {
-  fs.mkdirSync(path.dirname(file), { recursive: true });
   fs.writeFileSync(file, JSON.stringify(payload, null, 2));
 }
 
-/* ──────────────────────────────
-   Main
-   ────────────────────────────── */
-
-for (const org of registry.orgs) {
-  const { owner, telemetry_repo, repos } = org;
-
-  if (!owner || !telemetry_repo || !Array.isArray(repos)) {
-    console.warn("[dashboard] Skipping invalid org entry:", org);
-    continue;
-  }
-
-  console.log(`[dashboard] Processing org: ${owner}`);
-
-  // Clone telemetry repo
-  const tmp = fs.mkdtempSync(
-    path.join(process.cwd(), ".tmp-dashboard-")
-  );
-  const cloneDir = path.join(tmp, "telemetry");
-
-  try {
-    run(
-      `git clone https://github.com/${telemetry_repo}.git "${cloneDir}"`
-    );
-  } catch (err) {
-    console.error(
-      `[dashboard] Failed to clone telemetry repo: ${telemetry_repo}`
-    );
-    continue;
-  }
-
-  for (const repo of repos) {
-    const telemetryRoot = path.join(
-      cloneDir,
-      "telemetry",
-      "v1",
-      "repos",
-      repo
-    );
-
-    const dashboardFile = path.join(
-      cloneDir,
-      "telemetry",
-      "v1",
-      "dashboards",
-      repo,
-      "dashboard.json"
-    );
-
-    try {
-      if (!fs.existsSync(telemetryRoot)) {
-        writeDashboard(
-          dashboardFile,
-          emptyDashboard(owner, repo)
-        );
-        continue;
-      }
-
-      const jsonlFiles = fs
-        .readdirSync(telemetryRoot)
-        .filter(f => f.endsWith(".jsonl"))
-        .sort();
-
-      if (jsonlFiles.length === 0) {
-        writeDashboard(
-          dashboardFile,
-          emptyDashboard(owner, repo)
-        );
-        continue;
-      }
-
-      let totalEvents = 0;
-      for (const file of jsonlFiles) {
-        const lines = fs
-          .readFileSync(path.join(telemetryRoot, file), "utf8")
-          .split("\n")
-          .filter(Boolean);
-        totalEvents += lines.length;
-      }
-
-      writeDashboard(
-        dashboardFile,
-        successDashboard({
-          owner,
-          repo,
-          first: jsonlFiles[0],
-          last: jsonlFiles.at(-1),
-          days: jsonlFiles.length,
-          totalEvents,
-        })
-      );
-    } catch (err) {
-      writeDashboard(
-        dashboardFile,
-        errorDashboard(owner, repo, err)
-      );
-      console.error(
-        `[dashboard] Failed for ${owner}/${repo}: ${err.message}`
-      );
-    }
-  }
-
-  // Commit & push dashboards
-  try {
-    run(`git -C "${cloneDir}" add telemetry/v1/dashboards`);
-    run(
-      `git -C "${cloneDir}" commit --allow-empty -m "dashboard: rebuild"`
-    );
-    run(`git -C "${cloneDir}" push`);
-  } catch (err) {
-    console.error(
-      `[dashboard] Push failed for ${telemetry_repo}`
-    );
-  } finally {
-    fs.rmSync(tmp, { recursive: true, force: true });
-  }
-}
-
-/* ──────────────────────────────
-   Dashboard Models
-   ────────────────────────────── */
-
-function emptyDashboard(owner, repo) {
+function emptyDashboard(repo) {
   return {
     schema_version: "dashboard.v1",
     repo,
-    owner,
     telemetry_version: "v1",
     generated_at: new Date().toISOString(),
     coverage: {
@@ -216,7 +127,6 @@ function emptyDashboard(owner, repo) {
 }
 
 function successDashboard({
-  owner,
   repo,
   first,
   last,
@@ -226,7 +136,6 @@ function successDashboard({
   return {
     schema_version: "dashboard.v1",
     repo,
-    owner,
     telemetry_version: "v1",
     generated_at: new Date().toISOString(),
     coverage: {
@@ -246,11 +155,10 @@ function successDashboard({
   };
 }
 
-function errorDashboard(owner, repo, err) {
+function errorDashboard(repo, err) {
   return {
     schema_version: "dashboard.v1",
     repo,
-    owner,
     telemetry_version: "v1",
     generated_at: new Date().toISOString(),
     summary: {

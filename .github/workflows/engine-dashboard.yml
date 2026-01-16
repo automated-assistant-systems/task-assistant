@@ -3,22 +3,28 @@ name: Task Assistant • Engine • Dashboard
 
 # yamllint disable rule:truthy
 on:
-  # Manual rebuild (operator / reviewer / debugging)
-  workflow_dispatch:
+  workflow_call:
+    inputs:
+      owner:
+        required: true
+        type: string
 
-  # Canonical rebuild cadence (daily is sufficient)
-  schedule:
-    - cron: "0 2 * * *"   # 02:00 UTC daily
+      telemetry_repo:
+        required: true
+        type: string
+
+      public:
+        required: false
+        type: boolean
+        default: false
 
 permissions:
-  contents: read
+  contents: write   # required to commit dashboards
   id-token: write
 
 env:
   ENGINE_NAME: dashboard
   ENGINE_JOB: dashboard
-  REGISTRY_REPO: automated-assistant-systems/task-assistant-infra
-  REGISTRY_FILE: telemetry-registry.json
 
 jobs:
   dashboard:
@@ -32,16 +38,6 @@ jobs:
         uses: actions/checkout@v4
 
       # ─────────────────────────────────────────────
-      # Checkout Infrastructure Registry (read-only)
-      # ─────────────────────────────────────────────
-      - name: Checkout telemetry registry
-        uses: actions/checkout@v4
-        with:
-          repository: ${{ env.REGISTRY_REPO }}
-          path: infra
-          fetch-depth: 1
-
-      # ─────────────────────────────────────────────
       # Setup runtime
       # ─────────────────────────────────────────────
       - name: Setup Node
@@ -53,7 +49,7 @@ jobs:
         run: npm ci
 
       # ─────────────────────────────────────────────
-      # Generate GitHub App token (cross-org safe)
+      # Generate GitHub App token (org-scoped)
       # ─────────────────────────────────────────────
       - name: Generate GitHub App token
         id: app-token
@@ -61,29 +57,53 @@ jobs:
         with:
           app-id: ${{ secrets.CODEX_APP_ID }}
           private-key: ${{ secrets.CODEX_PRIVATE_KEY }}
+          owner: ${{ inputs.owner }}
 
       # ─────────────────────────────────────────────
-      # Validate Telemetry Registry
+      # Checkout org telemetry repo
       # ─────────────────────────────────────────────
-      - name: Validate telemetry registry
+      - name: Checkout telemetry repository
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.telemetry_repo }}
+          path: telemetry
+          token: ${{ steps.app-token.outputs.token }}
+
+      # ─────────────────────────────────────────────
+      # Build dashboards (ORG-SCOPED)
+      # ─────────────────────────────────────────────
+      - name: Build dashboards
+        env:
+          TELEMETRY_ROOT: telemetry/telemetry/v1/repos
+          DASHBOARD_ROOT: telemetry/telemetry/v1/dashboards
         run: |
-          node scripts/registry/validate-registry.js \
-            infra/telemetry-registry.json
+          set -euo pipefail
+          node scripts/build-dashboards.js
 
       # ─────────────────────────────────────────────
-      # Build dashboards (registry-driven)
+      # Commit dashboards (if changed)
       # ─────────────────────────────────────────────
-      - name: Build dashboards from telemetry
+      - name: Commit dashboards
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           set -euo pipefail
 
-          node scripts/build-dashboards.js \
-            --registry "infra/${REGISTRY_FILE}"
+          cd telemetry
+
+          git config user.name "task-assistant[bot]"
+          git config user.email "task-assistant[bot]@users.noreply.github.com"
+
+          if git status --porcelain | grep .; then
+            git add telemetry/v1/dashboards
+            git commit -m "dashboard: rebuild org dashboards"
+            git push
+          else
+            echo "No dashboard changes to commit"
+          fi
 
       # ─────────────────────────────────────────────
-      # Emit engine telemetry (single summary event)
+      # Emit engine telemetry
       # ─────────────────────────────────────────────
       - name: Emit dashboard engine telemetry
         if: always()

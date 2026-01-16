@@ -1,0 +1,89 @@
+---
+name: Task Assistant • Dashboard Fan-Out Scheduler
+
+# yamllint disable rule:truthy
+on:
+  # Daily rebuild (UTC)
+  schedule:
+    - cron: "0 2 * * *"
+
+  # Manual operator trigger
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: write
+  id-token: write
+
+jobs:
+  discover:
+    name: Discover eligible orgs
+    runs-on: ubuntu-latest
+
+    outputs:
+      matrix: ${{ steps.build-matrix.outputs.matrix }}
+
+    steps:
+      - name: Checkout infra registry
+        uses: actions/checkout@v4
+        with:
+          repository: automated-assistant-systems/task-assistant-infra
+          path: infra
+
+      - name: Validate and extract registry
+        id: build-matrix
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          REGISTRY="infra/telemetry-registry.json"
+
+          if [ ! -f "$REGISTRY" ]; then
+            echo "::error::telemetry-registry.json not found"
+            exit 1
+          fi
+
+          # Extract enabled orgs with dashboards enabled
+          MATRIX=$(jq -c '
+            {
+              include: [
+                .organizations[]
+                | select(.dashboard.enabled == true)
+                | {
+                    owner: .owner,
+                    telemetry_repo: .telemetry_repo,
+                    dashboard_public: (.dashboard.public // false)
+                  }
+              ]
+            }
+          ' "$REGISTRY")
+
+          COUNT=$(echo "$MATRIX" | jq '.include | length')
+
+          if [ "$COUNT" -eq 0 ]; then
+            echo "No eligible organizations found — exiting safely"
+          fi
+
+          echo "matrix=$MATRIX" >> "$GITHUB_OUTPUT"
+
+  fanout:
+    name: Build dashboards per org
+    needs: discover
+    if: needs.discover.outputs.matrix != ''
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.discover.outputs.matrix) }}
+
+    steps:
+      - name: Trigger dashboard engine for org
+        uses: actions/workflow-dispatch@v1
+        with:
+          workflow: engine-dashboard.yml
+          repository: automated-assistant-systems/task-assistant
+          ref: main
+          inputs:
+            owner:           ${{ matrix.owner }}
+            telemetry_repo:  ${{ matrix.telemetry_repo }}
+            public:          ${{ matrix.dashboard_public }}

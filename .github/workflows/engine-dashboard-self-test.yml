@@ -32,6 +32,16 @@ jobs:
       - run: npm ci
 
       # ─────────────────────────────────────────────
+      # Set OWNER / REPO for telemetry emitter
+      # ─────────────────────────────────────────────
+      - name: Set org context
+        run: |
+          OWNER="${{ inputs.telemetry_repo%%/* }}"
+          REPO="task-assistant"
+          echo "OWNER=$OWNER" >> "$GITHUB_ENV"
+          echo "REPO=$REPO"   >> "$GITHUB_ENV"
+
+      # ─────────────────────────────────────────────
       # Run dashboard self-test
       # ─────────────────────────────────────────────
       - name: Run dashboard engine self-test
