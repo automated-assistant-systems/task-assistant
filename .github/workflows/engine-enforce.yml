@@ -43,25 +43,39 @@ jobs:
       TELEMETRY_REPO: ${{ inputs.telemetry_repo }}
 
     steps:
-      - uses: actions/checkout@v4
+      # ─────────────────────────────────────────────
+      # Checkout Task Assistant (host repo)
+      # ─────────────────────────────────────────────
+      - name: Checkout Task Assistant
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
+      # ─────────────────────────────────────────────
+      # Node runtime
+      # ─────────────────────────────────────────────
+      - name: Setup Node
+        uses: actions/setup-node@v4
         with:
           node-version: 20
 
-      - run: npm ci
+      - name: Install dependencies
+        run: npm ci
 
       # ─────────────────────────────────────────────
-      # Parse target repo (bash, not expressions)
+      # Parse target repo (bash-safe, not expressions)
       # ─────────────────────────────────────────────
       - name: Parse target repo
         run: |
-          TARGET="${{ inputs.target_repo }}"
+          set -euo pipefail
+          TARGET="$TARGET_REPO"
           OWNER="${TARGET%%/*}"
           REPO="${TARGET##*/}"
+
           echo "OWNER=$OWNER" >> "$GITHUB_ENV"
           echo "REPO=$REPO" >> "$GITHUB_ENV"
 
+      # ─────────────────────────────────────────────
+      # GitHub App token (cross-org safe)
+      # ─────────────────────────────────────────────
       - name: Generate GitHub App token
         id: app-token
         uses: actions/create-github-app-token@v1
@@ -70,22 +84,34 @@ jobs:
           private-key: ${{ secrets.CODEX_PRIVATE_KEY }}
           owner: ${{ env.OWNER }}
 
+      # ─────────────────────────────────────────────
+      # Enforcement engine
+      # ─────────────────────────────────────────────
       - name: Enforce issue hygiene
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
+          set -euo pipefail
+
           node scripts/enforcement/issue-events.js \
             --repo "$TARGET_REPO" \
             --issue "$ISSUE_NUMBER" \
             --event "$EVENT_TYPE" \
             --json > result.json
 
+      # ─────────────────────────────────────────────
+      # Emit telemetry (shared helper)
+      # ─────────────────────────────────────────────
       - name: Emit enforcement telemetry
         if: always()
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
+          set -euo pipefail
+
+          chmod +x scripts/telemetry/emit-engine.sh
+
           ENGINE_NAME="enforce" \
           ENGINE_JOB="enforce" \
           RESULT_FILE="result.json" \
-          ./scripts/telemetry/emit-engine.sh
+          scripts/telemetry/emit-engine.sh
