@@ -70,7 +70,7 @@ jobs:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           node scripts/prepare-repo.js \
-            "${TARGET_REPO}" \
+            "${TARGET}" \
             --dry-run \
             --json > result.json
 
