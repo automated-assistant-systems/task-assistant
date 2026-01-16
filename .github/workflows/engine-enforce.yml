@@ -36,6 +36,9 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
+      TARGET_REPO: ${{ inputs.target_repo }}
+      ISSUE_NUMBER: ${{ inputs.issue_number }}
+      EVENT_TYPE: ${{ inputs.event_type }}
       CORRELATION_ID: ${{ inputs.correlation_id }}
       TELEMETRY_REPO: ${{ inputs.telemetry_repo }}
 
@@ -72,9 +75,9 @@ jobs:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           node scripts/enforcement/issue-events.js \
-            --repo "${{ inputs.target_repo }}" \
-            --issue "${{ github.event.issue.number }}" \
-            --event labeled \
+            --repo "$TARGET_REPO" \
+            --issue "$ISSUE_NUMBER" \
+            --event "$EVENT_TYPE" \
             --json > result.json
 
       - name: Emit enforcement telemetry
