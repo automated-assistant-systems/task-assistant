@@ -127,4 +127,5 @@ jobs:
         run: |
           ENGINE_NAME="dashboard" \
           ENGINE_JOB="dashboard" \
+          SUMMARY_ONLY="true" \
           ./scripts/telemetry/emit-engine.sh

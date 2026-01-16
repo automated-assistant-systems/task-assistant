@@ -2,72 +2,110 @@
 set -euo pipefail
 
 # ─────────────────────────────────────────────
-# Task Assistant — Engine Telemetry Emitter
-#
-# Inputs (env):
-#   ENGINE_NAME        self-test | validate | enforce | sweep
-#   ENGINE_JOB         workflow job name
-#   RESULT_FILE        path to engine result JSON
-#   CORRELATION_ID
-#   OWNER
-#   REPO
-#   GH_TOKEN
-#   TELEMETRY_REPO
+# Required common env
 # ─────────────────────────────────────────────
+: "${ENGINE_NAME:?Missing ENGINE_NAME}"
+: "${ENGINE_JOB:?Missing ENGINE_JOB}"
+: "${CORRELATION_ID:?Missing CORRELATION_ID}"
 
-required=(
-  ENGINE_NAME
-  ENGINE_JOB
-  RESULT_FILE
-  CORRELATION_ID
-  OWNER
-  REPO
-)
+# Optional
+SUMMARY_ONLY="${SUMMARY_ONLY:-false}"
+RESULT_FILE="${RESULT_FILE:-}"
 
-for var in "${required[@]}"; do
-  if [[ -z "${!var:-}" ]]; then
-    echo "::error::Missing required env var: $var"
-    exit 1
-  fi
-done
+# Repo context (required for telemetry routing)
+: "${OWNER:?Missing OWNER}"
+: "${TELEMETRY_REPO:?Missing TELEMETRY_REPO}"
 
-if [[ ! -f "$RESULT_FILE" ]]; then
-  echo "::error::Result file not found: $RESULT_FILE"
+# Token (required for write)
+if [[ -z "${GH_TOKEN:-}" ]]; then
+  echo "::error::telemetry: GH_TOKEN is not set"
   exit 1
 fi
 
-ACTION=$(jq -r '.ok | if . then "success" else "failed" end' "$RESULT_FILE")
+# ─────────────────────────────────────────────
+# Build payload
+# ─────────────────────────────────────────────
+if [[ "$SUMMARY_ONLY" == "true" ]]; then
+  PAYLOAD=$(jq -n \
+    --arg engine "$ENGINE_NAME" \
+    --arg job "$ENGINE_JOB" \
+    --arg cid "$CORRELATION_ID" \
+    --arg owner "$OWNER" \
+    --arg repo "$TELEMETRY_REPO" \
+    '{
+      schema_version: "1.0",
+      generated_at: (now | todate),
+      correlation_id: $cid,
+      source: {
+        workflow: "engine-" + $engine,
+        job: $job
+      },
+      entity: {
+        type: "organization",
+        owner: $owner
+      },
+      event: {
+        category: $engine,
+        action: "success",
+        reason: null
+      },
+      details: {
+        summary_only: true,
+        message: "Engine completed successfully"
+      }
+    }'
+  )
 
-PAYLOAD=$(jq -n -c \
-  --arg engine "$ENGINE_NAME" \
-  --arg job "$ENGINE_JOB" \
-  --arg action "$ACTION" \
-  --arg cid "$CORRELATION_ID" \
-  --arg owner "$OWNER" \
-  --arg repo "$REPO" \
-  --slurpfile details "$RESULT_FILE" \
-  '{
-    schema_version: "1.0",
-    generated_at: (now | todate),
-    correlation_id: $cid,
-    source: {
-      workflow: "task-assistant-dispatch.yml",
-      job: $job,
-      run_id: env.GITHUB_RUN_ID
-    },
-    entity: {
-      type: "repository",
-      owner: $owner,
-      repo: $repo
-    },
-    event: {
-      category: $engine,
-      action: $action,
-      reason: null
-    },
-    details: $details[0]
-  }'
-)
+else
+  if [[ -z "$RESULT_FILE" ]]; then
+    echo "::error::RESULT_FILE is required unless SUMMARY_ONLY=true"
+    exit 1
+  fi
 
-echo "$PAYLOAD" | jq . >/dev/null
-echo "$PAYLOAD" | node scripts/telemetry/emit.js
+  if [[ ! -f "$RESULT_FILE" ]]; then
+    echo "::error::Result file not found: $RESULT_FILE"
+    exit 1
+  fi
+
+  ACTION=$(jq -r '.ok | if . then "success" else "failed" end' "$RESULT_FILE")
+
+  PAYLOAD=$(jq -c \
+    --arg engine "$ENGINE_NAME" \
+    --arg job "$ENGINE_JOB" \
+    --arg cid "$CORRELATION_ID" \
+    --arg action "$ACTION" \
+    --arg owner "$OWNER" \
+    --arg repo "$REPO" \
+    '{
+      schema_version: "1.0",
+      generated_at: (now | todate),
+      correlation_id: $cid,
+      source: {
+        workflow: "engine-" + $engine,
+        job: $job
+      },
+      entity: {
+        type: "repository",
+        owner: $owner,
+        repo: $repo
+      },
+      event: {
+        category: $engine,
+        action: $action,
+        reason: null
+      },
+      details: input
+    }' "$RESULT_FILE"
+  )
+fi
+
+# ─────────────────────────────────────────────
+# Emit
+# ─────────────────────────────────────────────
+echo "$PAYLOAD" | gh api \
+  --method POST \
+  "/repos/${TELEMETRY_REPO}/contents/telemetry/v1/events/$(date +%Y-%m-%d).jsonl" \
+  --field message="telemetry: ${ENGINE_NAME}" \
+  --field content="$(printf '%s\n' "$PAYLOAD" | base64 -w0)" \
+  --field encoding="base64" \
+  >/dev/null
