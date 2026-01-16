@@ -13,7 +13,8 @@ on:
         type: string
 
 permissions:
-  contents: read
+  contents: write
+  id-token: write
 
 jobs:
   self_test:
@@ -33,7 +34,7 @@ jobs:
       - run: npm ci
 
       # ─────────────────────────────────────────────
-      # Derive OWNER / REPO (bash-safe)
+      # Derive org context (bash-safe)
       # ─────────────────────────────────────────────
       - name: Set org context
         run: |
@@ -43,9 +44,22 @@ jobs:
           echo "REPO=$REPO"   >> "$GITHUB_ENV"
 
       # ─────────────────────────────────────────────
+      # Generate GitHub App token (REQUIRED)
+      # ─────────────────────────────────────────────
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.CODEX_APP_ID }}
+          private-key: ${{ secrets.CODEX_PRIVATE_KEY }}
+          owner: ${{ env.OWNER }}
+
+      # ─────────────────────────────────────────────
       # Run dashboard self-test
       # ─────────────────────────────────────────────
       - name: Run dashboard engine self-test
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           node scripts/dashboard/self-test.js > result.json
 
@@ -54,6 +68,8 @@ jobs:
       # ─────────────────────────────────────────────
       - name: Emit dashboard self-test telemetry
         if: always()
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           ENGINE_NAME="dashboard" \
           ENGINE_JOB="self-test" \
