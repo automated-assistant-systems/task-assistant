@@ -73,27 +73,7 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
-          PAYLOAD=$(jq -c '
-            {
-              schema_version: "1.0",
-              generated_at: (now | todate),
-              correlation_id: env.CORRELATION_ID,
-              source: {
-                workflow: "engine-validate.yml",
-                job: "validate",
-                run_id: env.GITHUB_RUN_ID
-              },
-              entity: {
-                type: "repository",
-                owner: env.OWNER,
-                repo: env.REPO
-              },
-              event: {
-                category: "validate",
-                action: "sweep",
-                reason: .summary
-              },
-              details: .
-            }' result.json
-          )
-          echo "$PAYLOAD" | node scripts/telemetry/emit.js
+          ENGINE_NAME="validate" \
+          ENGINE_JOB="validate" \
+          RESULT_FILE="result.json" \
+          ./scripts/telemetry/emit-engine.sh
