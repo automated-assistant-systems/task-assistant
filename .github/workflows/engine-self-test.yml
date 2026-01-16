@@ -86,8 +86,8 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
-          ENGINE_NAME="validate" \
-          ENGINE_JOB="validate" \
+          ENGINE_NAME="self-test" \
+          ENGINE_JOB="self-test" \
           RESULT_FILE="result.json" \
           ./scripts/telemetry/emit-engine.sh
 
