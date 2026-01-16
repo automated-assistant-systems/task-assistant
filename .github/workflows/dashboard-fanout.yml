@@ -5,7 +5,13 @@ name: Task Assistant • Dashboard • Fanout Scheduler
 on:
   schedule:
     - cron: "0 2 * * *"
+
   workflow_dispatch:
+    inputs:
+      correlation_id:
+        description: "Optional correlation override (normally auto-generated)"
+        required: false
+        type: string
 
 permissions:
   contents: read
