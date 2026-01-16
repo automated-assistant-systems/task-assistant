@@ -27,3 +27,8 @@ enforcement:
     phase:
       mode: enforce
       strategy: highest
+
+  phase_milestones:
+    phase-3.4: "Phase 3.4 – Marketplace Readiness"
+    phase-3.5: "Phase 3.5 – Post-Release Hardening"
+
