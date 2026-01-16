@@ -64,12 +64,13 @@ jobs:
       # ─────────────────────────────────────────────
       # Run prepare-repo (dry run)
       # ─────────────────────────────────────────────
-      - name: Run self-test (prepare-repo dry-run)
+      - name: Run prepare-repo
+        id: prep
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           node scripts/prepare-repo.js \
-            "${{ inputs.target_repo }}" \
+            "${TARGET_REPO}" \
             --dry-run \
             --json > result.json
 
@@ -81,11 +82,15 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
-          PAYLOAD=$(jq -c '
-            {
+          ACTION=$(jq -r '.ok | if . then "success" else "failed" end' result.json)
+
+          PAYLOAD=$(jq -c \
+            --arg action "$ACTION" \
+            --arg cid "$CORRELATION_ID" \
+            '{
               schema_version: "1.0",
               generated_at: (now | todate),
-              correlation_id: env.CORRELATION_ID,
+              correlation_id: $cid,
               source: {
                 workflow: "engine-self-test.yml",
                 job: "self_test",
@@ -93,15 +98,15 @@ jobs:
               },
               entity: {
                 type: "repository",
-                owner: env.OWNER,
-                repo: env.REPO
+                  owner: env.OWNER,
+                  repo: env.REPO
               },
               event: {
                 category: "self-test",
-                action: (if env.GITHUB_JOB_STATUS == "success" then "success" else "failed" end),
+                action: $action,
                 reason: null
               },
-              details: .
+              details: input
             }' result.json
           )
 
