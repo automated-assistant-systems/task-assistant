@@ -8,6 +8,12 @@ on:
       target_repo:
         required: true
         type: string
+      issue_number:
+        required: true
+        type: string
+      event_type:
+        required: true
+        type: string
       telemetry_repo:
         required: true
         type: string
