@@ -46,7 +46,7 @@ jobs:
                 owner: .owner,
                 telemetry_repo: .telemetry_repo
               }
-          ' infra/telemetry-registry.json | jq -s '{ include: . }')
+          ' infra/telemetry-registry.json | jq -cs '{ include: . }')
 
           echo "matrix=$MATRIX" >> "$GITHUB_OUTPUT"
           echo "correlation_id=$CORRELATION_ID" >> "$GITHUB_OUTPUT"
