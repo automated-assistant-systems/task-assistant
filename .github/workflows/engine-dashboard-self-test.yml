@@ -21,6 +21,7 @@ jobs:
 
     env:
       CORRELATION_ID: ${{ inputs.correlation_id }}
+      TELEMETRY_REPO: ${{ inputs.telemetry_repo }}
 
     steps:
       - uses: actions/checkout@v4
@@ -32,11 +33,11 @@ jobs:
       - run: npm ci
 
       # ─────────────────────────────────────────────
-      # Set OWNER / REPO for telemetry emitter
+      # Derive OWNER / REPO (bash-safe)
       # ─────────────────────────────────────────────
       - name: Set org context
         run: |
-          OWNER="${{ inputs.telemetry_repo%%/* }}"
+          OWNER="${TELEMETRY_REPO%%/*}"
           REPO="task-assistant"
           echo "OWNER=$OWNER" >> "$GITHUB_ENV"
           echo "REPO=$REPO"   >> "$GITHUB_ENV"
