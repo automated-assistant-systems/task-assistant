@@ -82,10 +82,10 @@ jobs:
           echo "event_type=$EVENT_TYPE"         >> "$GITHUB_OUTPUT"
           echo "correlation_id=$CORRELATION_ID" >> "$GITHUB_OUTPUT"
 
-  self_test:
+  self_test_core:
     if: needs.resolve.outputs.mode == 'self-test'
     needs: resolve
-    uses: ./.github/workflows/engine-self-test.yml
+    uses: automated-assistant-systems/task-assistant/.github/workflows/engine-self-test.yml@main
     with:
       target_repo:     ${{ needs.resolve.outputs.target_repo }}
       telemetry_repo:  ${{ needs.resolve.outputs.telemetry_repo }}
@@ -94,10 +94,20 @@ jobs:
       CODEX_APP_ID:        ${{ secrets.CODEX_APP_ID }}
       CODEX_PRIVATE_KEY:   ${{ secrets.CODEX_PRIVATE_KEY }}
 
+  self_test_dashboard:
+    if: needs.resolve.outputs.mode == 'self-test'
+    needs:
+      - resolve
+      - self_test_core
+    uses: automated-assistant-systems/task-assistant/.github/workflows/engine-dashboard-self-test.yml@main
+    with:
+      telemetry_repo:  ${{ needs.resolve.outputs.telemetry_repo }}
+      correlation_id:  ${{ needs.resolve.outputs.correlation_id }}
+
   validate:
     if: needs.resolve.outputs.mode == 'validate'
     needs: resolve
-    uses: ./.github/workflows/engine-validate.yml
+    uses: automated-assistant-systems/task-assistant/.github/workflows/engine-validate.yml@main
     with:
       target_repo:     ${{ needs.resolve.outputs.target_repo }}
       telemetry_repo:  ${{ needs.resolve.outputs.telemetry_repo }}
@@ -111,7 +121,7 @@ jobs:
       needs.resolve.outputs.mode == 'enforce' &&
       needs.resolve.outputs.issue_number != ''
     needs: resolve
-    uses: ./.github/workflows/engine-enforce.yml
+    uses: automated-assistant-systems/task-assistant/.github/workflows/engine-enforce.yml@main
     with:
       target_repo:     ${{ needs.resolve.outputs.target_repo }}
       issue_number:    ${{ needs.resolve.outputs.issue_number }}

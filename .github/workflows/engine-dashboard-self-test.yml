@@ -1,0 +1,50 @@
+---
+name: Task Assistant • Engine • Dashboard • Self-Test
+
+# yamllint disable rule:truthy
+on:
+  workflow_call:
+    inputs:
+      correlation_id:
+        required: true
+        type: string
+      telemetry_repo:
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  self_test:
+    runs-on: ubuntu-latest
+
+    env:
+      CORRELATION_ID: ${{ inputs.correlation_id }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - run: npm ci
+
+      # ─────────────────────────────────────────────
+      # Run dashboard self-test
+      # ─────────────────────────────────────────────
+      - name: Run dashboard engine self-test
+        run: |
+          node scripts/dashboard/self-test.js > result.json
+
+      # ─────────────────────────────────────────────
+      # Emit telemetry
+      # ─────────────────────────────────────────────
+      - name: Emit dashboard self-test telemetry
+        if: always()
+        run: |
+          ENGINE_NAME="dashboard" \
+          ENGINE_JOB="self-test" \
+          RESULT_FILE="result.json" \
+          ./scripts/telemetry/emit-engine.sh
