@@ -30,13 +30,29 @@ jobs:
       TELEMETRY_REPO: ${{ inputs.telemetry_repo }}
 
     steps:
-      - uses: actions/checkout@v4
+      # ─────────────────────────────────────────────
+      # Checkout Task Assistant (ENGINE CODE)
+      # ─────────────────────────────────────────────
+      - name: Checkout Task Assistant
+        uses: actions/checkout@v4
+        with:
+          repository: automated-assistant-systems/task-assistant
+          ref: main
+          path: task-assistant
 
       - uses: actions/setup-node@v4
         with:
           node-version: 20
 
-      - run: npm ci
+      - name: Install dependencies
+        working-directory: task-assistant
+        run: |
+          set -euo pipefail
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            npm install
+          fi
 
       # ─────────────────────────────────────────────
       # Derive org context (bash-safe)
@@ -65,6 +81,7 @@ jobs:
       - name: Run dashboard engine self-test
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        working-directory: task-assistant
         run: |
           node scripts/dashboard/self-test.js > result.json
 
@@ -75,6 +92,7 @@ jobs:
         if: always()
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        working-directory: task-assistant
         run: |
           ENGINE_NAME="dashboard" \
           ENGINE_JOB="self-test" \

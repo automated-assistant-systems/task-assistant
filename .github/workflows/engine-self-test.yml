@@ -34,16 +34,24 @@ jobs:
       TELEMETRY_REPO: ${{ inputs.telemetry_repo }}
 
     steps:
-      - uses: actions/checkout@v4
+      # ─────────────────────────────────────────────
+      # Checkout Task Assistant (ENGINE CODE)
+      # ─────────────────────────────────────────────
+      - name: Checkout Task Assistant
+        uses: actions/checkout@v4
+        with:
+          repository: automated-assistant-systems/task-assistant
+          ref: main
+          path: task-assistant
 
       - uses: actions/setup-node@v4
         with:
           node-version: 20
 
       - name: Install dependencies
+        working-directory: task-assistant
         run: |
           set -euo pipefail
-
           if [ -f package-lock.json ]; then
             npm ci
           else
@@ -93,9 +101,9 @@ jobs:
         if: always()
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        working-directory: task-assistant
         run: |
           ENGINE_NAME="self-test" \
           ENGINE_JOB="self-test" \
           RESULT_FILE="result.json" \
           ./scripts/telemetry/emit-engine.sh
-
