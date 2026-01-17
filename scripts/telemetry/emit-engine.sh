@@ -40,7 +40,7 @@ PAYLOAD=$(jq -c \
     generated_at: (now | todate),
     correlation_id: $cid,
     source: {
-      workflow: "engine-\($engine)",
+      workflow: ("engine-" + $engine),
       job: $job
     },
     entity: {
