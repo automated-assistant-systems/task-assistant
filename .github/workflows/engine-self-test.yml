@@ -89,6 +89,7 @@ jobs:
 
           TARGET_REPO="${OWNER}/${REPO}"
 
+          working-directory: task-assistant
           node scripts/prepare-repo.js \
             "$TARGET_REPO" \
             --dry-run \
