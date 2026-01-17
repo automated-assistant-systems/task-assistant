@@ -23,7 +23,7 @@ fi
 # ─────────────────────────────────────────────
 # Derive action from result
 # ─────────────────────────────────────────────
-ACTION=$(jq -r '.ok | if . then "success" else "failed" end' "$RESULT_FILE")
+ACTION=$(jq -r 'select(type=="object") | .ok | if . then "success" else "failed" end' "$RESULT_FILE")
 
 # ─────────────────────────────────────────────
 # Build telemetry payload (repo-scoped ONLY)
@@ -35,26 +35,29 @@ PAYLOAD=$(jq -c \
   --arg action "$ACTION" \
   --arg owner "$OWNER" \
   --arg repo "$REPO" \
-  '{
-    schema_version: "1.0",
-    generated_at: (now | todate),
-    correlation_id: $cid,
-    source: {
-      workflow: ("engine-" + $engine),
-      job: $job
-    },
-    entity: {
-      type: "repository",
-      owner: $owner,
-      repo: $repo
-    },
-    event: {
-      category: $engine,
-      action: $action,
-      reason: null
-    },
-    details: input
-  }' "$RESULT_FILE"
+  '
+  select(type=="object")
+  | {
+      schema_version: "1.0",
+      generated_at: (now | todate),
+      correlation_id: $cid,
+      source: {
+        workflow: ("engine-" + $engine),
+        job: $job
+      },
+      entity: {
+        type: "repository",
+        owner: $owner,
+        repo: $repo
+      },
+      event: {
+        category: $engine,
+        action: $action,
+        reason: null
+      },
+      details: .
+    }
+  ' "$RESULT_FILE"
 )
 
 # ─────────────────────────────────────────────
