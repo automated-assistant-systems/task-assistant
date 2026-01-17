@@ -118,14 +118,19 @@ jobs:
           fi
 
       # ─────────────────────────────────────────────
-      # Emit engine telemetry
+      # Emit engine telemetry (per repo)
       # ─────────────────────────────────────────────
-      - name: Emit dashboard engine telemetry
-        if: always()
+      - name: Emit dashboard telemetry (per repo)
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
-          ENGINE_NAME="dashboard" \
-          ENGINE_JOB="dashboard" \
-          SUMMARY_ONLY="true" \
-          ./scripts/telemetry/emit-engine.sh
+          set -euo pipefail
+
+          for result in telemetry/telemetry/v1/dashboards/*/result.json; do
+            REPO="$(basename "$(dirname "$result")")"
+
+            OWNER="${OWNER}" \
+            REPO="$REPO" \
+            RESULT_FILE="$result" \
+            ./scripts/telemetry/emit-engine.sh
+          done

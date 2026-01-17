@@ -9,6 +9,7 @@
  * - No registry access
  * - No git operations
  * - Deterministic filesystem output
+ * - Emits per-repo result.json for telemetry
  */
 
 import fs from "fs";
@@ -48,9 +49,15 @@ const repoDirs = fs
 for (const repo of repoDirs) {
   const repoTelemetryPath = path.join(TELEMETRY_ROOT, repo);
   const repoDashboardPath = path.join(DASHBOARD_ROOT, repo);
+
   const dashboardFile = path.join(
     repoDashboardPath,
     "dashboard.json"
+  );
+
+  const resultFile = path.join(
+    repoDashboardPath,
+    "result.json"
   );
 
   fs.mkdirSync(repoDashboardPath, { recursive: true });
@@ -63,6 +70,12 @@ for (const repo of repoDirs) {
 
     if (jsonlFiles.length === 0) {
       writeDashboard(dashboardFile, emptyDashboard(repo));
+      writeResult(resultFile, {
+        ok: true,
+        repo,
+        summary: "No telemetry present",
+        total_events: 0,
+      });
       continue;
     }
 
@@ -87,8 +100,23 @@ for (const repo of repoDirs) {
         totalEvents,
       })
     );
+
+    writeResult(resultFile, {
+      ok: true,
+      repo,
+      summary: "Dashboard rebuilt",
+      total_events: totalEvents,
+    });
+
   } catch (err) {
     writeDashboard(dashboardFile, errorDashboard(repo, err));
+    writeResult(resultFile, {
+      ok: false,
+      repo,
+      summary: "Dashboard build failed",
+      error: err.message,
+    });
+
     console.error(
       `[dashboard] Failed for ${repo}: ${err.message}`
     );
@@ -100,6 +128,10 @@ for (const repo of repoDirs) {
    ────────────────────────────── */
 
 function writeDashboard(file, payload) {
+  fs.writeFileSync(file, JSON.stringify(payload, null, 2));
+}
+
+function writeResult(file, payload) {
   fs.writeFileSync(file, JSON.stringify(payload, null, 2));
 }
 
