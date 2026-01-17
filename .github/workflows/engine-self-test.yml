@@ -41,12 +41,7 @@ jobs:
           node-version: 20
 
       - name: Install dependencies
-        run: |
-          if [ -f package-lock.json ]; then
-            npm ci
-          else
-            npm install
-          fi
+        run: npm ci
 
       # ─────────────────────────────────────────────
       # Parse target repo (bash-safe)
@@ -95,5 +90,5 @@ jobs:
           ENGINE_NAME="self-test" \
           ENGINE_JOB="self-test" \
           RESULT_FILE="result.json" \
-          automated-assistant-systems/task-assistant/scripts/telemetry/emit-engine.sh
+          ./scripts/telemetry/emit-engine.sh
 
