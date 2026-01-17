@@ -95,5 +95,5 @@ jobs:
           ENGINE_NAME="self-test" \
           ENGINE_JOB="self-test" \
           RESULT_FILE="result.json" \
-          ./scripts/telemetry/emit-engine.sh
+          automated-assistant-systems/task-assistant/scripts/telemetry/emit-engine.sh
 
