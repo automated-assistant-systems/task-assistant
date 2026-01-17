@@ -31,13 +31,12 @@ if [[ "$SUMMARY_ONLY" == "true" ]]; then
     --arg job "$ENGINE_JOB" \
     --arg cid "$CORRELATION_ID" \
     --arg owner "$OWNER" \
-    --arg repo "$TELEMETRY_REPO" \
     '{
       schema_version: "1.0",
       generated_at: (now | todate),
       correlation_id: $cid,
       source: {
-        workflow: "engine-" + $engine,
+        workflow: "engine-\($engine)"
         job: $job
       },
       entity: {
@@ -81,7 +80,7 @@ else
       generated_at: (now | todate),
       correlation_id: $cid,
       source: {
-        workflow: "engine-" + $engine,
+        workflow: "engine-\($engine)"
         job: $job
       },
       entity: {
