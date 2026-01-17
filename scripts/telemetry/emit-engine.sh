@@ -63,10 +63,34 @@ PAYLOAD=$(jq -c \
 # ─────────────────────────────────────────────
 # Emit (append JSONL)
 # ─────────────────────────────────────────────
-gh api \
-  --method POST \
-  "/repos/${TELEMETRY_REPO}/contents/telemetry/v1/events/$(date +%Y-%m-%d).jsonl" \
-  --field message="telemetry: ${ENGINE_NAME}/${REPO}" \
-  --field content="$(printf '%s\n' "$PAYLOAD" | base64 -w0)" \
-  --field encoding="base64" \
-  >/dev/null
+EVENT_PATH="telemetry/v1/events/$(date +%Y-%m-%d).jsonl"
+API_PATH="/repos/${TELEMETRY_REPO}/contents/${EVENT_PATH}"
+
+# Try to fetch existing file
+EXISTING=$(gh api "$API_PATH" --jq '{sha: .sha, content: .content}' 2>/dev/null || true)
+
+if [[ -n "$EXISTING" ]]; then
+  SHA=$(jq -r '.sha' <<<"$EXISTING")
+  OLD_CONTENT=$(jq -r '.content' <<<"$EXISTING" | base64 --decode)
+
+  NEW_CONTENT=$(printf "%s\n%s\n" "$OLD_CONTENT" "$PAYLOAD")
+else
+  SHA=""
+  NEW_CONTENT=$(printf "%s\n" "$PAYLOAD")
+fi
+
+ENCODED=$(printf "%s" "$NEW_CONTENT" | base64 -w0)
+
+ARGS=(
+  --method PUT
+  "$API_PATH"
+  --field message="telemetry: ${ENGINE_NAME}"
+  --field content="$ENCODED"
+  --field encoding="base64"
+)
+
+if [[ -n "$SHA" ]]; then
+  ARGS+=( --field sha="$SHA" )
+fi
+
+gh api "${ARGS[@]}" >/dev/null
