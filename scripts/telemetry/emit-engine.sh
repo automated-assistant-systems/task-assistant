@@ -63,7 +63,7 @@ PAYLOAD=$(jq -c \
 gh api \
   --method POST \
   "/repos/${TELEMETRY_REPO}/contents/telemetry/v1/events/$(date +%Y-%m-%d).jsonl" \
-  --field message="telemetry: ${ENGINE_NAME}" \
+  --field message="telemetry: ${ENGINE_NAME}/${REPO}" \
   --field content="$(printf '%s\n' "$PAYLOAD" | base64 -w0)" \
   --field encoding="base64" \
   >/dev/null
