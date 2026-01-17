@@ -40,7 +40,13 @@ jobs:
         with:
           node-version: 20
 
-      - run: npm ci
+      - name: Install dependencies
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            npm install
+          fi
 
       # ─────────────────────────────────────────────
       # Parse target repo (bash-safe)
