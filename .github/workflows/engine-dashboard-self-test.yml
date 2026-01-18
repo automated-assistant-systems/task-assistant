@@ -31,6 +31,7 @@ jobs:
     env:
       CORRELATION_ID: ${{ inputs.correlation_id }}
       TELEMETRY_REPO: ${{ inputs.telemetry_repo }}
+      TARGET_REPO: ${{ inputs.target_repo }}
 
     steps:
       # ─────────────────────────────────────────────
