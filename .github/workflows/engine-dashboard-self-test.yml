@@ -64,7 +64,7 @@ jobs:
       - name: Set org context
         run: |
           OWNER="${TELEMETRY_REPO%%/*}"
-          REPO="${TARGET##*/}"
+          REPO="${TARGET_REPO##*/}"
           echo "OWNER=$OWNER" >> "$GITHUB_ENV"
           echo "REPO=$REPO"   >> "$GITHUB_ENV"
 
