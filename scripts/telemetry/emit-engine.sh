@@ -61,36 +61,21 @@ PAYLOAD=$(jq -c \
 )
 
 # ─────────────────────────────────────────────
-# Emit (append JSONL)
+# Emit telemetry (SAFE JSONL append)
 # ─────────────────────────────────────────────
-EVENT_PATH="telemetry/v1/repos/${REPO}/$(date +%Y-%m-%d).jsonl"
-API_PATH="/repos/${TELEMETRY_REPO}/contents/${EVENT_PATH}"
+EVENT_FILE="telemetry/v1/repos/${REPO}/$(date +%Y-%m-%d).jsonl"
 
-# Try to fetch existing file
-EXISTING=$(gh api "$API_PATH" --jq '{sha: .sha, content: .content}' 2>/dev/null || true)
+cd telemetry-repo   # already checked out with GH_TOKEN
 
-if [[ -n "$EXISTING" ]]; then
-  SHA=$(jq -r '.sha' <<<"$EXISTING")
-  OLD_CONTENT=$(jq -r '.content' <<<"$EXISTING" | base64 --decode)
+mkdir -p "$(dirname "$EVENT_FILE")"
 
-  NEW_CONTENT=$(printf "%s\n%s\n" "$OLD_CONTENT" "$PAYLOAD")
-else
-  SHA=""
-  NEW_CONTENT=$(printf "%s\n" "$PAYLOAD")
+# Append payload EXACTLY as a line
+printf '%s\n' "$PAYLOAD" >> "$EVENT_FILE"
+
+git add "$EVENT_FILE"
+
+# Commit only if file changed
+if ! git diff --cached --quiet; then
+  git commit -m "telemetry: ${ENGINE_NAME} (${REPO})"
+  git push
 fi
-
-ENCODED=$(printf "%s" "$NEW_CONTENT" | base64 -w0)
-
-ARGS=(
-  --method PUT
-  "$API_PATH"
-  --field message="telemetry: ${ENGINE_NAME}"
-  --field content="$ENCODED"
-  --field encoding="base64"
-)
-
-if [[ -n "$SHA" ]]; then
-  ARGS+=( --field sha="$SHA" )
-fi
-
-gh api "${ARGS[@]}" >/dev/null
