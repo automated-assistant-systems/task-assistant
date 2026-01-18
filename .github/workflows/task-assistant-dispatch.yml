@@ -5,9 +5,6 @@ name: Task Assistant • Dispatch
 on:
   workflow_dispatch:
     inputs:
-      target_repo:
-        description: "Target repository (owner/repo)"
-        required: true
       mode:
         description: "Execution mode"
         required: true
@@ -54,7 +51,7 @@ jobs:
           EVENT_TYPE=""
 
           if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
-            TARGET_REPO="${{ inputs.target_repo }}"
+            TARGET_REPO="${GITHUB_REPOSITORY}"
             MODE="${{ inputs.mode }}"
 
           elif [ "${GITHUB_EVENT_NAME}" = "issues" ]; then
