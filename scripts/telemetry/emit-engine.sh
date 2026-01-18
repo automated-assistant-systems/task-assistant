@@ -15,6 +15,18 @@ set -euo pipefail
 : "${GH_TOKEN:?telemetry: GH_TOKEN is not set}"
 : "${RESULT_FILE:?RESULT_FILE is required}"
 
+# NOTE:
+# This script MUST NOT:
+# - cd
+# - git clone
+# - assume repo checkout
+# Telemetry is emitted ONLY via GitHub Contents API.
+
+if pwd | grep -q telemetry; then
+  echo "::error::Telemetry scripts must not run inside telemetry repo"
+  exit 1
+fi
+
 if [[ ! -f "$RESULT_FILE" ]]; then
   echo "::error::Result file not found: $RESULT_FILE"
   exit 1
