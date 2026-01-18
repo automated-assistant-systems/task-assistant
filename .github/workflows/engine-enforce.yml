@@ -90,6 +90,7 @@ jobs:
       - name: Enforce issue hygiene
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        working-directory: task-assistant
         run: |
           set -euo pipefail
 
@@ -106,12 +107,17 @@ jobs:
         if: always()
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        working-directory: task-assistant
         run: |
           set -euo pipefail
 
           chmod +x scripts/telemetry/emit-engine.sh
 
-          ENGINE_NAME="enforce" \
-          ENGINE_JOB="enforce" \
-          RESULT_FILE="result.json" \
-          scripts/telemetry/emit-engine.sh
+          if [ -f result.json ]; then
+            ENGINE_NAME="self-test" \
+            ENGINE_JOB="self-test" \
+            RESULT_FILE="result.json" \
+            ./scripts/telemetry/emit-engine.sh
+          else
+            echo "No result.json produced — skipping telemetry emit"
+          fi

@@ -93,7 +93,15 @@ jobs:
           node scripts/prepare-repo.js \
             "$TARGET_REPO" \
             --dry-run \
-            --json > result.json
+            --json \
+            2> prepare-error.log \
+            > result.json || true
+
+          echo "---- STDERR ----"
+          cat prepare-error.log || true
+
+          echo "---- STDOUT ----"
+          cat result.json || true
 
       # ─────────────────────────────────────────────
       # Emit telemetry
