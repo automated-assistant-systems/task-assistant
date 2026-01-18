@@ -44,21 +44,28 @@ jobs:
 
     steps:
       # ─────────────────────────────────────────────
-      # Checkout Task Assistant (host repo)
+      # Checkout Task Assistant (ENGINE CODE)
       # ─────────────────────────────────────────────
       - name: Checkout Task Assistant
         uses: actions/checkout@v4
+        with:
+          repository: automated-assistant-systems/task-assistant
+          ref: main
+          path: task-assistant
 
-      # ─────────────────────────────────────────────
-      # Node runtime
-      # ─────────────────────────────────────────────
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 20
 
       - name: Install dependencies
-        run: npm ci
+        working-directory: task-assistant
+        run: |
+          set -euo pipefail
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            npm install
+          fi
 
       # ─────────────────────────────────────────────
       # Parse target repo (bash-safe, not expressions)
