@@ -101,6 +101,7 @@ jobs:
       - self_test_core
     uses: automated-assistant-systems/task-assistant/.github/workflows/engine-dashboard-self-test.yml@main
     with:
+      target_repo:     ${{ needs.resolve.outputs.target_repo }}
       telemetry_repo:  ${{ needs.resolve.outputs.telemetry_repo }}
       correlation_id:  ${{ needs.resolve.outputs.correlation_id }}
     secrets:

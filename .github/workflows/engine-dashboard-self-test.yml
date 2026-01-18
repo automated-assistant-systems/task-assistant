@@ -5,10 +5,13 @@ name: Task Assistant • Engine • Dashboard • Self-Test
 on:
   workflow_call:
     inputs:
-      correlation_id:
+      target_repo:
         required: true
         type: string
       telemetry_repo:
+        required: true
+        type: string
+      correlation_id:
         required: true
         type: string
     secrets:
@@ -60,7 +63,7 @@ jobs:
       - name: Set org context
         run: |
           OWNER="${TELEMETRY_REPO%%/*}"
-          REPO="task-assistant"
+          REPO="${TARGET_REPO}"
           echo "OWNER=$OWNER" >> "$GITHUB_ENV"
           echo "REPO=$REPO"   >> "$GITHUB_ENV"
 
