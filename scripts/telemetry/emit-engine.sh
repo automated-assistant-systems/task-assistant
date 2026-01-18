@@ -63,7 +63,7 @@ PAYLOAD=$(jq -c \
 # ─────────────────────────────────────────────
 # Emit (append JSONL)
 # ─────────────────────────────────────────────
-EVENT_PATH="telemetry/v1/events/$(date +%Y-%m-%d).jsonl"
+EVENT_PATH="telemetry/v1/repos/${REPO}/$(date +%Y-%m-%d).jsonl"
 API_PATH="/repos/${TELEMETRY_REPO}/contents/${EVENT_PATH}"
 
 # Try to fetch existing file
