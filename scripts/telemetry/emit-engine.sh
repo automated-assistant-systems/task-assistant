@@ -78,29 +78,25 @@ PAYLOAD=$(jq -c \
 EVENT_PATH="telemetry/v1/repos/${REPO}/$(date +%Y-%m-%d).jsonl"
 API_PATH="/repos/${TELEMETRY_REPO}/contents/${EVENT_PATH}"
 
-EXISTING=$(gh api "$API_PATH" --jq '{sha: .sha, content: .content}' 2>/dev/null || true)
+TMP="$(mktemp)"
 
-if [[ -n "$EXISTING" ]]; then
-  SHA=$(jq -r '.sha' <<<"$EXISTING")
-  OLD_CONTENT=$(jq -r '.content' <<<"$EXISTING" | base64 --decode)
-  NEW_CONTENT=$(printf "%s\n%s\n" "$OLD_CONTENT" "$PAYLOAD")
-else
-  SHA=""
-  NEW_CONTENT=$(printf "%s\n" "$PAYLOAD")
+# Fetch existing file if it exists
+if gh api "$API_PATH" --silent > /dev/null 2>&1; then
+  gh api "$API_PATH" --jq '.content' | base64 --decode > "$TMP"
 fi
 
-ENCODED=$(printf "%s" "$NEW_CONTENT" | base64 -w0)
+# Append new event (always newline-safe)
+printf '%s\n' "$PAYLOAD" >> "$TMP"
 
-ARGS=(
-  --method PUT
-  "$API_PATH"
-  --field message="telemetry: ${ENGINE_NAME}"
-  --field content="$ENCODED"
-  --field encoding="base64"
-)
+# Upload
+gh api \
+  --method PUT \
+  "$API_PATH" \
+  --field message="telemetry: ${ENGINE_NAME}" \
+  --field content="$(base64 -w0 "$TMP")" \
+  --field encoding="base64" \
+  ${SHA:+--field sha="$SHA"} \
+  >/dev/null
 
-if [[ -n "$SHA" ]]; then
-  ARGS+=( --field sha="$SHA" )
-fi
+rm -f "$TMP"
 
-gh api "${ARGS[@]}" >/dev/null

@@ -40,6 +40,8 @@ jobs:
     steps:
       - id: ctx
         shell: bash
+        env:
+          TELEMETRY_REPO_NAME: ${{ vars.TELEMETRY_REPO_NAME }}
         run: |
           set -euo pipefail
 

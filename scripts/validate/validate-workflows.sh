@@ -1,207 +1,213 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# ============================================================
+# Phase 3.3 Validation — Dispatch / Engine / Telemetry
+# ============================================================
+
 REPO="${1:-}"
-TELEMETRY_REPO="${TELEMETRY_REPO:-}"
+OWNER="$(cut -d/ -f1 <<< "$REPO")"
+TELEMETRY_SUFFIX="${TELEMETRY_SUFFIX:-task-assistant-telemetry}"
 
-if [[ -z "$REPO" ]]; then
-  echo "Usage: scripts/validate/validate-phase-3.2.sh <owner/repo>"
-  echo "Env required: TELEMETRY_REPO=org/telemetry-repo"
+# ------------------------------------------------------------
+# Resolve telemetry repository (org-scoped, configurable)
+# ------------------------------------------------------------
+
+if [[ -z "${TELEMETRY_REPO:-}" ]]; then
+  TELEMETRY_REPO="${OWNER}/${TELEMETRY_SUFFIX}"
+  export TELEMETRY_REPO
+  echo "ℹ️  TELEMETRY_REPO not set — derived as $TELEMETRY_REPO"
+else
+  echo "ℹ️  Using TELEMETRY_REPO from env: $TELEMETRY_REPO"
+fi
+
+if ! gh repo view "$TELEMETRY_REPO" >/dev/null 2>&1; then
+  echo "❌ Telemetry repo does not exist or is inaccessible: $TELEMETRY_REPO"
   exit 1
 fi
 
-if [[ -z "$TELEMETRY_REPO" ]]; then
-  echo "❌ TELEMETRY_REPO env var is required"
-  exit 1
-fi
-
-for cmd in gh jq node; do
-  command -v "$cmd" >/dev/null || { echo "❌ Missing dependency: $cmd"; exit 1; }
+for cmd in gh jq date; do
+  command -v "$cmd" >/dev/null || {
+    echo "❌ Missing dependency: $cmd"
+    exit 1
+  }
 done
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+REPO_NAME="$(basename "$REPO")"
+OWNER="$(dirname "$REPO")"
+TODAY_UTC="$(date -u +"%Y-%m-%d")"
+
 WORKDIR="$(mktemp -d)"
 TELE_DIR="$WORKDIR/telemetry"
 
 trap 'rm -rf "$WORKDIR"' EXIT
 
-REPO_NAME="$(basename "$REPO")"
-TODAY_UTC="$(date -u +"%Y-%m-%d")"
-
-echo "🔬 Phase 3.2 Validation"
-echo "Sandbox repo: $REPO"
-echo "Telemetry repo: $TELEMETRY_REPO"
-echo "UTC date: $TODAY_UTC"
+echo
+echo "🔬 Phase 3.3 Validation"
+echo "Repo under test:     $REPO"
+echo "Telemetry repo:      $TELEMETRY_REPO"
+echo "UTC date:            $TODAY_UTC"
 echo
 
 # ------------------------------------------------------------
-# 1) prepare-repo apply
+# Helper: wait for latest dispatch run
 # ------------------------------------------------------------
-echo "→ Running prepare-repo (apply)..."
-APPLY_JSON="$(node "$ROOT_DIR/scripts/prepare-repo.js" "$REPO" --json)"
-echo "$APPLY_JSON" | jq . >/dev/null
-[[ "$(echo "$APPLY_JSON" | jq -r '.ok')" == "true" ]] || {
-  echo "❌ prepare-repo apply failed"; exit 1;
+wait_for_dispatch() {
+  local mode="$1"
+
+  echo "→ Triggering dispatch ($mode)..."
+
+  gh workflow run task-assistant-dispatch.yml \
+    --repo "$REPO" \
+    -f mode="$mode" >/dev/null
+
+  sleep 3
+
+  RUN_ID="$(gh run list \
+    --repo "$REPO" \
+    --workflow task-assistant-dispatch.yml \
+    --limit 1 \
+    --json databaseId \
+    | jq -r '.[0].databaseId')"
+
+  if [[ -z "$RUN_ID" || "$RUN_ID" == "null" ]]; then
+    echo "❌ No dispatch run found"
+    exit 1
+  fi
+
+  gh run watch --repo "$REPO" "$RUN_ID" --exit-status
+  echo "✓ Dispatch ($mode) completed"
 }
-echo "✓ prepare-repo apply ok"
 
 # ------------------------------------------------------------
-# 2) prepare-repo dry-run (idempotency)
+# 1) Self-test (via dispatch)
 # ------------------------------------------------------------
-echo
-echo "→ Running prepare-repo (dry-run)..."
-DRY_JSON="$(node "$ROOT_DIR/scripts/prepare-repo.js" "$REPO" --dry-run --json)"
-echo "$DRY_JSON" | jq . >/dev/null
-[[ "$(echo "$DRY_JSON" | jq -r '.ok')" == "true" ]] || {
-  echo "❌ prepare-repo dry-run failed"; exit 1;
-}
-echo "✓ prepare-repo dry-run ok"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "1️⃣ Dispatch self-test"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+wait_for_dispatch "self-test"
 
 # ------------------------------------------------------------
-# 3) Create issue and trigger INTENTIONAL violations
+# 2) Validate config (via dispatch)
 # ------------------------------------------------------------
 echo
-echo "→ Creating certification issue..."
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "2️⃣ Dispatch validate"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+wait_for_dispatch "validate"
+
+# ------------------------------------------------------------
+# 3) Create issue and introduce violations
+# ------------------------------------------------------------
+echo
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "3️⃣ Create issue + violations"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
 ISSUE_URL="$(
   gh issue create \
     --repo "$REPO" \
-    --title "Phase 3.2 Certification (auto)" \
-    --body "Automated Phase 3.2 validation." \
-    --label "phase-3.2" \
+    --title "Phase 3.3 Enforcement Test" \
+    --body "Automated enforcement validation." \
     --label "track/backlog"
 )"
+
 ISSUE_NUMBER="$(echo "$ISSUE_URL" | sed -n 's#.*/issues/\([0-9]\+\).*#\1#p')"
+
 echo "✓ Created issue #$ISSUE_NUMBER"
 
-echo
-echo "→ Introducing enforcement violations..."
-gh issue edit "$ISSUE_NUMBER" --repo "$REPO" --add-label "phase-3.5" >/dev/null
+# Introduce deterministic violations
 gh issue edit "$ISSUE_NUMBER" --repo "$REPO" --add-label "track/sprint" >/dev/null
-gh issue edit "$ISSUE_NUMBER" --repo "$REPO" \
-  --milestone "Phase 3.1 – Telemetry Enhancements" >/dev/null || true
+gh issue edit "$ISSUE_NUMBER" --repo "$REPO" --add-label "phase-3.5"   >/dev/null
+
 echo "✓ Violations introduced"
 
 # ------------------------------------------------------------
-# 4) Expect FIRST issue-events run to FAIL
+# 4) Expect enforcement failure
 # ------------------------------------------------------------
 echo
-echo "→ Waiting for issue-events workflow run..."
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "4️⃣ Expect enforcement failure"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 sleep 3
 
-RUN_ID="$(gh run list \
-  --repo "$REPO" \
-  --workflow "task-assistant-issue-events.yml" \
-  --limit 5 \
-  --json databaseId,createdAt \
-  | jq -r '.[0].databaseId')"
-
-if [[ -z "$RUN_ID" ]]; then
-  echo "❌ No issue-events run found"
-  exit 1
-fi
-
-gh run watch --repo "$REPO" "$RUN_ID"
-echo "✓ Issue-events workflow completed (run $RUN_ID)"
+wait_for_dispatch "enforce"
 
 # ------------------------------------------------------------
-# 5) Repair issue and re-trigger enforcement
+# 5) Repair issue + re-trigger
 # ------------------------------------------------------------
 echo
-echo "→ Repairing issue state..."
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "5️⃣ Repair issue + re-trigger"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
 gh issue edit "$ISSUE_NUMBER" --repo "$REPO" \
   --remove-label "track/backlog" >/dev/null
-echo "✓ Issue repaired"
 
-# Touch issue to retrigger
-gh issue edit "$ISSUE_NUMBER" --repo "$REPO" --add-label "telemetry" >/dev/null
+# Touch issue to retrigger enforcement
+gh issue edit "$ISSUE_NUMBER" --repo "$REPO" --add-label "telemetry"  >/dev/null
 sleep 2
 gh issue edit "$ISSUE_NUMBER" --repo "$REPO" --remove-label "telemetry" >/dev/null
 
+echo "✓ Issue repaired and retriggered"
+
+sleep 3
+
+wait_for_dispatch "enforce"
+
 # ------------------------------------------------------------
-# 6) Expect SUCCESS issue-events run
-# ------------------------------------------------------------
-# ------------------------------------------------------------
-# Resolve telemetry file paths (must exist before use)
+# 6) Validate telemetry evidence
 # ------------------------------------------------------------
 echo
-echo "→ Preparing telemetry paths..."
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "6️⃣ Validate telemetry"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 gh repo clone "$TELEMETRY_REPO" "$TELE_DIR" -- --quiet
 
 REPO_FILE="$TELE_DIR/telemetry/v1/repos/$REPO_NAME/$TODAY_UTC.jsonl"
-META_FILE="$TELE_DIR/telemetry/v1/meta/$TODAY_UTC.jsonl"
 
 if [[ ! -f "$REPO_FILE" ]]; then
-  echo "❌ Missing repo telemetry file: $REPO_FILE"
+  echo "❌ Missing telemetry file: $REPO_FILE"
   exit 1
 fi
 
-echo "✓ Repo telemetry file resolved"
-echo
-echo "→ Validating issue-events recovery via telemetry..."
+echo "✓ Telemetry file found"
 
-# At least one failure must exist
-if ! grep -q '"category":"issue-events".*"ok":false' "$REPO_FILE"; then
-  echo "❌ Expected failing issue-events result not found in telemetry"
+# Must contain failure
+grep -q '"category":"enforce".*"action":"failed"' "$REPO_FILE" || {
+  echo "❌ Missing enforcement failure telemetry"
   exit 1
-fi
-echo "✓ Found failing issue-events telemetry"
+}
 
-# At least one success must exist AFTER repair
-if ! grep -q '"category":"issue-events".*"ok":true' "$REPO_FILE"; then
-  echo "❌ Expected successful issue-events result not found after repair"
+echo "✓ Enforcement failure recorded"
+
+# Must contain success
+grep -q '"category":"enforce".*"action":"success"' "$REPO_FILE" || {
+  echo "❌ Missing enforcement success telemetry"
   exit 1
-fi
-echo "✓ Found successful issue-events telemetry after repair"
+}
 
-# ------------------------------------------------------------
-# 7) Run self-test and nightly sweep
-# ------------------------------------------------------------
-echo
-echo "→ Running self-test..."
-gh workflow run "task-assistant-self-test.yml" --repo "$REPO" >/dev/null
-sleep 2
-SELF_ID="$(gh run list --repo "$REPO" --workflow task-assistant-self-test.yml --limit 1 --json databaseId | jq -r '.[0].databaseId')"
-gh run watch --repo "$REPO" "$SELF_ID" --exit-status
-echo "✓ Self-test passed"
+echo "✓ Enforcement success recorded"
 
-echo
-echo "→ Running nightly sweep..."
-gh workflow run "task-assistant-nightly-sweep.yml" --repo "$REPO" >/dev/null
-sleep 2
-SWEEP_ID="$(gh run list --repo "$REPO" --workflow task-assistant-nightly-sweep.yml --limit 1 --json databaseId | jq -r '.[0].databaseId')"
-gh run watch --repo "$REPO" "$SWEEP_ID" --exit-status
-echo "✓ Nightly sweep passed"
-
-# ------------------------------------------------------------
-# 8) Validate telemetry placement
-# ------------------------------------------------------------
-echo
-
-# Validate telemetry after all workflows have emitted
-until grep -q '"category":"nightly-sweep"' "$REPO_FILE"; do
-  sleep 2
-done
-
-if ! grep -q '"category":"issue-events".*"ok":false' "$REPO_FILE"; then
-  echo "❌ Expected issue-events enforcement failure not found in telemetry"
-  exit 1
-fi
-
-echo "✓ Enforcement failure correctly recorded in telemetry"
-
-for cat in issue-events self-test nightly-sweep; do
+# Must include self-test + validate
+for cat in self-test validate enforce; do
   grep -q "\"category\":\"$cat\"" "$REPO_FILE" || {
-    echo "❌ Missing telemetry category: $cat"; exit 1;
+    echo "❌ Missing telemetry category: $cat"
+    exit 1
   }
 done
 
-if [[ -f "$META_FILE" ]] && grep -q "\"repo\":\"$REPO_NAME\"" "$META_FILE"; then
-  echo "❌ Repo telemetry leaked into meta"
-  exit 1
-fi
+echo "✓ All expected telemetry categories present"
 
+# ------------------------------------------------------------
+# Done
+# ------------------------------------------------------------
 echo
-echo "🏁 Phase 3.2 VALIDATION: PASSED"
-echo "Telemetry proof: $REPO_FILE"
+echo "🏁 Phase 3.3 VALIDATION: PASSED"
+echo "Telemetry proof:"
+echo "  $REPO_FILE"
+

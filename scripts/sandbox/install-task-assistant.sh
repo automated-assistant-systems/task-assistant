@@ -1,42 +1,82 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REPO="${1:-}"
+# ============================================================
+# Task Assistant — Marketplace Installer
+# Modes:
+#   default  → install config + dispatch
+#   --dry-run → validate only (no writes)
+# ============================================================
+
+REPO=""
+DRY_RUN="false"
+
+for arg in "$@"; do
+  case "$arg" in
+    --dry-run)
+      DRY_RUN="true"
+      ;;
+    *)
+      REPO="$arg"
+      ;;
+  esac
+done
 
 if [[ -z "$REPO" ]]; then
-  echo "Usage: scripts/sandbox/install-task-assistant.sh <owner/repo>"
+  echo "Usage: scripts/sandbox/install-task-assistant.sh <owner/repo> [--dry-run]"
   exit 1
 fi
 
-command -v gh >/dev/null || { echo "Missing dependency: gh"; exit 1; }
-command -v git >/dev/null || { echo "Missing dependency: git"; exit 1; }
-command -v rsync >/dev/null || { echo "Missing dependency: rsync"; exit 1; }
+for cmd in gh git rsync; do
+  command -v "$cmd" >/dev/null || {
+    echo "❌ Missing dependency: $cmd"
+    exit 1
+  }
+done
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-WORKDIR="$(mktemp -d)"
-TARGET_DIR="$WORKDIR/sandbox"
 
-cleanup() { rm -rf "$WORKDIR"; }
-trap cleanup EXIT
-
-echo "📦 Installing Task Assistant into sandbox"
-echo "From: $ROOT_DIR"
-echo "To repo: $REPO"
+echo
+echo "📦 Task Assistant — Marketplace Install"
+echo "Target repo:  $REPO"
+echo "Mode:         $([[ "$DRY_RUN" == "true" ]] && echo "DRY-RUN" || echo "INSTALL")"
 echo
 
-# Preconditions
-[[ -d "$ROOT_DIR/.github/workflows" ]] || { echo "❌ Missing .github/workflows in Task Assistant repo"; exit 1; }
-[[ -f "$ROOT_DIR/.github/task-assistant.yml" ]] || { echo "❌ Missing .github/task-assistant.yml in Task Assistant repo"; exit 1; }
-[[ -d "$ROOT_DIR/scripts" ]] || { echo "❌ Missing scripts/ in Task Assistant repo"; exit 1; }
+# ------------------------------------------------------------
+# Preconditions (Task Assistant integrity)
+# ------------------------------------------------------------
+[[ -f "$ROOT_DIR/.github/task-assistant.yml" ]] || {
+  echo "❌ Missing .github/task-assistant.yml in Task Assistant repo"
+  exit 1
+}
 
+[[ -f "$ROOT_DIR/.github/workflows/task-assistant-dispatch.yml" ]] || {
+  echo "❌ Missing task-assistant-dispatch.yml in Task Assistant repo"
+  exit 1
+}
+
+# ------------------------------------------------------------
+# Auth check
+# ------------------------------------------------------------
 gh auth status >/dev/null 2>&1 || {
   echo "❌ gh is not authenticated. Run: gh auth login"
   exit 1
 }
 
-echo "→ Cloning sandbox..."
-gh repo clone "$REPO" "$TARGET_DIR" -- --quiet
+# ------------------------------------------------------------
+# Repo access check
+# ------------------------------------------------------------
+if ! gh repo view "$REPO" >/dev/null 2>&1; then
+  echo "❌ Cannot access repo: $REPO"
+  exit 1
+fi
 
+echo "✓ Repo accessible"
+
+# ------------------------------------------------------------
+# Secrets validation (non-blocking)
+# ------------------------------------------------------------
+echo
 echo "🔐 Checking required GitHub App secrets..."
 
 MISSING_SECRETS=()
@@ -48,76 +88,73 @@ for secret in CODEX_APP_ID CODEX_PRIVATE_KEY; do
 done
 
 if [[ ${#MISSING_SECRETS[@]} -gt 0 ]]; then
-  echo "⚠️  WARNING: Task Assistant installed WITHOUT required secrets"
-  echo
-  echo "Missing secrets:"
+  echo "⚠️  Missing secrets:"
   for s in "${MISSING_SECRETS[@]}"; do
     echo "  - $s"
   done
-  echo
-  echo "Result:"
-  echo "  • Workflows WILL fail until secrets are added"
-  echo "  • This is expected for fresh installs"
-  echo
-  echo "Next step:"
-  echo "  gh secret set CODEX_APP_ID --repo $REPO --body <app-id>"
-  echo "  gh secret set CODEX_PRIVATE_KEY --repo $REPO --body-file <key.pem>"
-  echo
-  INSTALL_STATUS="incomplete"
+  echo "→ Workflows will fail until secrets are added"
 else
   echo "✓ Required secrets present"
-  INSTALL_STATUS="complete"
 fi
 
+# ------------------------------------------------------------
+# File presence check (remote)
+# ------------------------------------------------------------
 echo
+echo "📂 Checking existing Task Assistant files in repo..."
 
-rsync -a "$ROOT_DIR/package.json" "$TARGET_DIR/package.json"
-rsync -a "$ROOT_DIR/package-lock.json" "$TARGET_DIR/package-lock.json"
+HAS_CONFIG="$(gh api "repos/$REPO/contents/.github/task-assistant.yml" >/dev/null 2>&1 && echo yes || echo no)"
+HAS_DISPATCH="$(gh api "repos/$REPO/contents/.github/workflows/task-assistant-dispatch.yml" >/dev/null 2>&1 && echo yes || echo no)"
 
-# Ensure directories exist
+echo "  .github/task-assistant.yml:            $HAS_CONFIG"
+echo "  task-assistant-dispatch.yml:           $HAS_DISPATCH"
+
+# ------------------------------------------------------------
+# Dry-run exit
+# ------------------------------------------------------------
+if [[ "$DRY_RUN" == "true" ]]; then
+  echo
+  echo "🧪 Dry-run complete — no changes made"
+  echo
+  echo "Would install:"
+  echo "  • .github/task-assistant.yml"
+  echo "  • .github/workflows/task-assistant-dispatch.yml"
+  echo
+  exit 0
+fi
+
+# ------------------------------------------------------------
+# Real install (clone + sync)
+# ------------------------------------------------------------
+WORKDIR="$(mktemp -d)"
+TARGET_DIR="$WORKDIR/target"
+trap 'rm -rf "$WORKDIR"' EXIT
+
+echo
+echo "→ Cloning target repo..."
+gh repo clone "$REPO" "$TARGET_DIR" -- --quiet
+
 mkdir -p "$TARGET_DIR/.github/workflows"
-mkdir -p "$TARGET_DIR/scripts"
 
-echo "→ Sync workflows (task-assistant-*.yml)..."
-rsync -a --delete \
-  "$ROOT_DIR/.github/workflows/" \
-  "$TARGET_DIR/.github/workflows/"
-
-# Optional: if you only want TA workflows, replace the above with:
-# rsync -a --delete \
-#   --include='task-assistant-*.yml' --exclude='*' \
-#   "$ROOT_DIR/.github/workflows/" \
-#   "$TARGET_DIR/.github/workflows/"
-
-echo "→ Sync scripts/ (runtime + telemetry)..."
-rsync -a --delete \
-  "$ROOT_DIR/scripts/" \
-  "$TARGET_DIR/scripts/"
-
-echo "→ Sync config contract (.github/task-assistant.yml)..."
 rsync -a \
   "$ROOT_DIR/.github/task-assistant.yml" \
   "$TARGET_DIR/.github/task-assistant.yml"
 
-echo "→ Committing + pushing to sandbox..."
+rsync -a \
+  "$ROOT_DIR/.github/workflows/task-assistant-dispatch.yml" \
+  "$TARGET_DIR/.github/workflows/task-assistant-dispatch.yml"
+
 cd "$TARGET_DIR"
 
-git add .github/workflows .github/task-assistant.yml scripts package.json package-lock.json
-
-if [[ "$INSTALL_STATUS" == "incomplete" ]]; then
-  INSTALL_NOTE=" (secrets missing)"
-else
-  INSTALL_NOTE=""
-fi
+git add .github/task-assistant.yml .github/workflows/task-assistant-dispatch.yml
 
 if git diff --cached --quiet; then
-  echo "✓ No changes to install (sandbox already matches Task Assistant)"
+  echo "✓ Repo already up to date"
 else
-  git commit -m "chore: install task assistant (workflows+scripts+config)" >/dev/null
+  git commit -m "chore: install Task Assistant (config + dispatch only)" >/dev/null
   git push >/dev/null
-  echo "✓ Installed latest Task Assistant into $REPO"
+  echo "✓ Task Assistant installed into $REPO"
 fi
 
 echo
 echo "✔ Install complete"
-

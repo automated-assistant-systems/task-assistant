@@ -36,7 +36,7 @@ env:
   ENGINE_NAME: dashboard
   ENGINE_JOB: dashboard
 
-  OWNER:          ${{ inputs.owner }}
+  OWNER: ${{ inputs.owner }}
   TELEMETRY_REPO: ${{ inputs.telemetry_repo }}
   CORRELATION_ID: ${{ inputs.correlation_id }}
   DASHBOARD_PUBLIC: ${{ inputs.public }}
