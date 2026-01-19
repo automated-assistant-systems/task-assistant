@@ -107,16 +107,6 @@ jobs:
           cat result.json || true
 
       # ─────────────────────────────────────────────
-      # Checkout telemetry repo (REQUIRED for emit)
-      # ─────────────────────────────────────────────
-      - name: Checkout telemetry repository
-        uses: actions/checkout@v4
-        with:
-          repository: ${{ inputs.telemetry_repo }}
-          path: telemetry-repo
-          token: ${{ steps.app-token.outputs.token }}
-
-      # ─────────────────────────────────────────────
       # Emit telemetry
       # ─────────────────────────────────────────────
       - name: Emit self-test telemetry

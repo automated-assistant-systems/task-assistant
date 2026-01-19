@@ -118,16 +118,6 @@ jobs:
           fi
 
       # ─────────────────────────────────────────────
-      # Checkout telemetry repo (REQUIRED for emit)
-      # ─────────────────────────────────────────────
-      - name: Checkout telemetry repository
-        uses: actions/checkout@v4
-        with:
-          repository: ${{ inputs.telemetry_repo }}
-          path: telemetry-repo
-          token: ${{ steps.app-token.outputs.token }}
-
-      # ─────────────────────────────────────────────
       # Emit engine telemetry (per repo)
       # ─────────────────────────────────────────────
       - name: Emit dashboard telemetry (per repo)

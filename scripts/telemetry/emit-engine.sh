@@ -15,13 +15,7 @@ set -euo pipefail
 : "${GH_TOKEN:?telemetry: GH_TOKEN is not set}"
 : "${RESULT_FILE:?RESULT_FILE is required}"
 
-# NOTE:
-# This script MUST NOT:
-# - cd
-# - git clone
-# - assume repo checkout
-# Telemetry is emitted ONLY via GitHub Contents API.
-
+# Telemetry scripts must never run inside telemetry repo
 if pwd | grep -q telemetry; then
   echo "::error::Telemetry scripts must not run inside telemetry repo"
   exit 1
@@ -33,23 +27,28 @@ if [[ ! -f "$RESULT_FILE" ]]; then
 fi
 
 # ─────────────────────────────────────────────
-# Derive action from result
+# Derive action (explicit + safe)
 # ─────────────────────────────────────────────
-ACTION=$(jq -r 'select(type=="object") | .ok | if . then "success" else "failed" end' "$RESULT_FILE")
+OK="$(jq -r '.ok // false' "$RESULT_FILE")"
+if [[ "$OK" == "true" ]]; then
+  ACTION="success"
+else
+  ACTION="failed"
+fi
 
 # ─────────────────────────────────────────────
-# Build telemetry payload (repo-scoped ONLY)
+# Build telemetry payload (repo-scoped)
 # ─────────────────────────────────────────────
-PAYLOAD=$(jq -c \
-  --arg engine "$ENGINE_NAME" \
-  --arg job "$ENGINE_JOB" \
-  --arg cid "$CORRELATION_ID" \
-  --arg action "$ACTION" \
-  --arg owner "$OWNER" \
-  --arg repo "$REPO" \
-  '
-  select(type=="object")
-  | {
+PAYLOAD="$(
+  jq -c \
+    --arg engine "$ENGINE_NAME" \
+    --arg job "$ENGINE_JOB" \
+    --arg cid "$CORRELATION_ID" \
+    --arg action "$ACTION" \
+    --arg owner "$OWNER" \
+    --arg repo "$REPO" \
+    '
+    {
       schema_version: "1.0",
       generated_at: (now | todate),
       correlation_id: $cid,
@@ -69,8 +68,8 @@ PAYLOAD=$(jq -c \
       },
       details: .
     }
-  ' "$RESULT_FILE"
-)
+    ' "$RESULT_FILE"
+)"
 
 # ─────────────────────────────────────────────
 # Emit (append JSONL safely)
@@ -79,17 +78,18 @@ EVENT_PATH="telemetry/v1/repos/${REPO}/$(date +%Y-%m-%d).jsonl"
 API_PATH="/repos/${TELEMETRY_REPO}/contents/${EVENT_PATH}"
 
 TMP="$(mktemp)"
-
 SHA=""
 
-# Fetch existing file if it exists
-if EXISTING_JSON="$(gh api "$API_PATH" 2>/dev/null)"; then
-  SHA="$(jq -r '.sha' <<<"$EXISTING_JSON")"
-  jq -r '.content' <<<"$EXISTING_JSON" | base64 --decode > "$TMP"
+# Fetch existing file if present
+if EXISTING="$(gh api "$API_PATH" 2>/dev/null)"; then
+  SHA="$(jq -r '.sha' <<<"$EXISTING")"
+  jq -r '.content' <<<"$EXISTING" | base64 --decode >"$TMP"
+else
+  : >"$TMP"
 fi
 
-# Append new event
-printf '%s\n' "$PAYLOAD" >> "$TMP"
+# Append event
+printf '%s\n' "$PAYLOAD" >>"$TMP"
 
 ENCODED="$(base64 -w0 "$TMP")"
 
@@ -101,7 +101,6 @@ ARGS=(
   --field encoding="base64"
 )
 
-# Required ONLY when updating
 if [[ -n "$SHA" && "$SHA" != "null" ]]; then
   ARGS+=( --field sha="$SHA" )
 fi
@@ -109,4 +108,3 @@ fi
 gh api "${ARGS[@]}" >/dev/null
 
 rm -f "$TMP"
-
