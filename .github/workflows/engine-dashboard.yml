@@ -29,7 +29,7 @@ on:
         required: true
 
 permissions:
-  contents: write   # required to commit dashboards
+  contents: write
   id-token: write
 
 env:
@@ -46,15 +46,9 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # ─────────────────────────────────────────────
-      # Checkout Task Assistant (engine + scripts)
-      # ─────────────────────────────────────────────
       - name: Checkout Task Assistant
         uses: actions/checkout@v4
 
-      # ─────────────────────────────────────────────
-      # Setup runtime
-      # ─────────────────────────────────────────────
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
@@ -63,9 +57,6 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # ─────────────────────────────────────────────
-      # Generate GitHub App token (org-scoped)
-      # ─────────────────────────────────────────────
       - name: Generate GitHub App token
         id: app-token
         uses: actions/create-github-app-token@v1
@@ -74,9 +65,6 @@ jobs:
           private-key: ${{ secrets.CODEX_PRIVATE_KEY }}
           owner: ${{ inputs.owner }}
 
-      # ─────────────────────────────────────────────
-      # Checkout org telemetry repo
-      # ─────────────────────────────────────────────
       - name: Checkout telemetry repository
         uses: actions/checkout@v4
         with:
@@ -84,26 +72,24 @@ jobs:
           path: telemetry
           token: ${{ steps.app-token.outputs.token }}
 
-      # ─────────────────────────────────────────────
-      # Build dashboards (ORG-SCOPED)
-      # ─────────────────────────────────────────────
-      - name: Build dashboards
+      - name: Build dashboards (repo-scoped)
         env:
           TELEMETRY_ROOT: telemetry/telemetry/v1/repos
           DASHBOARD_ROOT: telemetry/telemetry/v1/dashboards
         run: |
           set -euo pipefail
-          node scripts/build-dashboards.js
+          shopt -s nullglob
 
-      # ─────────────────────────────────────────────
-      # Commit dashboards (if changed)
-      # ─────────────────────────────────────────────
+          for repo in telemetry/telemetry/v1/repos/*; do
+            REPO="$(basename "$repo")"
+            node scripts/build-dashboard-for-repo.js "$REPO"
+          done
+
       - name: Commit dashboards
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           set -euo pipefail
-
           cd telemetry
 
           git config user.name "task-assistant[bot]"
@@ -111,25 +97,23 @@ jobs:
 
           if git status --porcelain | grep .; then
             git add telemetry/v1/dashboards
-            git commit -m "dashboard: rebuild org dashboards"
+            git commit -m "dashboard: rebuild repo dashboards"
             git push
           else
             echo "No dashboard changes to commit"
           fi
 
-      # ─────────────────────────────────────────────
-      # Emit engine telemetry (per repo)
-      # ─────────────────────────────────────────────
       - name: Emit dashboard telemetry (per repo)
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           set -euo pipefail
+          shopt -s nullglob
 
-          for result in telemetry/telemetry/v1/dashboards/*/result.json; do
+          for result in telemetry/telemetry/v1/dashboards/*/dashboard.json; do
             REPO="$(basename "$(dirname "$result")")"
 
-            OWNER="${OWNER}" \
+            OWNER="$OWNER" \
             REPO="$REPO" \
             RESULT_FILE="$result" \
             ./scripts/telemetry/emit-engine.sh
