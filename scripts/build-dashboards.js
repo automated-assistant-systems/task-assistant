@@ -1,206 +1,99 @@
 #!/usr/bin/env node
 /**
- * Task Assistant — Dashboard Builder (Org-Scoped)
+ * Task Assistant — Dashboard Reducer (Repo-Scoped)
  *
  * Phase: 3.4
  *
  * Contract:
- * - Operates on ONE telemetry repo only
- * - No registry access
+ * - Reads repo telemetry only
+ * - No filesystem writes
  * - No git operations
- * - Deterministic filesystem output
- * - Emits per-repo result.json for telemetry
+ * - Emits JSON to stdout ONLY
  */
 
 import fs from "fs";
 import path from "path";
 
-/* ──────────────────────────────
-   Environment
-   ────────────────────────────── */
+const [,, repo] = process.argv;
 
-const TELEMETRY_ROOT = process.env.TELEMETRY_ROOT;
-const DASHBOARD_ROOT = process.env.DASHBOARD_ROOT;
-
-if (!TELEMETRY_ROOT || !DASHBOARD_ROOT) {
-  console.error(
-    "[dashboard] TELEMETRY_ROOT and DASHBOARD_ROOT are required"
-  );
+if (!repo) {
+  console.error("[dashboard] Repo name required");
   process.exit(1);
 }
 
-// Marketplace-safe: empty telemetry repo is valid
-if (!fs.existsSync(TELEMETRY_ROOT)) {
-  console.log("[dashboard] No telemetry root found — nothing to build");
+const TELEMETRY_ROOT = process.env.TELEMETRY_ROOT;
+
+if (!TELEMETRY_ROOT) {
+  console.error("[dashboard] TELEMETRY_ROOT is required");
+  process.exit(1);
+}
+
+const repoTelemetryPath = path.join(TELEMETRY_ROOT, repo);
+
+if (!fs.existsSync(repoTelemetryPath)) {
+  console.log(JSON.stringify(emptyDashboard(repo)));
   process.exit(0);
 }
 
-fs.mkdirSync(DASHBOARD_ROOT, { recursive: true });
+const jsonlFiles = fs
+  .readdirSync(repoTelemetryPath)
+  .filter(f => f.endsWith(".jsonl"))
+  .sort();
 
-/* ──────────────────────────────
-   Main
-   ────────────────────────────── */
-
-const repoDirs = fs
-  .readdirSync(TELEMETRY_ROOT, { withFileTypes: true })
-  .filter(d => d.isDirectory())
-  .map(d => d.name);
-
-for (const repo of repoDirs) {
-  const repoTelemetryPath = path.join(TELEMETRY_ROOT, repo);
-  const repoDashboardPath = path.join(DASHBOARD_ROOT, repo);
-
-  const dashboardFile = path.join(
-    repoDashboardPath,
-    "dashboard.json"
-  );
-
-  const resultFile = path.join(
-    repoDashboardPath,
-    "result.json"
-  );
-
-  fs.mkdirSync(repoDashboardPath, { recursive: true });
-
-  try {
-    const jsonlFiles = fs
-      .readdirSync(repoTelemetryPath)
-      .filter(f => f.endsWith(".jsonl"))
-      .sort();
-
-    if (jsonlFiles.length === 0) {
-      writeDashboard(dashboardFile, emptyDashboard(repo));
-      writeResult(resultFile, {
-        ok: true,
-        repo,
-        summary: "No telemetry present",
-        total_events: 0,
-      });
-      continue;
-    }
-
-    let totalEvents = 0;
-
-    for (const file of jsonlFiles) {
-      const lines = fs
-        .readFileSync(path.join(repoTelemetryPath, file), "utf8")
-        .split("\n")
-        .filter(Boolean);
-
-      totalEvents += lines.length;
-    }
-
-    writeDashboard(
-      dashboardFile,
-      successDashboard({
-        repo,
-        first: jsonlFiles[0],
-        last: jsonlFiles.at(-1),
-        days: jsonlFiles.length,
-        totalEvents,
-      })
-    );
-
-    writeResult(resultFile, {
-      ok: true,
-      repo,
-      summary: "Dashboard rebuilt",
-      total_events: totalEvents,
-    });
-
-  } catch (err) {
-    writeDashboard(dashboardFile, errorDashboard(repo, err));
-    writeResult(resultFile, {
-      ok: false,
-      repo,
-      summary: "Dashboard build failed",
-      error: err.message,
-    });
-
-    console.error(
-      `[dashboard] Failed for ${repo}: ${err.message}`
-    );
-  }
+if (jsonlFiles.length === 0) {
+  console.log(JSON.stringify(emptyDashboard(repo)));
+  process.exit(0);
 }
+
+let totalEvents = 0;
+
+for (const file of jsonlFiles) {
+  const lines = fs
+    .readFileSync(path.join(repoTelemetryPath, file), "utf8")
+    .split("\n")
+    .filter(Boolean);
+
+  totalEvents += lines.length;
+}
+
+console.log(JSON.stringify(successDashboard({
+  repo,
+  first: jsonlFiles[0],
+  last: jsonlFiles.at(-1),
+  days: jsonlFiles.length,
+  totalEvents,
+})));
 
 /* ──────────────────────────────
    Helpers
    ────────────────────────────── */
 
-function writeDashboard(file, payload) {
-  fs.writeFileSync(file, JSON.stringify(payload, null, 2));
-}
-
-function writeResult(file, payload) {
-  fs.writeFileSync(file, JSON.stringify(payload, null, 2));
-}
-
 function emptyDashboard(repo) {
   return {
-    schema_version: "dashboard.v1",
+    ok: true,
     repo,
-    telemetry_version: "v1",
-    generated_at: new Date().toISOString(),
+    summary: "No telemetry present",
+    total_events: 0,
     coverage: {
       first_record: null,
       last_record: null,
       days_present: 0,
     },
-    summary: {
-      total_events: 0,
-      status: "no-telemetry",
-    },
-    diagnostics: {
-      warnings: ["No telemetry records found"],
-      errors: [],
-      notes: [],
-    },
+    status: "no-telemetry",
   };
 }
 
-function successDashboard({
-  repo,
-  first,
-  last,
-  days,
-  totalEvents,
-}) {
+function successDashboard({ repo, first, last, days, totalEvents }) {
   return {
-    schema_version: "dashboard.v1",
+    ok: true,
     repo,
-    telemetry_version: "v1",
-    generated_at: new Date().toISOString(),
+    summary: "Dashboard rebuilt",
+    total_events: totalEvents,
     coverage: {
       first_record: first.replace(".jsonl", ""),
       last_record: last.replace(".jsonl", ""),
       days_present: days,
     },
-    summary: {
-      total_events: totalEvents,
-      status: "healthy",
-    },
-    diagnostics: {
-      warnings: [],
-      errors: [],
-      notes: ["No destructive actions taken"],
-    },
-  };
-}
-
-function errorDashboard(repo, err) {
-  return {
-    schema_version: "dashboard.v1",
-    repo,
-    telemetry_version: "v1",
-    generated_at: new Date().toISOString(),
-    summary: {
-      total_events: 0,
-      status: "error",
-    },
-    diagnostics: {
-      warnings: [],
-      errors: [err.message],
-      notes: [],
-    },
+    status: "healthy",
   };
 }
