@@ -7,11 +7,6 @@ on:
     - cron: "0 2 * * *"
 
   workflow_dispatch:
-    inputs:
-      correlation_id:
-        description: "Optional correlation override (normally auto-generated)"
-        required: false
-        type: string
 
 permissions:
   contents: write
