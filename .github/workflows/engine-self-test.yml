@@ -63,9 +63,6 @@ jobs:
       # ─────────────────────────────────────────────
       - name: Parse target repo
         run: |
-          ENGINE_VERSION=$(node -p "require('./package.json').version")
-          export ENGINE_VERSION
-
           TARGET="${{ inputs.target_repo }}"
           OWNER="${TARGET%%/*}"
           REPO="${TARGET##*/}"
@@ -90,6 +87,9 @@ jobs:
         working-directory: task-assistant
         run: |
           set -euo pipefail
+
+          ENGINE_VERSION=$(node -p "require('./package.json').version")
+          export ENGINE_VERSION
 
           TARGET_REPO="${OWNER}/${REPO}"
 
