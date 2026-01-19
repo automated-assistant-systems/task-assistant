@@ -76,14 +76,13 @@ jobs:
         env:
           TELEMETRY_ROOT: telemetry/telemetry/v1/repos
           DASHBOARD_ROOT: telemetry/telemetry/v1/dashboards
-        working-directory: task-assistant
         run: |
           set -euo pipefail
           shopt -s nullglob
 
           for repo in telemetry/telemetry/v1/repos/*; do
             REPO="$(basename "$repo")"
-            node scripts/build-dashboard.js "$REPO"
+            node scripts/build-dashboards.js "$REPO"
           done
 
       - name: Commit dashboards
