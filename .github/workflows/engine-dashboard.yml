@@ -76,6 +76,7 @@ jobs:
         env:
           TELEMETRY_ROOT: telemetry/telemetry/v1/repos
           DASHBOARD_ROOT: telemetry/telemetry/v1/dashboards
+        working-directory: task-assistant
         run: |
           set -euo pipefail
           shopt -s nullglob
