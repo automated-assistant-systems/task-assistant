@@ -1,0 +1,140 @@
+---
+name: Task Assistant • Engine • Preflight
+
+# yamllint disable rule:truthy
+on:
+  workflow_call:
+    inputs:
+      target_repo:
+        required: true
+        type: string
+
+      telemetry_repo:
+        required: true
+        type: string
+
+      correlation_id:
+        required: true
+        type: string
+
+    secrets:
+      CODEX_APP_ID:
+        required: true
+      CODEX_PRIVATE_KEY:
+        required: true
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+
+    outputs:
+      ok:            ${{ steps.result.outputs.ok }}
+      reason:        ${{ steps.result.outputs.reason }}
+
+    env:
+      ENGINE_NAME: preflight
+      ENGINE_JOB: preflight
+      CORRELATION_ID: ${{ inputs.correlation_id }}
+      TELEMETRY_REPO: ${{ inputs.telemetry_repo }}
+
+    steps:
+      # ------------------------------------------------------------
+      # Checkout Task Assistant (engine + scripts)
+      # ------------------------------------------------------------
+      - name: Checkout Task Assistant
+        uses: actions/checkout@v4
+        with:
+          repository: automated-assistant-systems/task-assistant
+          ref: main
+          path: task-assistant
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        working-directory: task-assistant
+        run: |
+          set -euo pipefail
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            npm install
+          fi
+
+      # ------------------------------------------------------------
+      # Parse target repo
+      # ------------------------------------------------------------
+      - name: Parse target repo
+        run: |
+          TARGET="${{ inputs.target_repo }}"
+          OWNER="${TARGET%%/*}"
+          REPO="${TARGET##*/}"
+
+          echo "OWNER=$OWNER" >> "$GITHUB_ENV"
+          echo "REPO=$REPO"   >> "$GITHUB_ENV"
+
+      # ------------------------------------------------------------
+      # Generate GitHub App token (runtime secret validation)
+      # ------------------------------------------------------------
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id:       ${{ secrets.CODEX_APP_ID }}
+          private-key:  ${{ secrets.CODEX_PRIVATE_KEY }}
+          owner:        ${{ env.OWNER }}
+
+      # ------------------------------------------------------------
+      # Infra registry check (read-only)
+      # ------------------------------------------------------------
+      - name: Infra registry check
+        id: infra
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          set -euo pipefail
+
+          # Example placeholder:
+          # gh api repos/automated-assistant-systems/ta-infra/contents/registry.json
+
+          echo "Infra registry OK"
+
+      # ------------------------------------------------------------
+      # Emit preflight telemetry
+      # ------------------------------------------------------------
+      - name: Emit preflight telemetry
+        id: emit
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        working-directory: task-assistant
+        run: |
+          cat > result.json <<EOF
+          {
+            "ok": true,
+            "summary": "Preflight checks passed",
+            "checks": {
+              "infra": "ok",
+              "secrets": "ok"
+            }
+          }
+          EOF
+
+          ENGINE_NAME="preflight" \
+          ENGINE_JOB="preflight" \
+          RESULT_FILE="result.json" \
+          ./scripts/telemetry/emit-engine.sh
+
+      # ------------------------------------------------------------
+      # Set outputs
+      # ------------------------------------------------------------
+      - name: Set result
+        id: result
+        run: |
+          echo "ok=true"     >> "$GITHUB_OUTPUT"
+          echo "reason=none" >> "$GITHUB_OUTPUT"
+

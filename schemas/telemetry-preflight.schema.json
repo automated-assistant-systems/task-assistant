@@ -1,0 +1,20 @@
+{
+  "schema_version": "1.0",
+  "correlation_id": "...",
+  "entity": {
+    "type": "repository",
+    "owner": "org",
+    "repo": "repo"
+  },
+  "event": {
+    "category": "preflight",
+    "action": "success"
+  },
+  "details": {
+    "ok": true,
+    "checks": {
+      "infra": "ok",
+      "secrets": "ok"
+    }
+  }
+}
