@@ -3,9 +3,14 @@ set -euo pipefail
 
 # ============================================================
 # Task Assistant — Marketplace Installer
+#
+# Installs ONLY:
+#   • .github/task-assistant.yml
+#   • .github/workflows/task-assistant-dispatch.yml
+#
 # Modes:
-#   default  → install config + dispatch
-#   --dry-run → validate only (no writes)
+#   default  → install
+#   --dry-run → validate only
 # ============================================================
 
 REPO=""
@@ -13,12 +18,8 @@ DRY_RUN="false"
 
 for arg in "$@"; do
   case "$arg" in
-    --dry-run)
-      DRY_RUN="true"
-      ;;
-    *)
-      REPO="$arg"
-      ;;
+    --dry-run) DRY_RUN="true" ;;
+    *) REPO="$arg" ;;
   esac
 done
 
@@ -27,7 +28,7 @@ if [[ -z "$REPO" ]]; then
   exit 1
 fi
 
-for cmd in gh git rsync; do
+for cmd in gh git rsync jq; do
   command -v "$cmd" >/dev/null || {
     echo "❌ Missing dependency: $cmd"
     exit 1
@@ -35,6 +36,8 @@ for cmd in gh git rsync; do
 done
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+OWNER="${REPO%%/*}"
+REPO_NAME="${REPO##*/}"
 
 echo
 echo "📦 Task Assistant — Marketplace Install"
@@ -43,7 +46,7 @@ echo "Mode:         $([[ "$DRY_RUN" == "true" ]] && echo "DRY-RUN" || echo "INST
 echo
 
 # ------------------------------------------------------------
-# Preconditions (Task Assistant integrity)
+# Task Assistant source integrity
 # ------------------------------------------------------------
 [[ -f "$ROOT_DIR/.github/task-assistant.yml" ]] || {
   echo "❌ Missing .github/task-assistant.yml in Task Assistant repo"
@@ -56,16 +59,13 @@ echo
 }
 
 # ------------------------------------------------------------
-# Auth check
+# Auth + repo access
 # ------------------------------------------------------------
 gh auth status >/dev/null 2>&1 || {
   echo "❌ gh is not authenticated. Run: gh auth login"
   exit 1
 }
 
-# ------------------------------------------------------------
-# Repo access check
-# ------------------------------------------------------------
 if ! gh repo view "$REPO" >/dev/null 2>&1; then
   echo "❌ Cannot access repo: $REPO"
   exit 1
@@ -74,34 +74,80 @@ fi
 echo "✓ Repo accessible"
 
 # ------------------------------------------------------------
-# Secrets validation (non-blocking)
+# TELEMETRY_REPO_NAME validation (required)
 # ------------------------------------------------------------
 echo
-echo "🔐 Checking required GitHub App secrets..."
+echo "🧭 Checking TELEMETRY_REPO_NAME..."
 
-MISSING_SECRETS=()
+TELEMETRY_REPO_NAME="$(
+  gh variable get TELEMETRY_REPO_NAME \
+    --org "$OWNER" \
+    --json value \
+    -q .value 2>/dev/null || true
+)"
+
+if [[ -z "$TELEMETRY_REPO_NAME" ]]; then
+  echo "❌ TELEMETRY_REPO_NAME is not defined at org level ($OWNER)"
+  exit 1
+fi
+
+if [[ "$TELEMETRY_REPO_NAME" == */* ]]; then
+  echo "❌ TELEMETRY_REPO_NAME must NOT include an owner"
+  echo "   Found: $TELEMETRY_REPO_NAME"
+  exit 1
+fi
+
+echo "✓ TELEMETRY_REPO_NAME=$TELEMETRY_REPO_NAME"
+
+# ------------------------------------------------------------
+# Secrets check (repo OR org)
+# ------------------------------------------------------------
+echo
+echo "🔐 Checking GitHub App secrets (repo or org)..."
+
+missing=()
 
 for secret in CODEX_APP_ID CODEX_PRIVATE_KEY; do
-  if ! gh secret list --repo "$REPO" | awk '{print $1}' | grep -qx "$secret"; then
-    MISSING_SECRETS+=("$secret")
+  if gh secret list --repo "$REPO" | awk '{print $1}' | grep -qx "$secret"; then
+    continue
   fi
+
+  if gh secret list --org "$OWNER" | awk '{print $1}' | grep -qx "$secret"; then
+    continue
+  fi
+
+  missing+=("$secret")
 done
 
-if [[ ${#MISSING_SECRETS[@]} -gt 0 ]]; then
+if [[ ${#missing[@]} -gt 0 ]]; then
   echo "⚠️  Missing secrets:"
-  for s in "${MISSING_SECRETS[@]}"; do
+  for s in "${missing[@]}"; do
     echo "  - $s"
   done
-  echo "→ Workflows will fail until secrets are added"
+  echo "→ Preflight engine will fail until secrets are added"
 else
-  echo "✓ Required secrets present"
+  echo "✓ Required secrets visible"
 fi
 
 # ------------------------------------------------------------
-# File presence check (remote)
+# Infra registry presence (informational)
 # ------------------------------------------------------------
 echo
-echo "📂 Checking existing Task Assistant files in repo..."
+echo "🏗️  Checking infra registry (non-blocking)..."
+
+INFRA_REPO="${OWNER}/${TELEMETRY_REPO_NAME}"
+if gh repo view "$INFRA_REPO" >/dev/null 2>&1; then
+  echo "✓ Telemetry repo exists: $INFRA_REPO"
+else
+  echo "⚠️  Telemetry repo not found: $INFRA_REPO"
+  echo "→ Preflight engine will report infra failure"
+fi
+
+# ------------------------------------------------------------
+# Remote file presence
+# ------------------------------------------------------------
+echo
+echo "📂 Existing Task Assistant files in repo:"
 
 HAS_CONFIG="$(gh api "repos/$REPO/contents/.github/task-assistant.yml" >/dev/null 2>&1 && echo yes || echo no)"
 HAS_DISPATCH="$(gh api "repos/$REPO/contents/.github/workflows/task-assistant-dispatch.yml" >/dev/null 2>&1 && echo yes || echo no)"
@@ -124,7 +170,7 @@ if [[ "$DRY_RUN" == "true" ]]; then
 fi
 
 # ------------------------------------------------------------
-# Real install (clone + sync)
+# Real install
 # ------------------------------------------------------------
 WORKDIR="$(mktemp -d)"
 TARGET_DIR="$WORKDIR/target"
@@ -151,7 +197,7 @@ git add .github/task-assistant.yml .github/workflows/task-assistant-dispatch.yml
 if git diff --cached --quiet; then
   echo "✓ Repo already up to date"
 else
-  git commit -m "chore: install Task Assistant (config + dispatch only)" >/dev/null
+  git commit -m "chore: install Task Assistant (config + dispatch)" >/dev/null
   git push >/dev/null
   echo "✓ Task Assistant installed into $REPO"
 fi
