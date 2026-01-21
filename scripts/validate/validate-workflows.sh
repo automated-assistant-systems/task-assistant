@@ -2,48 +2,56 @@
 set -euo pipefail
 
 # ============================================================
-# Phase 3.3 Validation — Dispatch / Engine / Telemetry
+# Workflow Validation — Dispatch / Engine / Telemetry
 # ============================================================
 
 REPO="${1:-}"
 OWNER="$(cut -d/ -f1 <<< "$REPO")"
-TELEMETRY_SUFFIX="${TELEMETRY_SUFFIX:-task-assistant-telemetry}"
 
 # ------------------------------------------------------------
 # Resolve telemetry repository (org-scoped, configurable)
 # ------------------------------------------------------------
+echo
+echo "🔐 Resolving telemetry repo from infra registry..."
 
-if [[ -z "${TELEMETRY_REPO:-}" ]]; then
-  TELEMETRY_REPO="${OWNER}/${TELEMETRY_SUFFIX}"
-  export TELEMETRY_REPO
-  echo "ℹ️  TELEMETRY_REPO not set — derived as $TELEMETRY_REPO"
-else
-  echo "ℹ️  Using TELEMETRY_REPO from env: $TELEMETRY_REPO"
-fi
+INFRA_REPO="automated-assistant-systems/task-assistant-infra"
+INFRA_PATH="telemetry-registry.json"
 
-if ! gh repo view "$TELEMETRY_REPO" >/dev/null 2>&1; then
-  echo "❌ Telemetry repo does not exist or is inaccessible: $TELEMETRY_REPO"
+REGISTRY_JSON="$(
+  gh api "repos/$INFRA_REPO/contents/$INFRA_PATH" \
+    --jq '.content' \
+  | base64 --decode
+)"
+
+TELEMETRY_REPO="$(
+  echo "$REGISTRY_JSON" \
+  | jq -r \
+      --arg owner "$OWNER" \
+      --arg repo "$REPO_NAME" '
+        .organizations[]
+        | select(.owner == $owner)
+        | select(
+            .repositories[]
+            | select(.name == $repo and .enabled == true)
+          )
+        | .telemetry_repo
+      ' \
+  | head -n1
+)"
+
+if [[ -z "$TELEMETRY_REPO" || "$TELEMETRY_REPO" == "null" ]]; then
+  echo "❌ Repo is not registered in infra telemetry registry"
+  echo "   Owner: $OWNER"
+  echo "   Repo:  $REPO_NAME"
   exit 1
 fi
 
-for cmd in gh jq date; do
-  command -v "$cmd" >/dev/null || {
-    echo "❌ Missing dependency: $cmd"
-    exit 1
-  }
-done
+export TELEMETRY_REPO
 
-REPO_NAME="$(basename "$REPO")"
-OWNER="$(dirname "$REPO")"
-TODAY_UTC="$(date -u +"%Y-%m-%d")"
-
-WORKDIR="$(mktemp -d)"
-TELE_DIR="$WORKDIR/telemetry"
-
-trap 'rm -rf "$WORKDIR"' EXIT
+echo "✓ TELEMETRY_REPO resolved: $TELEMETRY_REPO"
 
 echo
-echo "🔬 Phase 3.3 Validation"
+echo "🔬 Workflow Validation"
 echo "Repo under test:     $REPO"
 echo "Telemetry repo:      $TELEMETRY_REPO"
 echo "UTC date:            $TODAY_UTC"

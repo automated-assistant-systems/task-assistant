@@ -9,10 +9,6 @@ on:
         required: true
         type: string
 
-      telemetry_repo:
-        required: true
-        type: string
-
       correlation_id:
         required: true
         type: string
@@ -32,14 +28,13 @@ jobs:
     runs-on: ubuntu-latest
 
     outputs:
-      ok:            ${{ steps.result.outputs.ok }}
-      reason:        ${{ steps.result.outputs.reason }}
+      ok:             ${{ steps.result.outputs.ok }}
+      telemetry_repo: ${{ steps.result.outputs.telemetry_repo }}
 
     env:
       ENGINE_NAME: preflight
       ENGINE_JOB: preflight
       CORRELATION_ID: ${{ inputs.correlation_id }}
-      TELEMETRY_REPO: ${{ inputs.telemetry_repo }}
 
     steps:
       # ------------------------------------------------------------
@@ -60,11 +55,7 @@ jobs:
         working-directory: task-assistant
         run: |
           set -euo pipefail
-          if [ -f package-lock.json ]; then
-            npm ci
-          else
-            npm install
-          fi
+          npm ci
 
       # ------------------------------------------------------------
       # Parse target repo
@@ -79,36 +70,74 @@ jobs:
           echo "REPO=$REPO"   >> "$GITHUB_ENV"
 
       # ------------------------------------------------------------
-      # Generate GitHub App token (runtime secret validation)
+      # Generate GitHub App token
       # ------------------------------------------------------------
       - name: Generate GitHub App token
         id: app-token
         uses: actions/create-github-app-token@v1
         with:
-          app-id:       ${{ secrets.CODEX_APP_ID }}
-          private-key:  ${{ secrets.CODEX_PRIVATE_KEY }}
-          owner:        ${{ env.OWNER }}
+          app-id:      ${{ secrets.CODEX_APP_ID }}
+          private-key: ${{ secrets.CODEX_PRIVATE_KEY }}
+          owner:       ${{ env.OWNER }}
 
       # ------------------------------------------------------------
-      # Infra registry check (read-only)
+      # Infra registry lookup + telemetry repo resolution
       # ------------------------------------------------------------
-      - name: Infra registry check
+      - name: Resolve telemetry repo from infra
         id: infra
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           set -euo pipefail
 
-          # Example placeholder:
-          # gh api repos/automated-assistant-systems/ta-infra/contents/registry.json
+          INFRA_REPO="automated-assistant-systems/task-assistant-infra"
+          REGISTRY_PATH="telemetry-registry.json"
 
-          echo "Infra registry OK"
+          echo "→ Reading telemetry registry from infra..."
+
+          REGISTRY="$(gh api "repos/$INFRA_REPO/contents/$REGISTRY_PATH" --jq '.content' | base64 --decode)"
+
+          TELEMETRY_REPO="$(
+            echo "$REGISTRY" \
+            | jq -r --arg owner "$OWNER" --arg repo "$REPO" '
+                .organizations[]
+                | select(.owner == $owner)
+                | select(.repositories[].name == $repo)
+                | .telemetry_repo
+              '
+          )"
+
+          if [[ -z "$TELEMETRY_REPO" || "$TELEMETRY_REPO" == "null" ]]; then
+            echo "::error::Repo $OWNER/$REPO is not registered in telemetry infra"
+            exit 1
+          fi
+
+          echo "✓ Infra registration found"
+          echo "TELEMETRY_REPO=$TELEMETRY_REPO" >> "$GITHUB_ENV"
+
+      # ------------------------------------------------------------
+      # Verify Task Assistant App installed on telemetry repo
+      # ------------------------------------------------------------
+      - name: Verify app installation on telemetry repo
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          set -euo pipefail
+
+          echo "→ Verifying app access to telemetry repo: $TELEMETRY_REPO"
+
+          if gh api "repos/$TELEMETRY_REPO/contents/" >/dev/null 2>&1; then
+            echo "✓ App is installed on telemetry repo"
+          else
+            echo "::error::Task Assistant GitHub App is NOT installed on telemetry repo"
+            echo "::error::Install the app on $TELEMETRY_REPO and re-run"
+            exit 1
+          fi
 
       # ------------------------------------------------------------
       # Emit preflight telemetry
       # ------------------------------------------------------------
       - name: Emit preflight telemetry
-        id: emit
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
         working-directory: task-assistant
@@ -119,6 +148,8 @@ jobs:
             "summary": "Preflight checks passed",
             "checks": {
               "infra": "ok",
+              "telemetry_repo": "$TELEMETRY_REPO",
+              "telemetry_app_installed": "ok",
               "secrets": "ok"
             }
           }
@@ -126,6 +157,7 @@ jobs:
 
           ENGINE_NAME="preflight" \
           ENGINE_JOB="preflight" \
+          TELEMETRY_REPO="$TELEMETRY_REPO" \
           RESULT_FILE="result.json" \
           ./scripts/telemetry/emit-engine.sh
 
@@ -135,6 +167,5 @@ jobs:
       - name: Set result
         id: result
         run: |
-          echo "ok=true"     >> "$GITHUB_OUTPUT"
-          echo "reason=none" >> "$GITHUB_OUTPUT"
-
+          echo "ok=true" >> "$GITHUB_OUTPUT"
+          echo "telemetry_repo=$TELEMETRY_REPO" >> "$GITHUB_OUTPUT"

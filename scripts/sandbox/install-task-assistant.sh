@@ -74,30 +74,27 @@ fi
 echo "✓ Repo accessible"
 
 # ------------------------------------------------------------
-# TELEMETRY_REPO_NAME validation (required)
+# Infra + telemetry check
 # ------------------------------------------------------------
 echo
-echo "🧭 Checking TELEMETRY_REPO_NAME..."
+echo "🔎 Checking infra registration (optional)..."
 
-TELEMETRY_REPO_NAME="$(
-  gh variable get TELEMETRY_REPO_NAME \
-    --org "$OWNER" \
-    --json value \
-    -q .value 2>/dev/null || true
-)"
-
-if [[ -z "$TELEMETRY_REPO_NAME" ]]; then
-  echo "❌ TELEMETRY_REPO_NAME is not defined at org level ($OWNER)"
-  exit 1
+if gh api repos/automated-assistant-systems/task-assistant-infra/contents/telemetry-registry.json \
+  --jq '.content' \
+  | base64 --decode \
+  | jq -e \
+      --arg owner "$OWNER" \
+      --arg repo "$REPO_NAME" '
+        .organizations[]
+        | select(.owner == $owner)
+        | .repositories[]
+        | select(.name == $repo and .enabled == true)
+      ' >/dev/null 2>&1; then
+  echo "✓ Repo is registered in infra"
+else
+  echo "⚠️  Repo is not registered in infra"
+  echo "   Telemetry will not be emitted until registered"
 fi
-
-if [[ "$TELEMETRY_REPO_NAME" == */* ]]; then
-  echo "❌ TELEMETRY_REPO_NAME must NOT include an owner"
-  echo "   Found: $TELEMETRY_REPO_NAME"
-  exit 1
-fi
-
-echo "✓ TELEMETRY_REPO_NAME=$TELEMETRY_REPO_NAME"
 
 # ------------------------------------------------------------
 # Secrets check (repo OR org)
@@ -130,20 +127,6 @@ else
 fi
 
 # ------------------------------------------------------------
-# Infra registry presence (informational)
-# ------------------------------------------------------------
-echo
-echo "🏗️  Checking infra registry (non-blocking)..."
-
-INFRA_REPO="${OWNER}/${TELEMETRY_REPO_NAME}"
-if gh repo view "$INFRA_REPO" >/dev/null 2>&1; then
-  echo "✓ Telemetry repo exists: $INFRA_REPO"
-else
-  echo "⚠️  Telemetry repo not found: $INFRA_REPO"
-  echo "→ Preflight engine will report infra failure"
-fi
-
-# ------------------------------------------------------------
 # Remote file presence
 # ------------------------------------------------------------
 echo
@@ -154,6 +137,35 @@ HAS_DISPATCH="$(gh api "repos/$REPO/contents/.github/workflows/task-assistant-di
 
 echo "  .github/task-assistant.yml:            $HAS_CONFIG"
 echo "  task-assistant-dispatch.yml:           $HAS_DISPATCH"
+echo
+
+echo "🧪 Verifying dispatch currency..."
+
+CANONICAL_HASH="$(sha256sum "$ROOT_DIR/.github/workflows/task-assistant-dispatch.yml" | awk '{print $1}')"
+
+REMOTE_CONTENT="$(
+  gh api "repos/$REPO/contents/.github/workflows/task-assistant-dispatch.yml" \
+    --jq '.content' 2>/dev/null || true
+)"
+
+if [[ -z "$REMOTE_CONTENT" ]]; then
+  DISPATCH_STATUS="missing"
+else
+  REMOTE_HASH="$(
+    printf '%s' "$REMOTE_CONTENT" \
+    | base64 --decode \
+    | sha256sum \
+    | awk '{print $1}'
+  )"
+
+  if [[ "$REMOTE_HASH" == "$CANONICAL_HASH" ]]; then
+    DISPATCH_STATUS="up-to-date"
+  else
+    DISPATCH_STATUS="out-of-date"
+  fi
+fi
+
+echo "  Dispatch status: $DISPATCH_STATUS"
 
 # ------------------------------------------------------------
 # Dry-run exit
@@ -162,9 +174,14 @@ if [[ "$DRY_RUN" == "true" ]]; then
   echo
   echo "🧪 Dry-run complete — no changes made"
   echo
-  echo "Would install:"
+  echo "Would install / update:"
   echo "  • .github/task-assistant.yml"
-  echo "  • .github/workflows/task-assistant-dispatch.yml"
+
+  if [[ "$DISPATCH_STATUS" != "up-to-date" ]]; then
+    echo "  • .github/workflows/task-assistant-dispatch.yml (update required)"
+  else
+    echo "  • .github/workflows/task-assistant-dispatch.yml (already current)"
+  fi
   echo
   exit 0
 fi
