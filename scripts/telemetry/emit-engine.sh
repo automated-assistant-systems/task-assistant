@@ -27,7 +27,7 @@ if [[ ! -f "$RESULT_FILE" ]]; then
 fi
 
 # ─────────────────────────────────────────────
-# Derive action (explicit + safe)
+# Derive action (explicit + deterministic)
 # ─────────────────────────────────────────────
 OK="$(jq -r '.ok // false' "$RESULT_FILE")"
 if [[ "$OK" == "true" ]]; then
@@ -72,16 +72,30 @@ PAYLOAD="$(
 )"
 
 # ─────────────────────────────────────────────
-# Emit (append JSONL safely)
+# Paths
 # ─────────────────────────────────────────────
-EVENT_PATH="telemetry/v1/repos/${REPO}/$(date +%Y-%m-%d).jsonl"
-API_PATH="/repos/${TELEMETRY_REPO}/contents/${EVENT_PATH}"
+REPO_DIR="telemetry/v1/repos/${REPO}"
+EVENT_FILE="$(date +%Y-%m-%d).jsonl"
+EVENT_PATH="${REPO_DIR}/${EVENT_FILE}"
+API_REPO="repos/${TELEMETRY_REPO}/contents"
 
 TMP="$(mktemp)"
 SHA=""
 
-# Fetch existing file if present
-if EXISTING="$(gh api "$API_PATH" 2>/dev/null)"; then
+# ─────────────────────────────────────────────
+# Ensure repo directory exists (idempotent)
+# ─────────────────────────────────────────────
+gh api \
+  --method PUT \
+  "${API_REPO}/${REPO_DIR}/.keep" \
+  --field message="chore(telemetry): ensure repo path exists" \
+  --field content="$(printf '' | base64)" \
+  >/dev/null 2>&1 || true
+
+# ─────────────────────────────────────────────
+# Fetch existing JSONL if present
+# ─────────────────────────────────────────────
+if EXISTING="$(gh api "${API_REPO}/${EVENT_PATH}" 2>/dev/null)"; then
   SHA="$(jq -r '.sha' <<<"$EXISTING")"
   jq -r '.content' <<<"$EXISTING" | base64 --decode >"$TMP"
 else
@@ -95,8 +109,8 @@ ENCODED="$(base64 -w0 "$TMP")"
 
 ARGS=(
   --method PUT
-  "$API_PATH"
-  --field message="telemetry: ${ENGINE_NAME}"
+  "${API_REPO}/${EVENT_PATH}"
+  --field message="telemetry: ${ENGINE_NAME}/${ENGINE_JOB}"
   --field content="$ENCODED"
   --field encoding="base64"
 )
