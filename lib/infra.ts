@@ -1,335 +1,218 @@
-// lib/infra.ts
-// Phase 3.4a — Authoritative infra registry reader (read-only)
+/* lib/infra.ts
+ *
+ * Phase 3.4 infra resolver
+ * - v2 preferred
+ * - v1 fallback
+ * - execution allowed if telemetry resolves
+ * - infra is NOT an execution gate
+ */
 
-import { Buffer } from "buffer";
-
-/* ─────────────────────────────────────────────────────────────
- * Types
- * ──────────────────────────────────────────────────────────── */
-
-export type InfraSchemaVersion = "v2" | "v1";
+type InfraVersionUsed = "v2" | "v1-fallback";
 
 export type InfraOutcomeCode =
-  | "INFRA_OK_V2"
-  | "INFRA_OK_V1_FALLBACK"
-  | "INFRA_REPO_ABSENT"
-  | "INFRA_REPO_DISABLED"
-  | "INFRA_ORG_ABSENT"
-  | "INFRA_DASHBOARD_DISABLED"
-  | "INFRA_REGISTRY_UNREADABLE"
-  | "INFRA_REGISTRY_INVALID"
-  | "INFRA_SCHEMA_UNSUPPORTED";
-
-export interface ResolveInfraOptions {
-  targetRepo: string; // "owner/name"
-  githubToken: string;
-
-  infraRepo?: string; // default: automated-assistant-systems/task-assistant-infra
-  infraRef?: string;  // default: main
-
-  infraPathV2?: string; // default: infra/telemetry-registry.v2.json
-  infraPathV1?: string; // default: telemetry-registry.json
-
-  allowV1Fallback?: boolean; // default: true
-  requireRepoEnabled?: boolean; // default: true
-}
-
-export interface InfraDashboardConfig {
-  enabled: boolean;
-  public: boolean;
-  basePath?: string;
-}
+  | "INFRA_OK"
+  | "INFRA_REPO_UNREGISTERED"
+  | "INFRA_TELEMETRY_UNRESOLVABLE";
 
 export interface InfraResolution {
-  versionUsed: InfraSchemaVersion;
-  registrySha: string;
-
   orgOwner: string;
   targetRepoName: string;
 
-  telemetryRepo?: string;
+  telemetryRepo: string;
 
-  repoState: "enabled" | "disabled" | "absent";
   repoContext: "sandbox" | "production" | "unknown";
+  repoState: "enabled" | "disabled" | "absent";
 
-  dashboard: InfraDashboardConfig;
-
-  outcomeCode: InfraOutcomeCode;
-  reasons: string[];
-  warnings: string[];
-}
-
-/* ─────────────────────────────────────────────────────────────
- * Internal helpers
- * ──────────────────────────────────────────────────────────── */
-
-const DEFAULT_INFRA_REPO = "automated-assistant-systems/task-assistant-infra";
-const DEFAULT_INFRA_REF = "main";
-const DEFAULT_V2_PATH = "infra/telemetry-registry.v2.json";
-const DEFAULT_V1_PATH = "telemetry-registry.json";
-
-type CachedRegistry = {
-  sha: string;
-  json: any;
-};
-
-const registryCache = new Map<string, CachedRegistry>();
-
-function cacheKey(repo: string, ref: string, path: string) {
-  return `${repo}@${ref}:${path}`;
-}
-
-async function fetchJsonFromRepo(
-  repo: string,
-  ref: string,
-  path: string,
-  token: string
-): Promise<CachedRegistry> {
-  const key = cacheKey(repo, ref, path);
-  if (registryCache.has(key)) {
-    return registryCache.get(key)!;
-  }
-
-  const url = `https://api.github.com/repos/${repo}/contents/${path}?ref=${ref}`;
-  const res = await fetch(url, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-      Accept: "application/vnd.github+json",
-    },
-  });
-
-  if (!res.ok) {
-    throw new Error(`Unable to read infra registry (${res.status})`);
-  }
-
-  const body = await res.json();
-  const decoded = Buffer.from(body.content, "base64").toString("utf8");
-  const json = JSON.parse(decoded);
-
-  const entry = { sha: body.sha, json };
-  registryCache.set(key, entry);
-  return entry;
-}
-
-function splitRepo(targetRepo: string) {
-  const parts = targetRepo.split("/");
-  if (parts.length !== 2) {
-    throw new Error(`Invalid targetRepo: ${targetRepo}`);
-  }
-  return { owner: parts[0], repo: parts[1] };
-}
-
-/* ─────────────────────────────────────────────────────────────
- * Validators (minimal, defensive)
- * ──────────────────────────────────────────────────────────── */
-
-function validateV2(json: any): string[] {
-  const errors: string[] = [];
-  if (json.schema_version !== "2.0") {
-    errors.push("schema_version must be 2.0");
-  }
-  if (!json.orgs || typeof json.orgs !== "object") {
-    errors.push("missing or invalid orgs");
-  }
-  return errors;
-}
-
-function validateV1(json: any): string[] {
-  const errors: string[] = [];
-  if (json.schema_version !== "1.0") {
-    errors.push("schema_version must be 1.0");
-  }
-  if (!Array.isArray(json.organizations)) {
-    errors.push("organizations must be an array");
-  }
-  return errors;
-}
-
-/* ─────────────────────────────────────────────────────────────
- * Core resolver
- * ──────────────────────────────────────────────────────────── */
-
-export async function resolveInfraForRepo(
-  opts: ResolveInfraOptions
-): Promise<InfraResolution> {
-  const {
-    targetRepo,
-    githubToken,
-    infraRepo = DEFAULT_INFRA_REPO,
-    infraRef = DEFAULT_INFRA_REF,
-    infraPathV2 = DEFAULT_V2_PATH,
-    infraPathV1 = DEFAULT_V1_PATH,
-    allowV1Fallback = true,
-    requireRepoEnabled = true,
-  } = opts;
-
-  const { owner, repo } = splitRepo(targetRepo);
-
-  const baseResolution = {
-    orgOwner: owner,
-    targetRepoName: repo,
-    repoContext: "unknown" as const,
-    dashboard: { enabled: false, public: false },
-    reasons: [] as string[],
-    warnings: [] as string[],
+  dashboard: {
+    enabled: boolean;
+    public: boolean;
   };
 
-  /* ───── Try v2 first ───── */
+  warnings: string[];
+  reasons: string[];
 
-  try {
-    const v2 = await fetchJsonFromRepo(
-      infraRepo,
-      infraRef,
-      infraPathV2,
-      githubToken
+  versionUsed: InfraVersionUsed;
+  registrySha: string;
+
+  outcomeCode: InfraOutcomeCode;
+}
+
+interface GitHubFile {
+  content: string;
+  sha: string;
+}
+
+async function fetchJsonFile(
+  token: string,
+  owner: string,
+  repo: string,
+  path: string
+): Promise<{ json: any; sha: string } | null> {
+  const res = await fetch(
+    `https://api.github.com/repos/${owner}/${repo}/contents/${path}`,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/vnd.github+json",
+      },
+    }
+  );
+
+  if (!res.ok) return null;
+
+  const data = (await res.json()) as GitHubFile;
+
+  const decoded = Buffer.from(data.content, "base64").toString("utf8");
+  return { json: JSON.parse(decoded), sha: data.sha };
+}
+
+export async function resolveInfra(params: {
+  githubToken: string;
+  targetRepo: string;
+}): Promise<InfraResolution> {
+  const { githubToken, targetRepo } = params;
+  const [orgOwner, targetRepoName] = targetRepo.split("/");
+
+  const warnings: string[] = [];
+  const reasons: string[] = [];
+
+  /* ------------------------------------------------------------
+   * Attempt v2 registry (preferred)
+   * ------------------------------------------------------------ */
+  const v2 = await fetchJsonFile(
+    githubToken,
+    "automated-assistant-systems",
+    "task-assistant-infra",
+    "infra/telemetry-registry.v2.json"
+  );
+
+  if (v2?.json?.orgs?.[orgOwner]) {
+    const org = v2.json.orgs[orgOwner];
+    const repo = org.repos?.[targetRepoName];
+    const telemetryRepo = org.telemetry_repo;
+
+    if (!telemetryRepo) {
+      throw new Error(
+        "Infra error: v2 org exists but telemetry_repo missing"
+      );
+    }
+
+    if (repo) {
+      return {
+        orgOwner,
+        targetRepoName,
+        telemetryRepo,
+
+        repoContext: repo.context ?? "unknown",
+        repoState: repo.state,
+
+        dashboard: {
+          enabled: repo.state === "enabled",
+          public: false,
+        },
+
+        warnings,
+        reasons,
+        versionUsed: "v2",
+        registrySha: v2.sha,
+        outcomeCode: "INFRA_OK",
+      };
+    }
+
+    // repo not registered in v2 — allow execution
+    warnings.push(
+      "repo not explicitly registered in infra v2; using org-level telemetry routing"
     );
 
-    const v2Errors = validateV2(v2.json);
-    if (v2Errors.length) {
-      throw new Error(`Invalid v2 registry: ${v2Errors.join(", ")}`);
-    }
-
-    const org = v2.json.orgs?.[owner];
-    if (!org) {
-      return {
-        ...baseResolution,
-        versionUsed: "v2",
-        registrySha: v2.sha,
-        repoState: "absent",
-        outcomeCode: "INFRA_ORG_ABSENT",
-        reasons: ["organization not registered in infra v2"],
-      };
-    }
-
-    if (!org.telemetry_repo) {
-      return {
-        ...baseResolution,
-        versionUsed: "v2",
-        registrySha: v2.sha,
-        repoState: "absent",
-        outcomeCode: "INFRA_REGISTRY_INVALID",
-        reasons: ["org.telemetry_repo missing in infra v2"],
-      };
-    }
-
-    const repoEntry = org.repos?.[repo];
-    if (!repoEntry) {
-      return {
-        ...baseResolution,
-        versionUsed: "v2",
-        registrySha: v2.sha,
-        telemetryRepo: org.telemetry_repo,
-        repoState: "absent",
-        outcomeCode: "INFRA_REPO_ABSENT",
-        reasons: ["repository not registered in infra v2"],
-      };
-    }
-
-    if (repoEntry.state !== "enabled") {
-      return {
-        ...baseResolution,
-        versionUsed: "v2",
-        registrySha: v2.sha,
-        telemetryRepo: org.telemetry_repo,
-        repoState: "disabled",
-        repoContext: repoEntry.context ?? "unknown",
-        outcomeCode: "INFRA_REPO_DISABLED",
-        reasons: ["repository disabled in infra v2"],
-      };
-    }
-
     return {
-      ...baseResolution,
+      orgOwner,
+      targetRepoName,
+      telemetryRepo,
+
+      repoContext: "unknown",
+      repoState: "absent",
+
+      dashboard: {
+        enabled: false,
+        public: false,
+      },
+
+      warnings,
+      reasons,
       versionUsed: "v2",
       registrySha: v2.sha,
-      telemetryRepo: org.telemetry_repo,
-      repoState: "enabled",
-      repoContext: repoEntry.context ?? "unknown",
-      outcomeCode: "INFRA_OK_V2",
-      reasons: ["resolved via infra v2"],
+      outcomeCode: "INFRA_REPO_UNREGISTERED",
     };
-  } catch (err: any) {
-    if (!allowV1Fallback) {
-      return {
-        ...baseResolution,
-        versionUsed: "v2",
-        registrySha: "",
-        repoState: "absent",
-        outcomeCode: "INFRA_REGISTRY_UNREADABLE",
-        reasons: [err.message],
-      };
-    }
   }
 
-  /* ───── v1 fallback ───── */
+  /* ------------------------------------------------------------
+   * Fallback to v1 registry
+   * ------------------------------------------------------------ */
+  const v1 = await fetchJsonFile(
+    githubToken,
+    "automated-assistant-systems",
+    "task-assistant-infra",
+    "telemetry-registry.json"
+  );
 
-  try {
-    const v1 = await fetchJsonFromRepo(
-      infraRepo,
-      infraRef,
-      infraPathV1,
-      githubToken
+  const v1Org = v1?.json?.organizations?.find(
+    (o: any) => o.owner === orgOwner
+  );
+
+  if (v1Org) {
+    const repo = v1Org.repositories?.find(
+      (r: any) => r.name === targetRepoName && r.enabled
     );
 
-    const v1Errors = validateV1(v1.json);
-    if (v1Errors.length) {
-      throw new Error(`Invalid v1 registry: ${v1Errors.join(", ")}`);
-    }
+    if (repo) {
+      warnings.push(
+        "resolved via legacy v1 infra; migrate to v2 required"
+      );
 
-    const org = v1.json.organizations.find((o: any) => o.owner === owner);
-    if (!org) {
       return {
-        ...baseResolution,
-        versionUsed: "v1",
-        registrySha: v1.sha,
-        repoState: "absent",
-        outcomeCode: "INFRA_ORG_ABSENT",
-        warnings: ["v1 fallback used"],
+        orgOwner,
+        targetRepoName,
+        telemetryRepo: v1Org.telemetry_repo,
+
+        repoContext: "unknown",
+        repoState: "enabled",
+
+        dashboard: {
+          enabled: false,
+          public: false,
+        },
+
+        warnings,
+        reasons,
+        versionUsed: "v1-fallback",
+        registrySha: v1!.sha,
+        outcomeCode: "INFRA_OK",
       };
     }
-
-    const repoEntry = org.repositories.find((r: any) => r.name === repo);
-    if (!repoEntry) {
-      return {
-        ...baseResolution,
-        versionUsed: "v1",
-        registrySha: v1.sha,
-        telemetryRepo: org.telemetry_repo,
-        repoState: "absent",
-        outcomeCode: "INFRA_REPO_ABSENT",
-        warnings: ["v1 fallback used"],
-      };
-    }
-
-    if (!repoEntry.enabled && requireRepoEnabled) {
-      return {
-        ...baseResolution,
-        versionUsed: "v1",
-        registrySha: v1.sha,
-        telemetryRepo: org.telemetry_repo,
-        repoState: "disabled",
-        outcomeCode: "INFRA_REPO_DISABLED",
-        warnings: ["v1 fallback used"],
-      };
-    }
-
-    return {
-      ...baseResolution,
-      versionUsed: "v1",
-      registrySha: v1.sha,
-      telemetryRepo: org.telemetry_repo,
-      repoState: "enabled",
-      outcomeCode: "INFRA_OK_V1_FALLBACK",
-      warnings: ["resolved via infra v1 fallback"],
-    };
-  } catch (err: any) {
-    return {
-      ...baseResolution,
-      versionUsed: "v1",
-      registrySha: "",
-      repoState: "absent",
-      outcomeCode: "INFRA_REGISTRY_UNREADABLE",
-      reasons: [err.message],
-    };
   }
+
+  /* ------------------------------------------------------------
+   * Hard failure — telemetry cannot be resolved
+   * ------------------------------------------------------------ */
+  reasons.push("repository not registered in infra v1 or v2");
+
+  return {
+    orgOwner,
+    targetRepoName,
+    telemetryRepo: "",
+
+    repoContext: "unknown",
+    repoState: "absent",
+
+    dashboard: {
+      enabled: false,
+      public: false,
+    },
+
+    warnings,
+    reasons,
+    versionUsed: "v2",
+    registrySha: v2?.sha ?? v1?.sha ?? "",
+    outcomeCode: "INFRA_TELEMETRY_UNRESOLVABLE",
+  };
 }
