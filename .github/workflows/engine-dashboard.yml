@@ -4,6 +4,33 @@ name: Task Assistant • Engine • Dashboard
 # yamllint disable rule:truthy
 on:
   workflow_dispatch:
+    inputs:
+      owner:
+        required: true
+        type: string
+
+      repo:
+        required: true
+        type: string
+
+      telemetry_repo:
+        required: true
+        type: string
+
+      correlation_id:
+        required: true
+        type: string
+
+      public:
+        required: false
+        type: boolean
+        default: false
+
+    secrets:
+      CODEX_APP_ID:
+        required: true
+      CODEX_PRIVATE_KEY:
+        required: true
 
   workflow_call:
     inputs:
