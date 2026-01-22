@@ -91,9 +91,9 @@ jobs:
         run: |
           set -euo pipefail
 
-          node --input-type=module <<'EOF'
-          import { resolveInfraForRepo } from "./lib/infra.js";
+          cat > resolve-infra.mjs <<'JS'
           import fs from "fs";
+          import { resolveInfraForRepo } from "./lib/infra.js";
 
           const result = await resolveInfraForRepo({
             targetRepo: process.env.OWNER + "/" + process.env.REPO,
@@ -125,7 +125,9 @@ jobs:
           }
 
           console.log(`TELEMETRY_REPO=${result.telemetryRepo}`);
-          EOF
+          JS
+
+          node resolve-infra.mjs
 
           TELEMETRY_REPO="$(jq -r '.telemetryRepo' infra-resolution.json)"
           echo "TELEMETRY_REPO=$TELEMETRY_REPO" >> "$GITHUB_ENV"
