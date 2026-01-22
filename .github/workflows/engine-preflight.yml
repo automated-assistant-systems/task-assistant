@@ -37,9 +37,9 @@ jobs:
       CORRELATION_ID: ${{ inputs.correlation_id }}
 
     steps:
-      # ------------------------------------------------------------
-      # Checkout Task Assistant (engine + scripts)
-      # ------------------------------------------------------------
+      # ─────────────────────────────────────────────
+      # Checkout Task Assistant (engine + lib/infra)
+      # ─────────────────────────────────────────────
       - name: Checkout Task Assistant
         uses: actions/checkout@v4
         with:
@@ -57,9 +57,9 @@ jobs:
           set -euo pipefail
           npm ci
 
-      # ------------------------------------------------------------
+      # ─────────────────────────────────────────────
       # Parse target repo
-      # ------------------------------------------------------------
+      # ─────────────────────────────────────────────
       - name: Parse target repo
         run: |
           TARGET="${{ inputs.target_repo }}"
@@ -69,9 +69,9 @@ jobs:
           echo "OWNER=$OWNER" >> "$GITHUB_ENV"
           echo "REPO=$REPO"   >> "$GITHUB_ENV"
 
-      # ------------------------------------------------------------
-      # Generate GitHub App token
-      # ------------------------------------------------------------
+      # ─────────────────────────────────────────────
+      # Generate GitHub App token (host repo context)
+      # ─────────────────────────────────────────────
       - name: Generate GitHub App token
         id: app-token
         uses: actions/create-github-app-token@v1
@@ -80,44 +80,48 @@ jobs:
           private-key: ${{ secrets.CODEX_PRIVATE_KEY }}
           owner:       ${{ env.OWNER }}
 
-      # ------------------------------------------------------------
-      # Infra registry lookup + telemetry repo resolution
-      # ------------------------------------------------------------
-      - name: Resolve telemetry repo from infra
+      # ─────────────────────────────────────────────
+      # Resolve infra via lib/infra (v2-first)
+      # ─────────────────────────────────────────────
+      - name: Resolve infra registry
         id: infra
         env:
-          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+        working-directory: task-assistant
         run: |
           set -euo pipefail
 
-          INFRA_REPO="automated-assistant-systems/task-assistant-infra"
-          REGISTRY_PATH="telemetry-registry.json"
+          node <<'EOF'
+          import { resolveInfraForRepo } from "./lib/infra.js";
 
-          echo "→ Reading telemetry registry from infra..."
+          const result = await resolveInfraForRepo({
+            targetRepo: process.env.OWNER + "/" + process.env.REPO,
+            githubToken: process.env.GITHUB_TOKEN,
+            allowV1Fallback: true,
+            requireRepoEnabled: true,
+          });
 
-          REGISTRY="$(gh api "repos/$INFRA_REPO/contents/$REGISTRY_PATH" --jq '.content' | base64 --decode)"
+          console.log("Infra resolution:", JSON.stringify(result, null, 2));
 
-          TELEMETRY_REPO="$(
-            echo "$REGISTRY" \
-            | jq -r --arg owner "$OWNER" --arg repo "$REPO" '
-                .organizations[]
-                | select(.owner == $owner)
-                | select(.repositories[].name == $repo)
-                | .telemetry_repo
-              '
-          )"
+          // Write structured result for later telemetry
+          await import("fs").then(fs =>
+            fs.writeFileSync("infra-resolution.json", JSON.stringify(result, null, 2))
+          );
 
-          if [[ -z "$TELEMETRY_REPO" || "$TELEMETRY_REPO" == "null" ]]; then
-            echo "::error::Repo $OWNER/$REPO is not registered in telemetry infra"
-            exit 1
-          fi
+          if (!["INFRA_OK_V2", "INFRA_OK_V1_FALLBACK"].includes(result.outcomeCode)) {
+            console.error(`::error::Preflight infra check failed: ${result.outcomeCode}`);
+            process.exit(1);
+          }
 
-          echo "✓ Infra registration found"
+          console.log(`TELEMETRY_REPO=${result.telemetryRepo}`);
+          EOF
+
+          TELEMETRY_REPO="$(jq -r '.telemetryRepo' infra-resolution.json)"
           echo "TELEMETRY_REPO=$TELEMETRY_REPO" >> "$GITHUB_ENV"
 
-      # ------------------------------------------------------------
-      # Verify Task Assistant App installed on telemetry repo
-      # ------------------------------------------------------------
+      # ─────────────────────────────────────────────
+      # Verify app installation on telemetry repo
+      # ─────────────────────────────────────────────
       - name: Verify app installation on telemetry repo
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
@@ -134,26 +138,25 @@ jobs:
             exit 1
           fi
 
-      # ------------------------------------------------------------
-      # Emit preflight telemetry
-      # ------------------------------------------------------------
+      # ─────────────────────────────────────────────
+      # Emit preflight telemetry (infra-aware)
+      # ─────────────────────────────────────────────
       - name: Emit preflight telemetry
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
         working-directory: task-assistant
         run: |
-          cat > result.json <<EOF
-          {
-            "ok": true,
-            "summary": "Preflight checks passed",
-            "checks": {
-              "infra": "ok",
-              "telemetry_repo": "$TELEMETRY_REPO",
-              "telemetry_app_installed": "ok",
-              "secrets": "ok"
-            }
-          }
-          EOF
+          set -euo pipefail
+
+          jq -n \
+            --slurpfile infra infra-resolution.json \
+            --arg repo "$OWNER/$REPO" \
+            '{
+              ok: true,
+              summary: "Preflight checks passed",
+              target_repo: $repo,
+              infra: $infra[0]
+            }' > result.json
 
           ENGINE_NAME="preflight" \
           ENGINE_JOB="preflight" \
@@ -161,9 +164,9 @@ jobs:
           RESULT_FILE="result.json" \
           ./scripts/telemetry/emit-engine.sh
 
-      # ------------------------------------------------------------
+      # ─────────────────────────────────────────────
       # Set outputs
-      # ------------------------------------------------------------
+      # ─────────────────────────────────────────────
       - name: Set result
         id: result
         run: |

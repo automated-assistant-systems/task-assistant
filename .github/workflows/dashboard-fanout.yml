@@ -1,85 +1,185 @@
 ---
-name: Task Assistant • Dashboard • Fanout Scheduler
+name: Task Assistant • Dashboard • Fanout
 
 # yamllint disable rule:truthy
 on:
-  schedule:
-    - cron: "0 2 * * *"
-  workflow_dispatch:
+  workflow_call:
+    inputs:
+      target_repo:
+        required: true
+        type: string
+
+      correlation_id:
+        required: true
+        type: string
+
+    secrets:
+      CODEX_APP_ID:
+        required: true
+      CODEX_PRIVATE_KEY:
+        required: true
 
 permissions:
   contents: write
   id-token: write
 
 jobs:
-  resolve:
+  dashboard:
     runs-on: ubuntu-latest
-    outputs:
-      matrix:         ${{ steps.matrix.outputs.matrix }}
-      correlation_id: ${{ steps.matrix.outputs.correlation_id }}
+
+    env:
+      ENGINE_NAME: dashboard
+      ENGINE_JOB: dashboard
+      CORRELATION_ID: ${{ inputs.correlation_id }}
 
     steps:
-      - name: Checkout infra registry
+      # ─────────────────────────────────────────────
+      # Checkout Task Assistant (engine + lib/infra)
+      # ─────────────────────────────────────────────
+      - name: Checkout Task Assistant
         uses: actions/checkout@v4
         with:
-          repository: automated-assistant-systems/task-assistant-infra
-          path: infra
+          repository: automated-assistant-systems/task-assistant
+          ref: main
+          path: task-assistant
 
-      - name: Build dashboard matrix from infra
-        id: matrix
-        shell: bash
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        working-directory: task-assistant
+        run: |
+          set -euo pipefail
+          npm ci
+
+      # ─────────────────────────────────────────────
+      # Parse target repo
+      # ─────────────────────────────────────────────
+      - name: Parse target repo
+        run: |
+          TARGET="${{ inputs.target_repo }}"
+          OWNER="${TARGET%%/*}"
+          REPO="${TARGET##*/}"
+
+          echo "OWNER=$OWNER" >> "$GITHUB_ENV"
+          echo "REPO=$REPO"   >> "$GITHUB_ENV"
+
+      # ─────────────────────────────────────────────
+      # Generate GitHub App token (host repo context)
+      # ─────────────────────────────────────────────
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id:      ${{ secrets.CODEX_APP_ID }}
+          private-key: ${{ secrets.CODEX_PRIVATE_KEY }}
+          owner:       ${{ env.OWNER }}
+
+      # ─────────────────────────────────────────────
+      # Resolve infra via lib/infra (authoritative)
+      # ─────────────────────────────────────────────
+      - name: Resolve infra registry
+        id: infra
+        env:
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+        working-directory: task-assistant
         run: |
           set -euo pipefail
 
-          CORRELATION_ID="${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          node <<'EOF'
+          import { resolveInfraForRepo } from "./lib/infra.js";
+          import fs from "fs";
 
-          # Validate registry shape
-          jq -e '
-            .organizations
-            | type == "array"
-            and all(
-              .[]?;
-              has("owner")
-              and has("telemetry_repo")
-              and has("dashboard")
-              and .dashboard | has("enabled")
-            )
-          ' infra/telemetry-registry.json >/dev/null
+          const result = await resolveInfraForRepo({
+            targetRepo: process.env.OWNER + "/" + process.env.REPO,
+            githubToken: process.env.GITHUB_TOKEN,
+            allowV1Fallback: true,
+            requireRepoEnabled: true,
+          });
 
-          # Enforce owner-scoped telemetry repos
-          jq -e '
-            .organizations[]
-            | select(.dashboard.enabled == true)
-            | (.telemetry_repo | startswith(.owner + "/"))
-          ' infra/telemetry-registry.json >/dev/null
+          console.log("Infra resolution:");
+          console.log(JSON.stringify(result, null, 2));
 
-          MATRIX=$(jq -c '
-            [
-              .organizations[]
-              | select(.dashboard.enabled == true)
-              | {
-                  owner: .owner,
-                  telemetry_repo: .telemetry_repo
-                }
-            ] as $items
-            | { include: ($items // []) }
-          ' infra/telemetry-registry.json)
+          fs.writeFileSync("infra-resolution.json", JSON.stringify(result, null, 2));
 
-          echo "matrix=$MATRIX" >> "$GITHUB_OUTPUT"
-          echo "correlation_id=$CORRELATION_ID" >> "$GITHUB_OUTPUT"
+          if (!["INFRA_OK_V2", "INFRA_OK_V1_FALLBACK"].includes(result.outcomeCode)) {
+            console.error(`::error::Dashboard fanout blocked: ${result.outcomeCode}`);
+            process.exit(1);
+          }
+          EOF
 
-  dashboard:
-    needs: resolve
-    if: ${{ fromJSON(needs.resolve.outputs.matrix).include != [] }}
-    strategy:
-      fail-fast: false
-      matrix: ${{ fromJSON(needs.resolve.outputs.matrix) }}
+      - name: Load infra resolution
+        id: load
+        run: |
+          TELEMETRY_REPO="$(jq -r '.telemetryRepo' task-assistant/infra-resolution.json)"
+          DASHBOARD_ENABLED="$(jq -r '.dashboard.enabled' task-assistant/infra-resolution.json)"
 
-    uses: automated-assistant-systems/task-assistant/.github/workflows/engine-dashboard.yml@main
-    with:
-      owner:          ${{ matrix.owner }}
-      telemetry_repo: ${{ matrix.telemetry_repo }}
-      correlation_id: ${{ needs.resolve.outputs.correlation_id }}
-    secrets:
-      CODEX_APP_ID:      ${{ secrets.CODEX_APP_ID }}
-      CODEX_PRIVATE_KEY: ${{ secrets.CODEX_PRIVATE_KEY }}
+          echo "TELEMETRY_REPO=$TELEMETRY_REPO" >> "$GITHUB_ENV"
+          echo "DASHBOARD_ENABLED=$DASHBOARD_ENABLED" >> "$GITHUB_ENV"
+
+      # ─────────────────────────────────────────────
+      # Skip if dashboards disabled
+      # ─────────────────────────────────────────────
+      - name: Skip dashboard fanout if disabled
+        if: env.DASHBOARD_ENABLED != 'true'
+        run: |
+          echo "ℹ️ Dashboard disabled by infra registry; skipping fanout"
+          exit 0
+
+      # ─────────────────────────────────────────────
+      # Verify app installation on telemetry repo
+      # ─────────────────────────────────────────────
+      - name: Verify app installation on telemetry repo
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          set -euo pipefail
+
+          echo "→ Verifying app access to telemetry repo: $TELEMETRY_REPO"
+
+          if gh api "repos/$TELEMETRY_REPO/contents/" >/dev/null 2>&1; then
+            echo "✓ App access confirmed"
+          else
+            echo "::error::Task Assistant App is not installed on telemetry repo"
+            exit 1
+          fi
+
+      # ─────────────────────────────────────────────
+      # Build dashboard for this repo only
+      # ─────────────────────────────────────────────
+      - name: Build dashboard
+        working-directory: task-assistant
+        run: |
+          set -euo pipefail
+
+          ./scripts/dashboard/build-dashboard.sh \
+            --repo "$OWNER/$REPO" \
+            --telemetry-repo "$TELEMETRY_REPO"
+
+      # ─────────────────────────────────────────────
+      # Emit dashboard telemetry (non-mutating)
+      # ─────────────────────────────────────────────
+      - name: Emit dashboard telemetry
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        working-directory: task-assistant
+        run: |
+          set -euo pipefail
+
+          jq -n \
+            --slurpfile infra infra-resolution.json \
+            --arg repo "$OWNER/$REPO" \
+            '{
+              ok: true,
+              engine: "dashboard",
+              summary: "Dashboard fanout completed",
+              target_repo: $repo,
+              infra: $infra[0]
+            }' > result.json
+
+          ENGINE_NAME="dashboard" \
+          ENGINE_JOB="dashboard" \
+          TELEMETRY_REPO="$TELEMETRY_REPO" \
+          RESULT_FILE="result.json" \
+          ./scripts/telemetry/emit-engine.sh
