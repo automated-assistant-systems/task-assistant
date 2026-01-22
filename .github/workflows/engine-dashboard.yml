@@ -166,6 +166,11 @@ jobs:
             echo "No dashboard changes to commit"
           fi
 
+      - name: Export repo context
+        run: |
+          echo "OWNER=${{ inputs.owner }}" >> "$GITHUB_ENV"
+          echo "REPO=${{ inputs.repo }}" >> "$GITHUB_ENV"
+
       # ─────────────────────────────────────────────
       # Emit dashboard telemetry (single repo)
       # ─────────────────────────────────────────────

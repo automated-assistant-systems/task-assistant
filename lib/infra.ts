@@ -260,8 +260,6 @@ export async function listDashboardEligibleRepos(params: {
         });
       }
     }
-
-    return entries;
   }
 
   // ─────────────────────────────────────────────
