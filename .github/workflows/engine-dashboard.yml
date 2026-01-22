@@ -9,6 +9,10 @@ on:
         required: true
         type: string
 
+      repo:
+        required: true
+        type: string
+
       telemetry_repo:
         required: true
         type: string
@@ -37,6 +41,7 @@ env:
   ENGINE_JOB: dashboard
 
   OWNER: ${{ inputs.owner }}
+  REPO: ${{ inputs.repo }}
   TELEMETRY_REPO: ${{ inputs.telemetry_repo }}
   CORRELATION_ID: ${{ inputs.correlation_id }}
   DASHBOARD_PUBLIC: ${{ inputs.public }}
@@ -46,17 +51,31 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # ─────────────────────────────────────────────
+      # Checkout Task Assistant (engine + scripts)
+      # ─────────────────────────────────────────────
       - name: Checkout Task Assistant
         uses: actions/checkout@v4
+        with:
+          repository: automated-assistant-systems/task-assistant
+          ref: main
 
+      # ─────────────────────────────────────────────
+      # Setup Node
+      # ─────────────────────────────────────────────
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 20
 
       - name: Install dependencies
-        run: npm ci
+        run: |
+          set -euo pipefail
+          npm ci
 
+      # ─────────────────────────────────────────────
+      # Generate GitHub App token
+      # ─────────────────────────────────────────────
       - name: Generate GitHub App token
         id: app-token
         uses: actions/create-github-app-token@v1
@@ -65,6 +84,9 @@ jobs:
           private-key: ${{ secrets.CODEX_PRIVATE_KEY }}
           owner: ${{ inputs.owner }}
 
+      # ─────────────────────────────────────────────
+      # Checkout telemetry repository
+      # ─────────────────────────────────────────────
       - name: Checkout telemetry repository
         uses: actions/checkout@v4
         with:
@@ -72,20 +94,31 @@ jobs:
           path: telemetry
           token: ${{ steps.app-token.outputs.token }}
 
-      - name: Build dashboards (repo-scoped)
+      # ─────────────────────────────────────────────
+      # Build dashboard (REPO-SCOPED ONLY)
+      # ─────────────────────────────────────────────
+      - name: Build dashboard
         env:
           TELEMETRY_ROOT: telemetry/telemetry/v1/repos
           DASHBOARD_ROOT: telemetry/telemetry/v1/dashboards
         run: |
           set -euo pipefail
-          shopt -s nullglob
 
-          for repo in telemetry/telemetry/v1/repos/*; do
-            REPO="$(basename "$repo")"
-            node scripts/build-dashboards.js "$REPO"
-          done
+          echo "→ Building dashboard for $OWNER/$REPO"
 
-      - name: Commit dashboards
+          node scripts/build-dashboards.js "$REPO"
+
+          RESULT_PATH="telemetry/telemetry/v1/dashboards/$REPO/dashboard.json"
+
+          if [[ ! -f "$RESULT_PATH" ]]; then
+            echo "::error::Dashboard output not found for $OWNER/$REPO"
+            exit 1
+          fi
+
+      # ─────────────────────────────────────────────
+      # Commit dashboard (repo-scoped)
+      # ─────────────────────────────────────────────
+      - name: Commit dashboard
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
@@ -95,26 +128,27 @@ jobs:
           git config user.name "task-assistant[bot]"
           git config user.email "task-assistant[bot]@users.noreply.github.com"
 
+          git add "telemetry/v1/dashboards/$REPO"
+
           if git status --porcelain | grep .; then
-            git add telemetry/v1/dashboards
-            git commit -m "dashboard: rebuild repo dashboards"
+            git commit -m "dashboard: rebuild dashboard for $OWNER/$REPO"
             git push
           else
             echo "No dashboard changes to commit"
           fi
 
-      - name: Emit dashboard telemetry (per repo)
+      # ─────────────────────────────────────────────
+      # Emit dashboard telemetry (single repo)
+      # ─────────────────────────────────────────────
+      - name: Emit dashboard telemetry
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           set -euo pipefail
-          shopt -s nullglob
 
-          for result in telemetry/telemetry/v1/dashboards/*/dashboard.json; do
-            REPO="$(basename "$(dirname "$result")")"
+          RESULT_FILE="telemetry/telemetry/v1/dashboards/$REPO/dashboard.json"
 
-            OWNER="$OWNER" \
-            REPO="$REPO" \
-            RESULT_FILE="$result" \
-            ./scripts/telemetry/emit-engine.sh
-          done
+          OWNER="$OWNER" \
+          REPO="$REPO" \
+          RESULT_FILE="$RESULT_FILE" \
+          ./scripts/telemetry/emit-engine.sh

@@ -3,38 +3,26 @@ name: Task Assistant • Dashboard • Fanout
 
 # yamllint disable rule:truthy
 on:
-  workflow_call:
-    inputs:
-      target_repo:
-        required: true
-        type: string
-
-      correlation_id:
-        required: true
-        type: string
-
-    secrets:
-      CODEX_APP_ID:
-        required: true
-      CODEX_PRIVATE_KEY:
-        required: true
+  workflow_dispatch: {}
+  schedule:
+    - cron: "0 4 * * *"
+  workflow_call: {}
 
 permissions:
   contents: write
   id-token: write
 
 jobs:
-  dashboard:
+  fanout:
     runs-on: ubuntu-latest
 
     env:
       ENGINE_NAME: dashboard
-      ENGINE_JOB: dashboard
-      CORRELATION_ID: ${{ inputs.correlation_id }}
+      ENGINE_JOB: fanout
 
     steps:
       # ─────────────────────────────────────────────
-      # Checkout Task Assistant (engine + lib/infra)
+      # Checkout Task Assistant (infra + scripts)
       # ─────────────────────────────────────────────
       - name: Checkout Task Assistant
         uses: actions/checkout@v4
@@ -43,7 +31,8 @@ jobs:
           ref: main
           path: task-assistant
 
-      - uses: actions/setup-node@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
         with:
           node-version: 20
 
@@ -54,19 +43,7 @@ jobs:
           npm ci
 
       # ─────────────────────────────────────────────
-      # Parse target repo
-      # ─────────────────────────────────────────────
-      - name: Parse target repo
-        run: |
-          TARGET="${{ inputs.target_repo }}"
-          OWNER="${TARGET%%/*}"
-          REPO="${TARGET##*/}"
-
-          echo "OWNER=$OWNER" >> "$GITHUB_ENV"
-          echo "REPO=$REPO"   >> "$GITHUB_ENV"
-
-      # ─────────────────────────────────────────────
-      # Generate GitHub App token (host repo context)
+      # Generate GitHub App token (infra access)
       # ─────────────────────────────────────────────
       - name: Generate GitHub App token
         id: app-token
@@ -74,93 +51,77 @@ jobs:
         with:
           app-id:      ${{ secrets.CODEX_APP_ID }}
           private-key: ${{ secrets.CODEX_PRIVATE_KEY }}
-          owner:       ${{ env.OWNER }}
 
       # ─────────────────────────────────────────────
-      # Resolve infra via lib/infra (authoritative)
+      # Enumerate dashboard-eligible repos from infra
       # ─────────────────────────────────────────────
-      - name: Resolve infra registry
-        id: infra
+      - name: Resolve dashboard fanout plan
+        id: plan
         env:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
         working-directory: task-assistant
         run: |
           set -euo pipefail
 
-          node <<'EOF'
-          import { resolveInfraForRepo } from "./lib/infra.js";
+          cat > resolve-dashboard-fanout.mjs <<'JS'
           import fs from "fs";
+          import { listDashboardEligibleRepos } from "./lib/infra.js";
 
-          const result = await resolveInfraForRepo({
-            targetRepo: process.env.OWNER + "/" + process.env.REPO,
+          const plan = await listDashboardEligibleRepos({
             githubToken: process.env.GITHUB_TOKEN,
-            allowV1Fallback: true,
-            requireRepoEnabled: true,
+            allowV1Fallback: true
           });
 
-          console.log("Infra resolution:");
-          console.log(JSON.stringify(result, null, 2));
-
-          fs.writeFileSync("infra-resolution.json", JSON.stringify(result, null, 2));
-
-          if (!["INFRA_OK_V2", "INFRA_OK_V1_FALLBACK"].includes(result.outcomeCode)) {
-            console.error(`::error::Dashboard fanout blocked: ${result.outcomeCode}`);
-            process.exit(1);
+          if (!Array.isArray(plan) || plan.length === 0) {
+            console.log("ℹ️ No dashboard-eligible repos found");
+            fs.writeFileSync("fanout-plan.json", "[]");
+            process.exit(0);
           }
-          EOF
 
-      - name: Load infra resolution
-        id: load
-        run: |
-          TELEMETRY_REPO="$(jq -r '.telemetryRepo' task-assistant/infra-resolution.json)"
-          DASHBOARD_ENABLED="$(jq -r '.dashboard.enabled' task-assistant/infra-resolution.json)"
+          console.log("Dashboard fanout plan:");
+          console.log(JSON.stringify(plan, null, 2));
 
-          echo "TELEMETRY_REPO=$TELEMETRY_REPO" >> "$GITHUB_ENV"
-          echo "DASHBOARD_ENABLED=$DASHBOARD_ENABLED" >> "$GITHUB_ENV"
+          fs.writeFileSync(
+            "fanout-plan.json",
+            JSON.stringify(plan, null, 2)
+          );
+          JS
 
-      # ─────────────────────────────────────────────
-      # Skip if dashboards disabled
-      # ─────────────────────────────────────────────
-      - name: Skip dashboard fanout if disabled
-        if: env.DASHBOARD_ENABLED != 'true'
-        run: |
-          echo "ℹ️ Dashboard disabled by infra registry; skipping fanout"
-          exit 0
+          node resolve-dashboard-fanout.mjs
 
       # ─────────────────────────────────────────────
-      # Verify app installation on telemetry repo
+      # Trigger dashboard build per repo
       # ─────────────────────────────────────────────
-      - name: Verify app installation on telemetry repo
+      - name: Trigger dashboard builds
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           set -euo pipefail
 
-          echo "→ Verifying app access to telemetry repo: $TELEMETRY_REPO"
+          COUNT="$(jq length task-assistant/fanout-plan.json)"
 
-          if gh api "repos/$TELEMETRY_REPO/contents/" >/dev/null 2>&1; then
-            echo "✓ App access confirmed"
-          else
-            echo "::error::Task Assistant App is not installed on telemetry repo"
-            exit 1
+          if [[ "$COUNT" -eq 0 ]]; then
+            echo "ℹ️ No dashboards to build"
+            exit 0
           fi
 
-      # ─────────────────────────────────────────────
-      # Build dashboard for this repo only
-      # ─────────────────────────────────────────────
-      - name: Build dashboard
-        working-directory: task-assistant
-        run: |
-          set -euo pipefail
+          for row in $(jq -c '.[]' task-assistant/fanout-plan.json); do
+            OWNER="$(echo "$row" | jq -r '.owner')"
+            REPO="$(echo "$row" | jq -r '.repo')"
+            TELEMETRY_REPO="$(echo "$row" | jq -r '.telemetryRepo')"
 
-          ./scripts/dashboard/build-dashboard.sh \
-            --repo "$OWNER/$REPO" \
-            --telemetry-repo "$TELEMETRY_REPO"
+            echo "→ Triggering dashboard build for $OWNER/$REPO"
+
+            gh workflow run engine-dashboard.yml \
+              --repo "$OWNER/$REPO" \
+              -f target_repo="$OWNER/$REPO" \
+              -f telemetry_repo="$TELEMETRY_REPO"
+          done
 
       # ─────────────────────────────────────────────
-      # Emit dashboard telemetry (non-mutating)
+      # Emit fanout telemetry (non-mutating)
       # ─────────────────────────────────────────────
-      - name: Emit dashboard telemetry
+      - name: Emit fanout telemetry
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
         working-directory: task-assistant
@@ -168,18 +129,16 @@ jobs:
           set -euo pipefail
 
           jq -n \
-            --slurpfile infra infra-resolution.json \
-            --arg repo "$OWNER/$REPO" \
+            --slurpfile plan fanout-plan.json \
             '{
               ok: true,
-              engine: "dashboard",
+              engine: "dashboard-fanout",
               summary: "Dashboard fanout completed",
-              target_repo: $repo,
-              infra: $infra[0]
+              dashboards_planned: ($plan[0] | length),
+              plan: $plan[0]
             }' > result.json
 
           ENGINE_NAME="dashboard" \
-          ENGINE_JOB="dashboard" \
-          TELEMETRY_REPO="$TELEMETRY_REPO" \
+          ENGINE_JOB="fanout" \
           RESULT_FILE="result.json" \
           ./scripts/telemetry/emit-engine.sh

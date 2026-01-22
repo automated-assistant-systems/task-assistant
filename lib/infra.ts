@@ -219,3 +219,79 @@ export async function resolveInfra(params: {
 
 // Backwards-compatible alias (Phase 3.4)
 export const resolveInfraForRepo = resolveInfra;
+
+export interface DashboardFanoutEntry {
+  owner: string;
+  repo: string;
+  telemetryRepo: string;
+  versionUsed: InfraVersionUsed;
+}
+
+export async function listDashboardEligibleRepos(params: {
+  githubToken: string;
+  allowV1Fallback: boolean;
+}): Promise<DashboardFanoutEntry[]> {
+  const { githubToken, allowV1Fallback } = params;
+
+  const entries: DashboardFanoutEntry[] = [];
+
+  // ─────────────────────────────────────────────
+  // Load v2 registry (preferred)
+  // ─────────────────────────────────────────────
+  const v2 = await fetchJsonFile(
+    githubToken,
+    "automated-assistant-systems",
+    "task-assistant-infra",
+    "infra/telemetry-registry.v2.json"
+  );
+
+  if (v2?.json?.orgs) {
+    for (const [owner, org] of Object.entries<any>(v2.json.orgs)) {
+      if (!org.telemetry_repo || !org.repos) continue;
+
+      for (const [repo, meta] of Object.entries<any>(org.repos)) {
+        if (meta.state !== "enabled") continue;
+
+        entries.push({
+          owner,
+          repo,
+          telemetryRepo: org.telemetry_repo,
+          versionUsed: "v2",
+        });
+      }
+    }
+
+    return entries;
+  }
+
+  // ─────────────────────────────────────────────
+  // Fallback to v1 registry (optional)
+  // ─────────────────────────────────────────────
+  if (!allowV1Fallback) return entries;
+
+  const v1 = await fetchJsonFile(
+    githubToken,
+    "automated-assistant-systems",
+    "task-assistant-infra",
+    "telemetry-registry.json"
+  );
+
+  if (!v1?.json?.organizations) return entries;
+
+  for (const org of v1.json.organizations) {
+    if (!org.telemetry_repo || !Array.isArray(org.repositories)) continue;
+
+    for (const repo of org.repositories) {
+      if (!repo.enabled) continue;
+
+      entries.push({
+        owner: org.owner,
+        repo: repo.name,
+        telemetryRepo: org.telemetry_repo,
+        versionUsed: "v1-fallback",
+      });
+    }
+  }
+
+  return entries;
+}
