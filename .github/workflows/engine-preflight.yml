@@ -19,6 +19,15 @@ on:
       CODEX_PRIVATE_KEY:
         required: true
 
+    outputs:
+      ok:
+        description: "Preflight result"
+        value: ${{ jobs.preflight.outputs.ok }}
+
+      telemetry_repo:
+        description: "Resolved telemetry repository"
+        value: ${{ jobs.preflight.outputs.telemetry_repo }}
+
 permissions:
   contents: write
   id-token: write
