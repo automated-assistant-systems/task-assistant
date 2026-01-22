@@ -216,3 +216,6 @@ export async function resolveInfra(params: {
     outcomeCode: "INFRA_TELEMETRY_UNRESOLVABLE",
   };
 }
+
+// Backwards-compatible alias (Phase 3.4)
+export const resolveInfraForRepo = resolveInfra;
