@@ -156,6 +156,9 @@ jobs:
               plan: $plan[0]
             }' > result.json
 
+
+          OWNER="$OWNER" \
+          REPO="$REPO" \
           ENGINE_NAME="dashboard" \
           ENGINE_JOB="fanout" \
           RESULT_FILE="result.json" \
