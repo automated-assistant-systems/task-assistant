@@ -91,6 +91,52 @@ jobs:
         run: |
           set -euo pipefail
 
+          node --input-type=module <<'EOF'
+          import { resolveInfraForRepo } from "./lib/infra.js";
+          import fs from "fs";
+
+          const result = await resolveInfraForRepo({
+            targetRepo: process.env.OWNER + "/" + process.env.REPO,
+            githubToken: process.env.GITHUB_TOKEN,
+          });
+
+          console.log("Infra resolution:", JSON.stringify(result, null, 2));
+
+          fs.writeFileSync(
+            "infra-resolution.json",
+            JSON.stringify(result, null, 2)
+          );
+
+          if (result.outcomeCode === "INFRA_TELEMETRY_UNRESOLVABLE") {
+            console.error(
+              "::error::Preflight infra check failed: telemetry repo could not be resolved"
+            );
+          process.exit(1);
+        }
+
+        if (result.warnings?.length) {
+          for (const warning of result.warnings) {
+            console.warn(`::warning::${warning}`);
+          }
+        }
+
+        console.log(`TELEMETRY_REPO=${result.telemetryRepo}`);
+        EOF
+
+       TELEMETRY_REPO="$(jq -r '.telemetryRepo' infra-resolution.json)"
+       echo "TELEMETRY_REPO=$TELEMETRY_REPO" >> "$GITHUB_ENV"
+
+      # ─────────────────────────────────────────────
+      # Resolve infra via lib/infra (v2-first)
+      # ─────────────────────────────────────────────
+      - name: Resolve infra registry
+        id: infra
+        env:
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+        working-directory: task-assistant
+        run: |
+          set -euo pipefail
+
           node <<'EOF'
           import { resolveInfraForRepo } from "./lib/infra.js";
 
@@ -108,9 +154,18 @@ jobs:
             fs.writeFileSync("infra-resolution.json", JSON.stringify(result, null, 2))
           );
 
-          if (!["INFRA_OK_V2", "INFRA_OK_V1_FALLBACK"].includes(result.outcomeCode)) {
-            console.error(`::error::Preflight infra check failed: ${result.outcomeCode}`);
+          if (result.outcomeCode === "INFRA_TELEMETRY_UNRESOLVABLE") {
+            console.error(
+              `::error::Preflight infra check failed: telemetry repo could not be resolved`
+            );
             process.exit(1);
+          }
+
+          // Non-fatal outcomes (Phase 3.4)
+          if (result.warnings?.length) {
+            for (const warning of result.warnings) {
+              console.warn(`::warning::${warning}`);
+            }
           }
 
           console.log(`TELEMETRY_REPO=${result.telemetryRepo}`);
