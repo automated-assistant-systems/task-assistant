@@ -140,10 +140,42 @@ jobs:
 
           done
 
+      - name: Resolve telemetry repo for fanout
+        env:
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+        working-directory: task-assistant
+        run: |
+          set -euo pipefail
+
+          cat > resolve-fanout-telemetry.mjs <<'JS'
+          import fs from "fs";
+          import { resolveInfraForRepo } from "./lib/infra.js";
+
+          const result = await resolveInfraForRepo({
+            targetRepo: process.env.GITHUB_REPOSITORY,
+            githubToken: process.env.GITHUB_TOKEN
+          });
+
+          if (!result.telemetryRepo) {
+            console.error("::error::Unable to resolve telemetry repo for fanout");
+            process.exit(1);
+          }
+
+          fs.writeFileSync(
+            "fanout-telemetry.json",
+            JSON.stringify(result, null, 2)
+          );
+          JS
+
+          node resolve-fanout-telemetry.mjs
+
+          TELEMETRY_REPO="$(jq -r '.telemetryRepo' fanout-telemetry.json)"
+          echo "TELEMETRY_REPO=$TELEMETRY_REPO" >> "$GITHUB_ENV"
+
       - name: Export fanout context
         run: |
-          echo "OWNER=infra" >> "$GITHUB_ENV"
-          echo "REPO=dashboard-fanout" >> "$GITHUB_ENV"
+          echo "OWNER=automated-assistant-systems" >> "$GITHUB_ENV"
+          echo "REPO=task-assistant" >> "$GITHUB_ENV"
 
       # ─────────────────────────────────────────────
       # Emit fanout telemetry (non-mutating)
