@@ -34,9 +34,6 @@ jobs:
 
     steps:
       - name: Checkout Task Assistant
-      # ─────────────────────────────────────────────
-      # Checkout Task Assistant (infra + scripts)
-      # ─────────────────────────────────────────────
         uses: actions/checkout@v4
         with:
           repository: automated-assistant-systems/task-assistant
