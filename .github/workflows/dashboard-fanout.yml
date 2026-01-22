@@ -53,6 +53,16 @@ jobs:
           private-key: ${{ secrets.CODEX_PRIVATE_KEY }}
 
       # ─────────────────────────────────────────────
+      # Generate Correlation ID
+      # ─────────────────────────────────────────────
+      - name: Generate correlation ID
+        id: correlation
+        run: |
+          set -euo pipefail
+          CORRELATION_ID="${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          echo "CORRELATION_ID=$CORRELATION_ID" >> "$GITHUB_ENV"
+
+      # ─────────────────────────────────────────────
       # Enumerate dashboard-eligible repos from infra
       # ─────────────────────────────────────────────
       - name: Resolve dashboard fanout plan
