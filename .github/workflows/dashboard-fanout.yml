@@ -3,10 +3,22 @@ name: Task Assistant • Dashboard • Fanout
 
 # yamllint disable rule:truthy
 on:
+  workflow_call:
+    inputs:
+      correlation_id:
+        required: true
+        type: string
+
+    secrets:
+      CODEX_APP_ID:
+        required: true
+      CODEX_PRIVATE_KEY:
+        required: true
+
   workflow_dispatch: {}
+
   schedule:
     - cron: "0 4 * * *"
-  workflow_call: {}
 
 permissions:
   contents: write
