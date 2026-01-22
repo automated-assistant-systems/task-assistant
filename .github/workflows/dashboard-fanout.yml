@@ -140,10 +140,10 @@ jobs:
 
           done
 
-       - name: Export fanout context
-         run: |
-           echo "OWNER=infra" >> "$GITHUB_ENV"
-           echo "REPO=dashboard-fanout" >> "$GITHUB_ENV"
+      - name: Export fanout context
+        run: |
+          echo "OWNER=infra" >> "$GITHUB_ENV"
+          echo "REPO=dashboard-fanout" >> "$GITHUB_ENV"
 
       # ─────────────────────────────────────────────
       # Emit fanout telemetry (non-mutating)
