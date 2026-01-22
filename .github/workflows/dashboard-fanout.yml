@@ -113,9 +113,12 @@ jobs:
             echo "→ Triggering dashboard build for $OWNER/$REPO"
 
             gh workflow run engine-dashboard.yml \
-              --repo "$OWNER/$REPO" \
-              -f target_repo="$OWNER/$REPO" \
-              -f telemetry_repo="$TELEMETRY_REPO"
+              --repo automated-assistant-systems/task-assistant \
+              -f owner="$OWNER" \
+              -f repo="$REPO" \
+              -f telemetry_repo="$TELEMETRY_REPO" \
+              -f correlation_id="$CORRELATION_ID"
+
           done
 
       # ─────────────────────────────────────────────
