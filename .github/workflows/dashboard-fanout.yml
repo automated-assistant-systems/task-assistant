@@ -131,6 +131,11 @@ jobs:
 
           done
 
+      - name: Export repo context
+        run: |
+          echo "OWNER=${{ inputs.owner }}" >> "$GITHUB_ENV"
+          echo "REPO=${{ inputs.repo }}" >> "$GITHUB_ENV"
+
       # ─────────────────────────────────────────────
       # Emit fanout telemetry (non-mutating)
       # ─────────────────────────────────────────────
