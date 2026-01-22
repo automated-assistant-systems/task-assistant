@@ -33,10 +33,10 @@ jobs:
       ENGINE_JOB: fanout
 
     steps:
+      - name: Checkout Task Assistant
       # ─────────────────────────────────────────────
       # Checkout Task Assistant (infra + scripts)
       # ─────────────────────────────────────────────
-      - name: Checkout Task Assistant
         uses: actions/checkout@v4
         with:
           repository: automated-assistant-systems/task-assistant
