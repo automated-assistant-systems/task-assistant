@@ -83,7 +83,9 @@ jobs:
   # ─────────────────────────────────────────────
   preflight:
     needs: resolve
+    # yamllint disable rule:line-length
     uses: automated-assistant-systems/task-assistant/.github/workflows/engine-preflight.yml@main
+    # yamllint enable rule:line-length
     with:
       target_repo:    ${{ needs.resolve.outputs.target_repo }}
       correlation_id: ${{ needs.resolve.outputs.correlation_id }}
@@ -99,7 +101,9 @@ jobs:
     needs:
       - resolve
       - preflight
+    # yamllint disable rule:line-length
     uses: automated-assistant-systems/task-assistant/.github/workflows/engine-self-test.yml@main
+    # yamllint enable rule:line-length
     with:
       target_repo:    ${{ needs.resolve.outputs.target_repo }}
       telemetry_repo: ${{ needs.preflight.outputs.telemetry_repo }}
@@ -114,7 +118,9 @@ jobs:
       - resolve
       - preflight
       - self_test_core
+    # yamllint disable rule:line-length
     uses: automated-assistant-systems/task-assistant/.github/workflows/engine-dashboard-self-test.yml@main
+    # yamllint enable rule:line-length
     with:
       target_repo:    ${{ needs.resolve.outputs.target_repo }}
       telemetry_repo: ${{ needs.preflight.outputs.telemetry_repo }}
@@ -131,7 +137,9 @@ jobs:
     needs:
       - resolve
       - preflight
+    # yamllint disable rule:line-length
     uses: automated-assistant-systems/task-assistant/.github/workflows/engine-validate.yml@main
+    # yamllint enable rule:line-length
     with:
       target_repo:    ${{ needs.resolve.outputs.target_repo }}
       telemetry_repo: ${{ needs.preflight.outputs.telemetry_repo }}
@@ -150,7 +158,9 @@ jobs:
     needs:
       - resolve
       - preflight
+    # yamllint disable rule:line-length
     uses: automated-assistant-systems/task-assistant/.github/workflows/engine-enforce.yml@main
+    # yamllint enable rule:line-length
     with:
       target_repo:    ${{ needs.resolve.outputs.target_repo }}
       issue_number:   ${{ needs.resolve.outputs.issue_number }}
