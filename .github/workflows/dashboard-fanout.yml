@@ -131,10 +131,10 @@ jobs:
 
           done
 
-      - name: Export repo context
-        run: |
-          echo "OWNER=${{ inputs.owner }}" >> "$GITHUB_ENV"
-          echo "REPO=${{ inputs.repo }}" >> "$GITHUB_ENV"
+       - name: Export fanout context
+         run: |
+           echo "OWNER=infra" >> "$GITHUB_ENV"
+           echo "REPO=dashboard-fanout" >> "$GITHUB_ENV"
 
       # ─────────────────────────────────────────────
       # Emit fanout telemetry (non-mutating)
