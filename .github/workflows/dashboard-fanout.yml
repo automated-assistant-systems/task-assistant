@@ -167,9 +167,6 @@ jobs:
       - name: Emit fanout telemetry
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
-        OWNER: automated-assistant-systems
-        REPO: task-assistant
-        TELEMETRY_REPO: automated-assistant-systems/task-assistant-telemetry
         working-directory: task-assistant
         run: |
           set -euo pipefail
@@ -194,6 +191,7 @@ jobs:
 
           OWNER="$OWNER" \
           REPO="$REPO" \
+          TELEMETRY_REPO="TELEMETRY_REPO" \
           ENGINE_NAME="dashboard" \
           ENGINE_JOB="fanout" \
           RESULT_FILE="result.json" \
