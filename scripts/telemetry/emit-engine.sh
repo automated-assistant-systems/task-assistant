@@ -26,6 +26,14 @@ if [[ ! -f "$RESULT_FILE" ]]; then
   exit 1
 fi
 
+# emit-engine.sh
+if jq -e '
+  .. | objects | has("owner") and has("repo")
+' "$RESULT_FILE" >/dev/null; then
+  echo "::error::Telemetry payload contains nested owner/repo objects"
+  exit 1
+fi
+
 # ─────────────────────────────────────────────
 # Derive action (explicit + deterministic)
 # ─────────────────────────────────────────────

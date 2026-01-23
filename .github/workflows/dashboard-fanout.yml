@@ -162,27 +162,38 @@ jobs:
           done
 
       # ─────────────────────────────────────────────
-      # Emit fanout telemetry (repo-scoped, non-mutating)
+      # Emit fanout telemetry (repo-scoped, safe)
       # ─────────────────────────────────────────────
       - name: Emit fanout telemetry
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        OWNER: automated-assistant-systems
+        REPO: task-assistant
+        TELEMETRY_REPO: automated-assistant-systems/task-assistant-telemetry
+        working-directory: task-assistant
         run: |
           set -euo pipefail
 
+          # Extract dashboards as opaque strings (NO owner/repo objects)
+          DASHBOARDS="$(jq -r '
+            [.[] | "\(.owner)/\(.repo)"]
+            ' fanout-plan.json)"
+
+          COUNT="$(jq 'length' <<<"$DASHBOARDS")"
+
           jq -n \
-            --slurpfile plan fanout-plan.json \
+            --argjson dashboards "$DASHBOARDS" \
+            --argjson count "$COUNT" \
             '{
               ok: true,
               engine: "dashboard-fanout",
               summary: "Dashboard fanout completed",
-              dashboards_planned: ($plan[0] | length),
-              plan: $plan[0]
+              dashboards_planned: $count,
+              dashboards: $dashboards
             }' > result.json
 
-          OWNER="$OWNER" \
-          REPO="$REPO" \
           ENGINE_NAME="dashboard" \
           ENGINE_JOB="fanout" \
           RESULT_FILE="result.json" \
           ./scripts/telemetry/emit-engine.sh
+
