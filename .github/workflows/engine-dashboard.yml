@@ -3,7 +3,7 @@ name: Task Assistant • Engine • Dashboard
 
 # yamllint disable rule:truthy
 on:
-  workflow_call:
+  workflow_dispatch:
     inputs:
       owner:
         required: true
