@@ -167,7 +167,6 @@ jobs:
       - name: Emit fanout telemetry
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
-        working-directory: task-assistant
         run: |
           set -euo pipefail
 
