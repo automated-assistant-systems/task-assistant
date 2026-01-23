@@ -146,13 +146,12 @@ jobs:
 
           jq -n \
             --arg repo "$REPO" \
-            --slurpfile dashboard telemetry/telemetry/v1/dashboards/$REPO/dashboard.json \
             '{
               ok: true,
               engine: "dashboard",
               summary: "Dashboard rebuilt",
               repo: $repo,
-              dashboard: $dashboard[0]
+              status: "healthy"
             }' > result.json
 
       # ─────────────────────────────────────────────
