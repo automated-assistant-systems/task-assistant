@@ -8,19 +8,40 @@ on:
       owner:
         required: true
         type: string
-
       repo:
         required: true
         type: string
-
       telemetry_repo:
         required: true
         type: string
-
       correlation_id:
         required: true
         type: string
+      public:
+        required: false
+        type: boolean
+        default: false
 
+    secrets:
+      CODEX_APP_ID:
+        required: true
+      CODEX_PRIVATE_KEY:
+        required: true
+
+  workflow_call:
+    inputs:
+      owner:
+        required: true
+        type: string
+      repo:
+        required: true
+        type: string
+      telemetry_repo:
+        required: true
+        type: string
+      correlation_id:
+        required: true
+        type: string
       public:
         required: false
         type: boolean
@@ -52,7 +73,7 @@ jobs:
 
     steps:
       # ─────────────────────────────────────────────
-      # Checkout Task Assistant (engine only)
+      # Checkout Task Assistant
       # ─────────────────────────────────────────────
       - name: Checkout Task Assistant
         uses: actions/checkout@v4
@@ -95,7 +116,7 @@ jobs:
           token: ${{ steps.app-token.outputs.token }}
 
       # ─────────────────────────────────────────────
-      # Build dashboard (repo-scoped, telemetry-derived)
+      # Build dashboard (repo-scoped, non-fatal)
       # ─────────────────────────────────────────────
       - name: Build dashboard
         env:
@@ -105,10 +126,37 @@ jobs:
 
           echo "→ Building dashboard for $OWNER/$REPO"
 
+          if [[ ! -d "$TELEMETRY_ROOT/$REPO" ]]; then
+            echo "ℹ️ No telemetry present (first run)"
+
+            jq -n \
+              --arg repo "$REPO" \
+              '{
+                ok: false,
+                engine: "dashboard",
+                summary: "No telemetry present",
+                repo: $repo,
+                status: "no-telemetry"
+              }' > result.json
+
+            exit 0
+          fi
+
           node scripts/build-dashboards.js "$REPO"
 
+          jq -n \
+            --arg repo "$REPO" \
+            --slurpfile dashboard telemetry/telemetry/v1/dashboards/$REPO/dashboard.json \
+            '{
+              ok: true,
+              engine: "dashboard",
+              summary: "Dashboard rebuilt",
+              repo: $repo,
+              dashboard: $dashboard[0]
+            }' > result.json
+
       # ─────────────────────────────────────────────
-      # Emit dashboard telemetry (repo-scoped)
+      # Emit dashboard telemetry (ALWAYS)
       # ─────────────────────────────────────────────
       - name: Emit dashboard telemetry
         env:
@@ -116,9 +164,8 @@ jobs:
         run: |
           set -euo pipefail
 
-          RESULT_FILE="telemetry/telemetry/v1/repos/$REPO/$(date +%Y-%m-%d).jsonl"
-
           OWNER="$OWNER" \
           REPO="$REPO" \
-          RESULT_FILE="$RESULT_FILE" \
+          TELEMETRY_REPO="$TELEMETRY_REPO" \
+          RESULT_FILE="result.json" \
           ./scripts/telemetry/emit-engine.sh
