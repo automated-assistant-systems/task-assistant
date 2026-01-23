@@ -190,7 +190,7 @@ jobs:
 
           OWNER="$OWNER" \
           REPO="$REPO" \
-          TELEMETRY_REPO="TELEMETRY_REPO" \
+          TELEMETRY_REPO="$TELEMETRY_REPO" \
           ENGINE_NAME="dashboard" \
           ENGINE_JOB="fanout" \
           RESULT_FILE="result.json" \
