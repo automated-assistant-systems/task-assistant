@@ -192,8 +192,9 @@ jobs:
               dashboards: $dashboards
             }' > result.json
 
+          OWNER="$OWNER" \
+          REPO="$REPO" \
           ENGINE_NAME="dashboard" \
           ENGINE_JOB="fanout" \
           RESULT_FILE="result.json" \
           ./scripts/telemetry/emit-engine.sh
-
