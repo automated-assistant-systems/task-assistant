@@ -1,0 +1,124 @@
+---
+name: Task Assistant • Engine • Dashboard
+
+# yamllint disable rule:truthy
+on:
+  workflow_call:
+    inputs:
+      owner:
+        required: true
+        type: string
+
+      repo:
+        required: true
+        type: string
+
+      telemetry_repo:
+        required: true
+        type: string
+
+      correlation_id:
+        required: true
+        type: string
+
+      public:
+        required: false
+        type: boolean
+        default: false
+
+    secrets:
+      CODEX_APP_ID:
+        required: true
+      CODEX_PRIVATE_KEY:
+        required: true
+
+permissions:
+  contents: write
+  id-token: write
+
+env:
+  ENGINE_NAME: dashboard
+  ENGINE_JOB: dashboard
+
+  OWNER: ${{ inputs.owner }}
+  REPO: ${{ inputs.repo }}
+  TELEMETRY_REPO: ${{ inputs.telemetry_repo }}
+  CORRELATION_ID: ${{ inputs.correlation_id }}
+  DASHBOARD_PUBLIC: ${{ inputs.public }}
+
+jobs:
+  dashboard:
+    runs-on: ubuntu-latest
+
+    steps:
+      # ─────────────────────────────────────────────
+      # Checkout Task Assistant (engine only)
+      # ─────────────────────────────────────────────
+      - name: Checkout Task Assistant
+        uses: actions/checkout@v4
+        with:
+          repository: automated-assistant-systems/task-assistant
+          ref: main
+
+      # ─────────────────────────────────────────────
+      # Setup Node
+      # ─────────────────────────────────────────────
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: |
+          set -euo pipefail
+          npm ci
+
+      # ─────────────────────────────────────────────
+      # Generate GitHub App token
+      # ─────────────────────────────────────────────
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.CODEX_APP_ID }}
+          private-key: ${{ secrets.CODEX_PRIVATE_KEY }}
+          owner: ${{ inputs.owner }}
+
+      # ─────────────────────────────────────────────
+      # Checkout telemetry repository
+      # ─────────────────────────────────────────────
+      - name: Checkout telemetry repository
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.telemetry_repo }}
+          path: telemetry
+          token: ${{ steps.app-token.outputs.token }}
+
+      # ─────────────────────────────────────────────
+      # Build dashboard (repo-scoped, telemetry-derived)
+      # ─────────────────────────────────────────────
+      - name: Build dashboard
+        env:
+          TELEMETRY_ROOT: telemetry/telemetry/v1/repos
+        run: |
+          set -euo pipefail
+
+          echo "→ Building dashboard for $OWNER/$REPO"
+
+          node scripts/build-dashboards.js "$REPO"
+
+      # ─────────────────────────────────────────────
+      # Emit dashboard telemetry (repo-scoped)
+      # ─────────────────────────────────────────────
+      - name: Emit dashboard telemetry
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          set -euo pipefail
+
+          RESULT_FILE="telemetry/telemetry/v1/repos/$REPO/$(date +%Y-%m-%d).jsonl"
+
+          OWNER="$OWNER" \
+          REPO="$REPO" \
+          RESULT_FILE="$RESULT_FILE" \
+          ./scripts/telemetry/emit-engine.sh
