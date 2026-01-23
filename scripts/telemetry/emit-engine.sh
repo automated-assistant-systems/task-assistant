@@ -26,26 +26,21 @@ if [[ ! -f "$RESULT_FILE" ]]; then
   exit 1
 fi
 
-# emit-engine.sh
-if jq -e '
-  .. | objects | has("owner") and has("repo")
-' "$RESULT_FILE" >/dev/null; then
+# Guardrail: payload must not redefine repo identity
+if jq -e '.. | objects | has("owner") and has("repo")' "$RESULT_FILE" >/dev/null; then
   echo "::error::Telemetry payload contains nested owner/repo objects"
   exit 1
 fi
 
 # ─────────────────────────────────────────────
-# Derive action (explicit + deterministic)
+# Derive action
 # ─────────────────────────────────────────────
 OK="$(jq -r '.ok // false' "$RESULT_FILE")"
-if [[ "$OK" == "true" ]]; then
-  ACTION="success"
-else
-  ACTION="failed"
-fi
+ACTION="failed"
+[[ "$OK" == "true" ]] && ACTION="success"
 
 # ─────────────────────────────────────────────
-# Build telemetry payload (repo-scoped)
+# Build telemetry payload
 # ─────────────────────────────────────────────
 PAYLOAD="$(
   jq -c \
@@ -85,9 +80,10 @@ PAYLOAD="$(
 REPO_DIR="telemetry/v1/repos/${REPO}"
 EVENT_FILE="$(date +%Y-%m-%d).jsonl"
 EVENT_PATH="${REPO_DIR}/${EVENT_FILE}"
-API_REPO="repos/${TELEMETRY_REPO}/contents"
+API_BASE="repos/${TELEMETRY_REPO}/contents"
 
 TMP="$(mktemp)"
+trap 'rm -f "$TMP"' EXIT
 SHA=""
 
 # ─────────────────────────────────────────────
@@ -95,7 +91,7 @@ SHA=""
 # ─────────────────────────────────────────────
 gh api \
   --method PUT \
-  "${API_REPO}/${REPO_DIR}/.keep" \
+  "${API_BASE}/${REPO_DIR}/.keep" \
   --field message="chore(telemetry): ensure repo path exists" \
   --field content="$(printf '' | base64)" \
   >/dev/null 2>&1 || true
@@ -103,7 +99,7 @@ gh api \
 # ─────────────────────────────────────────────
 # Fetch existing JSONL if present
 # ─────────────────────────────────────────────
-if EXISTING="$(gh api "${API_REPO}/${EVENT_PATH}" 2>/dev/null)"; then
+if EXISTING="$(gh api "${API_BASE}/${EVENT_PATH}" 2>/dev/null)"; then
   SHA="$(jq -r '.sha' <<<"$EXISTING")"
   jq -r '.content' <<<"$EXISTING" | base64 --decode >"$TMP"
 else
@@ -117,7 +113,7 @@ ENCODED="$(base64 -w0 "$TMP")"
 
 ARGS=(
   --method PUT
-  "${API_REPO}/${EVENT_PATH}"
+  "${API_BASE}/${EVENT_PATH}"
   --field message="telemetry: ${ENGINE_NAME}/${ENGINE_JOB}"
   --field content="$ENCODED"
   --field encoding="base64"
@@ -128,5 +124,3 @@ if [[ -n "$SHA" && "$SHA" != "null" ]]; then
 fi
 
 gh api "${ARGS[@]}" >/dev/null
-
-rm -f "$TMP"
