@@ -2,11 +2,15 @@
 set -euo pipefail
 
 # ============================================================
-# Task Assistant — Marketplace Installer
+# Task Assistant — Marketplace Installer (Phase 3.4)
 #
 # Installs ONLY:
 #   • .github/task-assistant.yml
 #   • .github/workflows/task-assistant-dispatch.yml
+#
+# Infra detection:
+#   • v2 registry (preferred)
+#   • v1 registry (legacy fallback)
 #
 # Modes:
 #   default  → install
@@ -28,7 +32,7 @@ if [[ -z "$REPO" ]]; then
   exit 1
 fi
 
-for cmd in gh git rsync jq; do
+for cmd in gh git rsync jq base64 sha256sum; do
   command -v "$cmd" >/dev/null || {
     echo "❌ Missing dependency: $cmd"
     exit 1
@@ -40,7 +44,7 @@ OWNER="${REPO%%/*}"
 REPO_NAME="${REPO##*/}"
 
 echo
-echo "📦 Task Assistant — Marketplace Install"
+echo "📦 Task Assistant — Marketplace Install (Phase 3.4)"
 echo "Target repo:  $REPO"
 echo "Mode:         $([[ "$DRY_RUN" == "true" ]] && echo "DRY-RUN" || echo "INSTALL")"
 echo
@@ -74,33 +78,61 @@ fi
 echo "✓ Repo accessible"
 
 # ------------------------------------------------------------
-# Infra + telemetry check
+# Infra detection (v2 first, v1 fallback)
 # ------------------------------------------------------------
 echo
-echo "🔎 Checking infra registration (optional)..."
+echo "🔎 Detecting infra registration…"
 
-if gh api repos/automated-assistant-systems/task-assistant-infra/contents/telemetry-registry.json \
-  --jq '.content' \
+INFRA_VERSION="none"
+
+# ---- v2 registry ----
+if gh api repos/automated-assistant-systems/task-assistant-infra/contents/infra/telemetry-registry.v2.json \
+  --jq '.content' 2>/dev/null \
   | base64 --decode \
   | jq -e \
       --arg owner "$OWNER" \
       --arg repo "$REPO_NAME" '
-        .organizations[]
-        | select(.owner == $owner)
-        | .repositories[]
-        | select(.name == $repo and .enabled == true)
+        .orgs[$owner].repos[$repo].state == "enabled"
       ' >/dev/null 2>&1; then
-  echo "✓ Repo is registered in infra"
-else
-  echo "⚠️  Repo is not registered in infra"
-  echo "   Telemetry will not be emitted until registered"
+  INFRA_VERSION="v2"
 fi
+
+# ---- v1 registry fallback ----
+if [[ "$INFRA_VERSION" == "none" ]]; then
+  if gh api repos/automated-assistant-systems/task-assistant-infra/contents/telemetry-registry.json \
+    --jq '.content' 2>/dev/null \
+    | base64 --decode \
+    | jq -e \
+        --arg owner "$OWNER" \
+        --arg repo "$REPO_NAME" '
+          .organizations[]
+          | select(.owner == $owner)
+          | .repositories[]
+          | select(.name == $repo and .enabled == true)
+        ' >/dev/null 2>&1; then
+    INFRA_VERSION="v1"
+  fi
+fi
+
+case "$INFRA_VERSION" in
+  v2)
+    echo "✓ Repo is registered in infra v2 (preferred)"
+    ;;
+  v1)
+    echo "⚠️  Repo is registered in infra v1 (legacy fallback)"
+    echo "   v2 registration recommended before Marketplace release"
+    ;;
+  none)
+    echo "⚠️  Repo is not registered in infra (v1 or v2)"
+    echo "   Preflight and telemetry will fail until registered"
+    ;;
+esac
 
 # ------------------------------------------------------------
 # Secrets check (repo OR org)
 # ------------------------------------------------------------
 echo
-echo "🔐 Checking GitHub App secrets (repo or org)..."
+echo "🔐 Checking GitHub App secrets (repo or org)…"
 
 missing=()
 
@@ -127,19 +159,10 @@ else
 fi
 
 # ------------------------------------------------------------
-# Remote file presence
+# Dispatch currency check
 # ------------------------------------------------------------
 echo
-echo "📂 Existing Task Assistant files in repo:"
-
-HAS_CONFIG="$(gh api "repos/$REPO/contents/.github/task-assistant.yml" >/dev/null 2>&1 && echo yes || echo no)"
-HAS_DISPATCH="$(gh api "repos/$REPO/contents/.github/workflows/task-assistant-dispatch.yml" >/dev/null 2>&1 && echo yes || echo no)"
-
-echo "  .github/task-assistant.yml:            $HAS_CONFIG"
-echo "  task-assistant-dispatch.yml:           $HAS_DISPATCH"
-echo
-
-echo "🧪 Verifying dispatch currency..."
+echo "🧪 Verifying dispatch currency…"
 
 CANONICAL_HASH="$(sha256sum "$ROOT_DIR/.github/workflows/task-assistant-dispatch.yml" | awk '{print $1}')"
 
@@ -176,7 +199,6 @@ if [[ "$DRY_RUN" == "true" ]]; then
   echo
   echo "Would install / update:"
   echo "  • .github/task-assistant.yml"
-
   if [[ "$DISPATCH_STATUS" != "up-to-date" ]]; then
     echo "  • .github/workflows/task-assistant-dispatch.yml (update required)"
   else
@@ -194,7 +216,7 @@ TARGET_DIR="$WORKDIR/target"
 trap 'rm -rf "$WORKDIR"' EXIT
 
 echo
-echo "→ Cloning target repo..."
+echo "→ Cloning target repo…"
 gh repo clone "$REPO" "$TARGET_DIR" -- --quiet
 
 mkdir -p "$TARGET_DIR/.github/workflows"
@@ -221,3 +243,5 @@ fi
 
 echo
 echo "✔ Install complete"
+echo “⚠️ Repo preparation (labels & milestones) is required before workflows will fully pass.”
+echo

@@ -24,6 +24,13 @@ echo "🔎 Task Assistant • Validate Workflows"
 echo "→ Target repo: $TARGET_REPO"
 echo "→ Correlation ID: $CORRELATION_ID"
 
+for cmd in gh jq yq; do
+  command -v "$cmd" >/dev/null || {
+    echo "::error::Missing dependency: $cmd"
+    exit 1
+  }
+done
+
 # ─────────────────────────────────────────────
 # Resolve infra via lib/infra (authoritative)
 # ─────────────────────────────────────────────
@@ -65,6 +72,42 @@ if [[ -z "$TELEMETRY_REPO" || "$TELEMETRY_REPO" == "null" ]]; then
 fi
 
 echo "✓ Infra resolved ($INFRA_VERSION): $TELEMETRY_REPO"
+
+# ─────────────────────────────────────────────
+# Validate repo hygiene (prepare-repo applied)
+# ─────────────────────────────────────────────
+echo "→ Validating labels and milestones…"
+
+CONFIG="$ROOT_DIR/.github/task-assistant.yml"
+
+EXPECTED_LABELS="$(yq -r '.labels[].name' "$CONFIG")"
+EXPECTED_MILESTONES="$(yq -r '.milestones[].title' "$CONFIG")"
+
+missing=false
+
+for lbl in $EXPECTED_LABELS; do
+  if ! gh label list --repo "$TARGET_REPO" --json name \
+       | jq -r '.[].name' | grep -qx "$lbl"; then
+    echo "::error::Missing label: $lbl"
+    missing=true
+  fi
+done
+
+for ms in $EXPECTED_MILESTONES; do
+  if ! gh api "repos/$TARGET_REPO/milestones" --paginate \
+       | jq -r '.[].title' | grep -qx "$ms"; then
+    echo "::error::Missing milestone: $ms"
+    missing=true
+  fi
+done
+
+if [[ "$missing" == "true" ]]; then
+  echo "::error::Repository not prepared — run prepare-repo first"
+  exit 1
+fi
+
+echo "✓ Labels and milestones verified"
+echo "ℹ️ Repository hygiene verified (prepare-repo already applied)"
 
 # ─────────────────────────────────────────────
 # Validate required workflows exist

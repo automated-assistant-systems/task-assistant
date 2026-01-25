@@ -1,3 +1,5 @@
+
+gary@LAPTOP-A917D90J:~/projects/task-assistant-app/task-assistant$ cat scripts/prepare-repo.js
 #!/usr/bin/env node
 /**
  * Task Assistant — Repository Preparation Script

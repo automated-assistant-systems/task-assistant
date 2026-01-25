@@ -1,75 +1,170 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REPO="${1:-}"
+# ============================================================
+# Task Assistant — Sandbox Reset
+#
+# Resets a sandbox repo to a known baseline:
+#   • Closes open issues (history preserved)
+#   • Deletes phase-* and track/* labels
+#   • Deletes all milestones
+#
+# Optional:
+#   • --reset-telemetry → deletes repo telemetry directory
+#
+# Safety:
+#   • Refuses to run on non-sandbox repos
+# ============================================================
+
+REPO=""
+RESET_TELEMETRY="false"
+
+for arg in "$@"; do
+  case "$arg" in
+    --reset-telemetry) RESET_TELEMETRY="true" ;;
+    *) REPO="$arg" ;;
+  esac
+done
 
 if [[ -z "$REPO" ]]; then
-  echo "Usage: scripts/sandbox/reset-sandbox.sh <owner/repo>"
+  echo "Usage: scripts/sandbox/reset-sandbox.sh <owner/repo> [--reset-telemetry]"
   exit 1
 fi
 
-command -v gh >/dev/null || { echo "Missing dependency: gh"; exit 1; }
-command -v jq >/dev/null || { echo "Missing dependency: jq"; exit 1; }
+# ------------------------------------------------------------
+# Guardrail: sandbox-only
+# ------------------------------------------------------------
+if [[ ! "$REPO" =~ sandbox ]]; then
+  echo "❌ Refusing to reset non-sandbox repo: $REPO"
+  echo "   This script may only be used on sandbox repos."
+  exit 1
+fi
 
-echo "🧹 Resetting sandbox to known baseline"
-echo "Repo: $REPO"
+# ------------------------------------------------------------
+# Dependencies
+# ------------------------------------------------------------
+for cmd in gh jq node; do
+  command -v "$cmd" >/dev/null || {
+    echo "❌ Missing dependency: $cmd"
+    exit 1
+  }
+done
+
+OWNER="${REPO%%/*}"
+REPO_NAME="${REPO##*/}"
+
+echo
+echo "🧹 Task Assistant — Sandbox Reset"
+echo "Repo:            $REPO"
+echo "Reset telemetry: $RESET_TELEMETRY"
 echo
 
-# Ensure gh auth is OK
+# ------------------------------------------------------------
+# Auth check
+# ------------------------------------------------------------
 gh auth status >/dev/null 2>&1 || {
   echo "❌ gh is not authenticated. Run: gh auth login"
   exit 1
 }
 
-# 1) Close all open issues (keep history, avoid deletion)
+# ------------------------------------------------------------
+# 1) Close open issues (preserve history)
+# ------------------------------------------------------------
 echo "→ Closing open issues..."
-OPEN_ISSUES_JSON="$(gh issue list --repo "$REPO" --state open --limit 200 --json number,title || echo '[]')"
-OPEN_NUMBERS="$(echo "$OPEN_ISSUES_JSON" | jq -r '.[].number')"
+OPEN_ISSUES="$(gh issue list --repo "$REPO" --state open --limit 200 --json number --jq '.[].number' || true)"
 
-if [[ -n "$OPEN_NUMBERS" ]]; then
+if [[ -n "$OPEN_ISSUES" ]]; then
   while IFS= read -r n; do
-    [[ -z "$n" ]] && continue
-    gh issue close "$n" --repo "$REPO" --comment "Phase 3.2 reset baseline" >/dev/null
-    echo "✓ Closed issue $REPO#$n"
-  done <<< "$OPEN_NUMBERS"
+    gh issue close "$n" --repo "$REPO" \
+      --comment "Sandbox reset — Phase 3.4 validation baseline" >/dev/null
+    echo "✓ Closed issue #$n"
+  done <<< "$OPEN_ISSUES"
 else
   echo "✓ No open issues"
 fi
 
-# 2) Delete labels that we intentionally allow prepare-repo to recreate:
-#    - phase-* labels
-#    - track/* labels
+# ------------------------------------------------------------
+# 2) Delete phase-* and track/* labels
+# ------------------------------------------------------------
 echo
 echo "→ Deleting phase-* and track/* labels..."
-LABELS_JSON="$(gh label list --repo "$REPO" --limit 200 --json name || echo '[]')"
-LABELS_TO_DELETE="$(echo "$LABELS_JSON" | jq -r '.[].name' | grep -E '^(phase-|track/)' || true)"
+LABELS="$(gh label list --repo "$REPO" --limit 200 --json name \
+  | jq -r '.[].name' | grep -E '^(phase-|track/)' || true)"
 
-if [[ -n "$LABELS_TO_DELETE" ]]; then
+if [[ -n "$LABELS" ]]; then
   while IFS= read -r lbl; do
-    [[ -z "$lbl" ]] && continue
     gh label delete "$lbl" --repo "$REPO" --yes >/dev/null || true
-    echo "✓ Label \"$lbl\" deleted from $REPO"
-  done <<< "$LABELS_TO_DELETE"
+    echo "✓ Deleted label: $lbl"
+  done <<< "$LABELS"
 else
   echo "✓ No phase/track labels to delete"
 fi
 
-# 3) Delete all milestones (we want prepare-repo to recreate canonical phase milestones)
+# ------------------------------------------------------------
+# 3) Delete all milestones
+# ------------------------------------------------------------
 echo
 echo "→ Deleting milestones..."
-MILESTONES_JSON="$(gh api "repos/$REPO/milestones?state=all&per_page=100" --paginate || echo '[]')"
-MILESTONE_NUMBERS="$(echo "$MILESTONES_JSON" | jq -r '.[].number' || true)"
+MILESTONES="$(gh api "repos/$REPO/milestones?state=all&per_page=100" \
+  --paginate | jq -r '.[].number' || true)"
 
-if [[ -n "$MILESTONE_NUMBERS" ]]; then
-  while IFS= read -r mnum; do
-    [[ -z "$mnum" ]] && continue
-    gh api -X DELETE "repos/$REPO/milestones/$mnum" >/dev/null || true
-    echo "✓ Deleted milestone #$mnum"
-  done <<< "$MILESTONE_NUMBERS"
+if [[ -n "$MILESTONES" ]]; then
+  while IFS= read -r m; do
+    gh api -X DELETE "repos/$REPO/milestones/$m" >/dev/null || true
+    echo "✓ Deleted milestone #$m"
+  done <<< "$MILESTONES"
 else
   echo "✓ No milestones to delete"
 fi
 
+# ------------------------------------------------------------
+# 4) Optional telemetry reset (infra-aware)
+# ------------------------------------------------------------
+if [[ "$RESET_TELEMETRY" == "true" ]]; then
+  echo
+  echo "→ Resolving telemetry repo via infra..."
+
+  TELEMETRY_REPO="$(
+    node <<'EOF'
+    import { resolveInfraForRepo } from "./lib/infra.js";
+    const res = await resolveInfraForRepo({
+      targetRepo: process.env.REPO,
+      githubToken: process.env.GITHUB_TOKEN,
+      allowV1Fallback: true,
+      requireRepoEnabled: false
+    });
+    if (!res.telemetryRepo) process.exit(1);
+    console.log(res.telemetryRepo);
+EOF
+  )"
+
+  echo "✓ Telemetry repo: $TELEMETRY_REPO"
+  echo "→ Deleting telemetry/v1/repos/$REPO_NAME …"
+
+  gh api -X DELETE \
+    "repos/$TELEMETRY_REPO/contents/telemetry/v1/repos/$REPO_NAME" \
+    >/dev/null 2>&1 || {
+      echo "ℹ️ Telemetry path did not exist (already clean)"
+    }
+
+  echo "✓ Telemetry reset complete"
+fi
+
+# ------------------------------------------------------------
+# Summary
+# ------------------------------------------------------------
 echo
 echo "✔ Sandbox reset complete"
+echo
+echo "Baseline state:"
+echo "✓ No open issues"
+echo "✓ No phase/track labels"
+echo "✓ No milestones"
 
+if [[ "$RESET_TELEMETRY" == "true" ]]; then
+  echo "✓ Telemetry cleared for $REPO_NAME"
+else
+  echo "ℹ️ Telemetry NOT reset (use --reset-telemetry for clean baseline)"
+fi
+
+echo
