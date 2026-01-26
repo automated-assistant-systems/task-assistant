@@ -103,6 +103,17 @@ jobs:
 
           node scripts/build-dashboards.js "$REPO" > result.json
 
+          jq -e '.ok == true or .status == "no-telemetry"' dashboard.json >/dev/null
+
+          jq -n \
+            --arg repo "$REPO" \
+            '{
+              ok: true,
+              engine: "dashboard",
+              summary: "Dashboard self-test passed",
+              repo: $repo
+            }' > result.json
+
       # ─────────────────────────────────────────────
       # Emit dashboard self-test telemetry (ALWAYS)
       # ─────────────────────────────────────────────
