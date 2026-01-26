@@ -4,7 +4,7 @@ set -euo pipefail
 # ─────────────────────────────────────────────
 # Required env (strict)
 # ─────────────────────────────────────────────
-: "${ENGINE_NAME:?Missing ENGINE_NAME}"
+: "${ENGINE_NAME:?Missing ENGINE_NAME (e.g. preflight, self-test, validate, dashboard)}"
 : "${ENGINE_JOB:?Missing ENGINE_JOB}"
 : "${CORRELATION_ID:?Missing CORRELATION_ID}"
 
@@ -15,9 +15,11 @@ set -euo pipefail
 : "${GH_TOKEN:?telemetry: GH_TOKEN is not set}"
 : "${RESULT_FILE:?RESULT_FILE is required}"
 
-# Telemetry scripts must never run inside telemetry repo
+# ─────────────────────────────────────────────
+# Safety checks
+# ─────────────────────────────────────────────
 if pwd | grep -q telemetry; then
-  echo "::error::Telemetry scripts must not run inside telemetry repo"
+  echo "::error::Telemetry emit must not run inside telemetry repo"
   exit 1
 fi
 
@@ -26,9 +28,9 @@ if [[ ! -f "$RESULT_FILE" ]]; then
   exit 1
 fi
 
-# Guardrail: payload must not redefine repo identity
+# Payload must not redefine repo identity
 if jq -e '.. | objects | has("owner") and has("repo")' "$RESULT_FILE" >/dev/null; then
-  echo "::error::Telemetry payload contains nested owner/repo objects"
+  echo "::error::Result payload must not redefine owner/repo"
   exit 1
 fi
 
@@ -75,28 +77,36 @@ PAYLOAD="$(
 )"
 
 # ─────────────────────────────────────────────
-# Paths (immutable per-run)
+# Paths (IMMUTABLE)
 # ─────────────────────────────────────────────
 DATE="$(date +%Y-%m-%d)"
-REPO_DIR="telemetry/v1/repos/${REPO}/${DATE}"
-EVENT_PATH="${REPO_DIR}/${CORRELATION_ID}.json"
+
+BASE_DIR="telemetry/v1/repos/${REPO}/${DATE}/${CORRELATION_ID}"
+EVENT_FILE="${ENGINE_NAME}.json"
+EVENT_PATH="${BASE_DIR}/${EVENT_FILE}"
 API_BASE="repos/${TELEMETRY_REPO}/contents"
 
+# ─────────────────────────────────────────────
 # Ensure directory exists (idempotent)
+# ─────────────────────────────────────────────
 gh api \
   --method PUT \
-  "${API_BASE}/${REPO_DIR}/.keep" \
-  --field message="chore(telemetry): ensure repo/day path exists" \
+  "${API_BASE}/${BASE_DIR}/.keep" \
+  --field message="chore(telemetry): ensure run directory exists" \
   --field content="$(printf '' | base64)" \
   >/dev/null 2>&1 || true
 
-# Write immutable event
+# ─────────────────────────────────────────────
+# Write immutable engine record
+# ─────────────────────────────────────────────
 ENCODED="$(printf '%s' "$PAYLOAD" | base64 -w0)"
 
 gh api \
   --method PUT \
   "${API_BASE}/${EVENT_PATH}" \
-  --field message="telemetry: ${ENGINE_NAME}/${ENGINE_JOB} (${CORRELATION_ID})" \
+  --field message="telemetry: ${ENGINE_NAME} (${CORRELATION_ID})" \
   --field content="$ENCODED" \
   --field encoding="base64" \
   >/dev/null
+
+echo "✓ Telemetry emitted: ${EVENT_PATH}"
