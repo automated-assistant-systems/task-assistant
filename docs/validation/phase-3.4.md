@@ -21,7 +21,7 @@ Concurrent validation means independent execution contexts with overlapping time
 - garybayes/ta-marketplace-install-test (v1 registry)
 - garybayes/ta-sandbox (to be created - will be v2 registry)
 
-## Standard Test Sscripts
+## Standard Test Scripts
 ### Reset
 scripts/sandbox/reset-sandbox.sh owner/repo --reset-telemetry
 
@@ -50,9 +50,9 @@ TARGET_REPO=owner/repo scripts/dispatch/run-validate.sh
 
 
 ### Collect validation evidence
-TELEMETRY_REPO=owner/task-assistant-telemetry \
-  scripts/telemetry/collect-test-evidence.sh repo \
-  docs/validation/results/test-xx/owner-repo.json
+GITHUB_TOKEN=ghp_xxx \
+node scripts/infra/resolve-telemetry-repo.js owner/repo
+
 Validation evidence is captured per-repo under docs/validation/results/.
 
 ### Prune telemetry

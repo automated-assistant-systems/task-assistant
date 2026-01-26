@@ -2,103 +2,160 @@
 set -euo pipefail
 
 # ─────────────────────────────────────────────
-# Collect Phase 3.4 validation evidence
+# Phase 3.4 — Telemetry Evidence Collection
+#
+# This script:
+#   • Resolves telemetry repo via infra (lib/infra.ts)
+#   • Assumes operator has gh auth access
+#   • Collects immutable per-engine telemetry
 #
 # Usage:
-#   TELEMETRY_REPO=<org>/<repo> \
-#   ./scripts/telemetry/collect-test-evidence.sh <target-repo> [output-file]
-#
-# Example:
-#   TELEMETRY_REPO=garybayes/task-assistant-telemetry \
-#   ./scripts/telemetry/collect-test-evidence.sh ta-sandbox \
-#     docs/validation/results/phase-3.4-test-11.json
+#   scripts/telemetry/collect-test-evidence.sh \
+#     <owner/repo> <YYYY-MM-DD> [output-file]
 # ─────────────────────────────────────────────
 
-REPO="${1:-}"
-OUT="${2:-}"
+TARGET_REPO="${1:-}"
+DATE="${2:-}"
+OUT="${3:-}"
 
-: "${TELEMETRY_REPO:?TELEMETRY_REPO must be set}"
-
-if [[ -z "$REPO" ]]; then
-  echo "Usage: collect-test-evidence.sh <repo> [output-file]"
+if [[ -z "$TARGET_REPO" || -z "$DATE" ]]; then
+  echo "Usage: collect-test-evidence.sh <owner/repo> <YYYY-MM-DD> [output-file]"
   exit 1
 fi
 
+# ------------------------------------------------------------
+# Preconditions
+# ------------------------------------------------------------
+command -v gh >/dev/null || {
+  echo "❌ gh CLI is required"
+  exit 1
+}
+
+gh auth status >/dev/null 2>&1 || {
+  echo "❌ gh is not authenticated"
+  echo "   Run: gh auth login"
+  exit 1
+}
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+
 STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
-DEFAULT_OUT="test-evidence-${REPO}-${STAMP}.json"
+DEFAULT_OUT="test-evidence-${TARGET_REPO//\//-}-${DATE}-${STAMP}.json"
 OUT="${OUT:-$DEFAULT_OUT}"
 
-TMP_VALIDATE="$(mktemp)"
-TMP_DASHBOARD="$(mktemp)"
+# ------------------------------------------------------------
+# Resolve telemetry repo via infra
+# ------------------------------------------------------------
+echo "🔎 Resolving telemetry repo via infra…"
 
-trap 'rm -f "$TMP_VALIDATE" "$TMP_DASHBOARD"' EXIT
+TELEMETRY_REPO="$(
+  GITHUB_TOKEN="$(gh auth token)" \
+  node "$ROOT_DIR/scripts/infra/resolve-telemetry-repo.js" "$TARGET_REPO" \
+  2>/tmp/infra-error.log || true
+)"
 
-echo "📦 Collecting Phase 3.4 test evidence"
+if [[ -z "$TELEMETRY_REPO" ]]; then
+  echo "❌ Failed to resolve telemetry repo for $TARGET_REPO"
+  echo
+  echo "Details:"
+  sed 's/^/  /' /tmp/infra-error.log || true
+  echo
+  echo "This means:"
+  echo "  • The repo is not registered in infra v2 or v1, OR"
+  echo "  • Your gh identity cannot read task-assistant-infra"
+  echo
+  echo "Phase 3.4 requires telemetry routing to be explicit."
+  exit 1
+fi
+
+echo "✓ Telemetry repo: $TELEMETRY_REPO"
+
+BASE_PATH="telemetry/v1/repos/${TARGET_REPO##*/}/$DATE"
+
+TMP_ALL="$(mktemp)"
+trap 'rm -f "$TMP_ALL"' EXIT
+
+echo
+echo "📦 Collecting telemetry evidence"
+echo "• Target repo:    $TARGET_REPO"
 echo "• Telemetry repo: $TELEMETRY_REPO"
-echo "• Target repo:    $REPO"
+echo "• Date scope:     $DATE"
 echo "• Output file:    $OUT"
 echo
 
 # ------------------------------------------------------------
-# Locate telemetry files
+# List telemetry files
 # ------------------------------------------------------------
 FILES="$(
   gh api \
-    "repos/$TELEMETRY_REPO/contents/telemetry/v1/repos/$REPO" \
-    --jq '.[] | select(.name | endswith(".jsonl")) | .name' \
+    "repos/$TELEMETRY_REPO/contents/$BASE_PATH" \
+    --jq '.[] | select(.name | endswith(".json")) | .name' \
     2>/dev/null || true
 )"
 
 if [[ -z "$FILES" ]]; then
-  echo "⚠️  No telemetry files found for $REPO"
+  echo "⚠️  No telemetry files found at:"
+  echo "   $TELEMETRY_REPO/$BASE_PATH"
+  echo
+  echo "This usually means:"
+  echo "  • Engines did not run, OR"
+  echo "  • Telemetry was not emitted, OR"
+  echo "  • The date is incorrect"
+  echo
+
   jq -n '
     {
       collected_at: now | todate,
-      repo: $repo,
-      validation: [],
-      dashboard: []
+      target_repo: $repo,
+      telemetry_repo: $telemetry,
+      date: $date,
+      correlation_ids: [],
+      records: []
     }
-  ' --arg repo "$REPO" > "$OUT"
+  ' \
+    --arg repo "$TARGET_REPO" \
+    --arg telemetry "$TELEMETRY_REPO" \
+    --arg date "$DATE" \
+    > "$OUT"
+
+  echo "✓ Empty evidence file written"
   exit 0
 fi
 
+echo "Found telemetry files:"
+echo "$FILES"
+echo
+
 # ------------------------------------------------------------
-# Extract validation + dashboard events
+# Fetch and aggregate telemetry
 # ------------------------------------------------------------
 for f in $FILES; do
-  CONTENT="$(
-    gh api \
-      "repos/$TELEMETRY_REPO/contents/telemetry/v1/repos/$REPO/$f" \
-      --jq '.content' \
-    | base64 --decode
-  )"
-
-  echo "$CONTENT" \
-    | jq -c 'select(.source.workflow == "engine-validate")' \
-    >> "$TMP_VALIDATE" || true
-
-  echo "$CONTENT" \
-    | jq -c 'select(.source.workflow == "engine-dashboard")' \
-    >> "$TMP_DASHBOARD" || true
+  gh api \
+    "repos/$TELEMETRY_REPO/contents/$BASE_PATH/$f" \
+    --jq '.content' \
+    | base64 --decode \
+    >> "$TMP_ALL"
 done
 
-# ------------------------------------------------------------
-# Normalize and write output
-# ------------------------------------------------------------
 jq -s '
   {
     collected_at: now | todate,
-    repo: $repo,
-    validation_records: $validation,
-    dashboard_records: $dashboard
+    target_repo: $repo,
+    telemetry_repo: $telemetry,
+    date: $date,
+    correlation_ids: (
+      map(.correlation_id) | unique
+    ),
+    records: .
   }
 ' \
-  --arg repo "$REPO" \
-  --slurpfile validation "$TMP_VALIDATE" \
-  --slurpfile dashboard "$TMP_DASHBOARD" \
+  --arg repo "$TARGET_REPO" \
+  --arg telemetry "$TELEMETRY_REPO" \
+  --arg date "$DATE" \
+  "$TMP_ALL" \
   > "$OUT"
 
 echo "✓ Evidence collected"
-echo "✓ Validation records: $(jq '.validation_records | length' "$OUT")"
-echo "✓ Dashboard records:  $(jq '.dashboard_records | length' "$OUT")"
-echo "✓ Saved to: $OUT"
+echo "✓ Records:         $(jq '.records | length' "$OUT")"
+echo "✓ Correlation IDs: $(jq '.correlation_ids | length' "$OUT")"
+echo "✓ Saved to:        $OUT"

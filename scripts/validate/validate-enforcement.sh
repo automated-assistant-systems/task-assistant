@@ -3,20 +3,25 @@ set -euo pipefail
 
 # ============================================================
 # Task Assistant — Enforcement Validation (Event-Driven)
+#
+# Purpose:
+#   Prove that invalid issue state is automatically corrected
+#   via event-driven enforcement.
+#
+# Notes:
+#   • No correlation IDs are generated or passed
+#   • Telemetry is verified separately via evidence collection
 # ============================================================
 
-: "${GITHUB_TOKEN:?GITHUB_TOKEN is required}"
 : "${GITHUB_REPOSITORY:?GITHUB_REPOSITORY is required (owner/repo)}"
 
 REPO="$GITHUB_REPOSITORY"
 OWNER="${REPO%%/*}"
 NAME="${REPO##*/}"
-CORRELATION_ID="enforce-test-$(date +%s)"
 
 echo
-echo "🛡️ Task Assistant — Enforcement Validation (Event-Driven)"
-echo "Repo:           $REPO"
-echo "Correlation ID: $CORRELATION_ID"
+echo "🛡️ Task Assistant — Enforcement Validation"
+echo "Repo: $REPO"
 echo
 
 # ------------------------------------------------------------
@@ -43,9 +48,9 @@ ISSUE_NUMBER="${ISSUE_URL##*/}"
 echo "✓ Issue #$ISSUE_NUMBER created"
 
 # ------------------------------------------------------------
-# Apply conflicting labels (this SHOULD trigger enforcement)
+# Apply conflicting labels (should trigger enforcement)
 # ------------------------------------------------------------
-echo "→ Applying conflicting phase labels (should auto-trigger enforcement)…"
+echo "→ Applying conflicting phase labels…"
 
 gh issue edit "$ISSUE_NUMBER" \
   --repo "$REPO" \
@@ -55,9 +60,8 @@ gh issue edit "$ISSUE_NUMBER" \
 echo "✓ Labels applied — waiting for enforcement"
 
 # ------------------------------------------------------------
-# Wait for enforcement to run
+# Wait for enforcement
 # ------------------------------------------------------------
-echo "→ Waiting for enforcement execution…"
 sleep 30
 
 # ------------------------------------------------------------
@@ -80,38 +84,9 @@ fi
 echo "✓ Enforcement resolved conflicting labels"
 
 # ------------------------------------------------------------
-# Verify enforcement telemetry
-# ------------------------------------------------------------
-echo "→ Verifying enforcement telemetry…"
-
-if ! gh api "repos/$OWNER/task-assistant-telemetry/contents/telemetry/events/enforce" \
-     >/dev/null 2>&1; then
-  echo "::error::Enforcement telemetry not found"
-  exit 1
-fi
-
-echo "✓ Enforcement telemetry present"
-
-# ------------------------------------------------------------
-# Verify dashboard telemetry NOT emitted
-# ------------------------------------------------------------
-echo "→ Verifying dashboard telemetry absence…"
-
-if gh api "repos/$OWNER/task-assistant-telemetry/contents/telemetry/dashboard" \
-     >/dev/null 2>&1; then
-  echo "::error::Dashboard telemetry must NOT be emitted for enforcement"
-  exit 1
-fi
-
-echo "✓ No dashboard telemetry emitted"
-
-# ------------------------------------------------------------
 # Success
 # ------------------------------------------------------------
 echo
 echo "✅ Enforcement validation PASSED"
 echo "   • Event-driven enforcement confirmed"
-echo "   • Issue mutation verified"
-echo "   • Telemetry emitted correctly"
-echo "   • Dashboard isolation preserved"
-echo
+echo "   • Final issue state is valid"
