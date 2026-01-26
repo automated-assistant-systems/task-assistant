@@ -1,5 +1,3 @@
-
-gary@LAPTOP-A917D90J:~/projects/task-assistant-app/task-assistant$ cat scripts/prepare-repo.js
 #!/usr/bin/env node
 /**
  * Task Assistant — Repository Preparation Script
@@ -70,36 +68,21 @@ function check(id, outcome, details = null) {
 
 let config;
 
-const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "task-assistant-prepare-"));
-const cloneDir = path.join(tmp, "repo");
-
 try {
-  const token = process.env.GH_TOKEN || process.env.GITHUB_TOKEN;
-  if (!token) throw new Error("GH_TOKEN is required");
-
-  run(
-    `git clone https://x-access-token:${token}@github.com/${repo}.git "${cloneDir}"`
+  // gh must already be authenticated
+  const raw = run(
+    `gh api repos/${repo}/contents/.github/task-assistant.yml --jq '.content'`
   );
 
-  const configPath = path.join(
-    cloneDir,
-    ".github",
-    "task-assistant.yml"
-  );
+  const decoded = Buffer.from(raw, "base64").toString("utf8");
+  config = yaml.parse(decoded);
 
-  if (!fs.existsSync(configPath)) {
-    check("config.load", "FAIL", "Missing .github/task-assistant.yml");
-    finalize();
-  }
-
-  const raw = fs.readFileSync(configPath, "utf8");
-  config = yaml.parse(raw);
   check("config.load", "PASS");
 } catch (err) {
   check("config.load", "FAIL", err.message);
-  finalize();
-} finally {
-  fs.rmSync(tmp, { recursive: true, force: true });
+  result.summary = "Configuration load failed";
+  if (jsonMode) process.stdout.write(JSON.stringify(result));
+  process.exit(1);
 }
 
 /* ──────────────────────────────
@@ -148,7 +131,7 @@ for (const track of config.tracks) {
 
   if (!found) {
     result.labels.created.push(track.label);
-    check(`track.${track.id}`, dryRun ? "WARN" : "PASS", "Missing");
+    check(`track.${track.id}`, dryRun ? "WARN" : "PASS", "Created (missingl previously)");
     if (!dryRun) {
       run(
         `gh label create "${track.label}" --repo ${repo} ` +

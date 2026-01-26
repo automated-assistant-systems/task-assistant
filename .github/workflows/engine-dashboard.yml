@@ -116,25 +116,31 @@ jobs:
           token: ${{ steps.app-token.outputs.token }}
 
       # ─────────────────────────────────────────────
-      # Build dashboard (repo-scoped, non-fatal)
+      # Build dashboard (daily file, non-fatal)
       # ─────────────────────────────────────────────
       - name: Build dashboard
         env:
           TELEMETRY_ROOT: telemetry/telemetry/v1/repos
+          DASHBOARD_ROOT: telemetry/telemetry/v1/dashboards
         run: |
           set -euo pipefail
 
-          echo "→ Building dashboard for $OWNER/$REPO"
+          DAY="$(date -u +%Y-%m-%d)"
+          DASHBOARD_FILE="$DASHBOARD_ROOT/$DAY.json"
+
+          mkdir -p "$DASHBOARD_ROOT"
+
+          echo "→ Building dashboard for $OWNER/$REPO ($DAY)"
 
           if [[ ! -d "$TELEMETRY_ROOT/$REPO" ]]; then
             echo "ℹ️ No telemetry present (first run)"
 
             jq -n \
               --arg repo "$REPO" \
+              --arg day "$DAY" \
               '{
                 ok: false,
-                engine: "dashboard",
-                summary: "No telemetry present",
+                date: $day,
                 repo: $repo,
                 status: "no-telemetry"
               }' > result.json
@@ -142,14 +148,14 @@ jobs:
             exit 0
           fi
 
-          node scripts/build-dashboards.js "$REPO"
+          node scripts/build-dashboards.js "$REPO" "$DASHBOARD_FILE"
 
           jq -n \
             --arg repo "$REPO" \
+            --arg day "$DAY" \
             '{
               ok: true,
-              engine: "dashboard",
-              summary: "Dashboard rebuilt",
+              date: $day,
               repo: $repo,
               status: "healthy"
             }' > result.json
@@ -158,6 +164,7 @@ jobs:
       # Emit dashboard telemetry (ALWAYS)
       # ─────────────────────────────────────────────
       - name: Emit dashboard telemetry
+        if: always()
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |

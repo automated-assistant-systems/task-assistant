@@ -12,13 +12,16 @@
 - missing app on telemetry
 - missing labels and milestones
 - v2 disabled repo
+- collect telemetry validation evidence
+
+Concurrent validation means independent execution contexts with overlapping time windows; no shared state or serialization is assumed.
 
 ## Repos to Test Against
 - automated-assistant-systems/task-assistant-sandbox (v2 registry)
 - garybayes/ta-marketplace-install-test (v1 registry)
 - garybayes/ta-sandbox (to be created - will be v2 registry)
 
-## Standard Test Sequence
+## Standard Test Sscripts
 ### Reset
 scripts/sandbox/reset-sandbox.sh owner/repo --reset-telemetry
 
@@ -29,15 +32,30 @@ scripts/sandbox/install-task-assistant.sh owner/repo
 
 ### Prepare repo (required)
 GH_TOKEN=ghp_xxx \
-node scripts/prepare-repo.js \
-owner/repo
+  node scripts/prepare-repo.js \
+  owner/repo
 
 ### Validate
 GITHUB_TOKEN=ghp_xxx \
-GITHUB_REPOSITORY=owner/repo \
-scripts/validate/validate-workflows.sh
+  GITHUB_REPOSITORY=owner/repo \
+  scripts/validate/validate-workflows.sh
 
-Concurrent validation means independent execution contexts with overlapping time windows; no shared state or serialization is assumed.
+### Collect validation evidence
+TELEMETRY_REPO=owner/task-assistant-telemetry \
+  scripts/telemetry/collect-test-evidence.sh repo \
+  docs/validation/results/test-xx/owner-repo.json
+Validation evidence is captured per-repo under docs/validation/results/.
+
+### Prune telemetry
+TELEMETRY_REPO=owner/task-assistant-telemetry \
+  scripts/telemetry/prune-telemetry.sh repo
+
+### Test Wrapper
+GH_TOKEN=ghp_xxx \
+GITHUB_TOKEN=ghp_xxx \
+scripts/validation/run-validation-test.sh \
+  <test-id> \
+  <owner/repo>
 
 ## Tests
 ### 1. Validate multiple runs without reset
@@ -80,6 +98,15 @@ Concurrent validation means independent execution contexts with overlapping time
 	- No duplicate state
 	- Exit code 0
 
+    f) Collect validation evidence
+	TELEMETRY_REPO=automated-asssistant-systems/task-assistant-telemetry \
+	  scripts/telemetry/collect-test-evidence.sh task-assistant-sandbox \
+	  docs/validation/results/validation/test-01/automated-asssistant-systems-task-assistant-sandbox.json
+	Expected:
+	- Validation telemetry
+	- Dashboard telemetry
+	- Single JSON output
+
 ### 2. Validate multiple runs without reset in host repo
    a) Reset the repo (v1 registry)
 	scripts/sandbox/reset-sandbox.sh \
@@ -120,6 +147,15 @@ Concurrent validation means independent execution contexts with overlapping time
 	- No errors
 	- No duplicate state
 	- Exit code 0
+
+    f) Collect validation evidence
+	TELEMETRY_REPO=garybayes/task-assistant-telemetry \
+	  scripts/telemetry/collect-test-evidence.sh ta-marketplace-install-test \
+	  docs/validation/results/test-02/garybayes-ta-marketplace-install-test.json
+	Expected:
+	- Validation telemetry
+	- Dashboard telemetry
+	- Single JSON output
 
 ### 3. Validate runs in multiple orgs running concurrently
    a) 1. Reset the repo (v2 registry)
@@ -201,6 +237,24 @@ Concurrent validation means independent execution contexts with overlapping time
 	- No errors
 	- No duplicate state
 	- Exit code 0
+
+    f) 1. Collect validation evidence
+	TELEMETRY_REPO=automated-asssistant-systesm/task-assistant-telemetry \
+	  scripts/telemetry/collect-test-evidence.sh task-assistant-sandbox \
+	  docs/validation/results/validation/test-03/automated-asssistant-systesm-task-assistant-sandbox.json
+	Expected:
+	- Validation telemetry
+	- Dashboard telemetry
+	- Single JSON output
+
+    f) 2. Collect validation evidence
+	TELEMETRY_REPO=garybayes/task-assistant-telemetry \
+	  scripts/telemetry/collect-test-evidence.sh ta-marketplace-install-test \
+	  docs/validation/results/test-03/garybayes-ta-marketplace-install-test.json
+	Expected:
+	- Validation telemetry
+	- Dashboard telemetry
+	- Single JSON output
 
 ### 4. Test install process and missing setup failures
    a) Create garybayes/ta-sandbox
@@ -319,7 +373,7 @@ Concurrent validation means independent execution contexts with overlapping time
 	- Build directory structure
 
 ### 5. Test newly created repo
-     Validate (new v2 repo)
+     a) Validate (new v2 repo)
 	GITHUB_TOKEN=ghp_xxx \
 	GITHUB_REPOSITORY=garybayes/ta-sandbox \
 	  scripts/validate/validate-workflows.sh
@@ -330,6 +384,15 @@ Concurrent validation means independent execution contexts with overlapping time
 	- App access to telemetry verified
 	- Validation telemetry emitted
 	- Exit code 0
+
+    b) Collect validation evidence
+	TELEMETRY_REPO=garybayes/task-assistant-telemetry \
+	  scripts/telemetry/collect-test-evidence.sh ta-sandbox \
+	  docs/validation/results/test-05/garybayes-ta-sandbox.json
+	Expected:
+	- Validation telemetry
+	- Dashboard telemetry
+	- Single JSON output
 
 ### 6. Validate multiple repos one org running concurrently
    a) 1. Reset the repo (v2 registry)
@@ -411,6 +474,24 @@ Concurrent validation means independent execution contexts with overlapping time
 	- No errors
 	- No duplicate state
 	- Exit code 0
+
+    f) 1. Collect validation evidence 
+	TELEMETRY_REPO=garybayes/task-assistant-telemetry \
+	  scripts/telemetry/collect-test-evidence.sh ta-sandbox \
+	  docs/validation/results/test-06/garybayes-ta-sandbox.json
+	Expected:
+	- Validation telemetry
+	- Dashboard telemetry
+	- Single JSON output
+
+    f) 2. Collect validation evidence
+	TELEMETRY_REPO=garybayes/task-assistant-telemetry \
+	  scripts/telemetry/collect-test-evidence.sh ta-marketplace-install-test \
+	  docs/validation/results/test-06/garybayes-ta-marketplace-install-test.json
+	Expected:
+	- Validation telemetry
+	- Dashboard telemetry
+	- Single JSON output
 
 ### 7. Validate multiple repos & multiple orgs running concurrently
    a) 1. Reset the repo (v2 registry)
@@ -533,6 +614,33 @@ Concurrent validation means independent execution contexts with overlapping time
 	- No duplicate state
 	- Exit code 0
 
+    f) 1. Collect validation evidence
+	TELEMETRY_REPO=automated-asssistant-systesm/task-assistant-telemetry \
+	  scripts/telemetry/collect-test-evidence.sh task-assistant-sandbox \
+	  docs/validation/results/validation/test-07/automated-asssistant-systems-task-assistant-sandbox.json
+	Expected:
+	- Validation telemetry
+	- Dashboard telemetry
+	- Single JSON output
+
+    f) 2. Collect validation evidence
+	TELEMETRY_REPO=garybayes/task-assistant-telemetry \
+	  scripts/telemetry/collect-test-evidence.sh ta-marketplace-install-test \
+	  docs/validation/results/validation/test-07/garybayes-ta-marketplace-install-test.json
+	Expected:
+	- Validation telemetry
+	- Dashboard telemetry
+	- Single JSON output
+
+    f) 3. Collect validation evidence
+	TELEMETRY_REPO=garybayes/task-assistant-telemetry \
+	  scripts/telemetry/collect-test-evidence.sh ta-sandbox \
+	  docs/validation/results/validation/test-07/garybayes-ta-sandbox.json
+	Expected:
+	- Validation telemetry
+	- Dashboard telemetry
+	- Single JSON output
+
 ### 8. Test app not installed on telemetry repo (both registry versions)
    a) Remove app from garybayes/task-assistant-telemetry
 
@@ -558,6 +666,15 @@ Concurrent validation means independent execution contexts with overlapping time
 	- Preflight should fail
 	- Confirm no new JSONL files created
 
+    d) Collect validation evidence
+	TELEMETRY_REPO=garybayes/task-assistant-telemetry \
+	  scripts/telemetry/collect-test-evidence.sh ta-sandbox \
+	  docs/validation/results/validation/test-08/garybayes-ta-sandbox.json
+	Expected:
+	- Validation telemetry
+	- Dashboard telemetry
+	- Single JSON output
+
 ### 9. Validate repo disabled
    a) Disable automated-assistant-systems/task-assistant-sandbox (v2 registry)
 
@@ -571,6 +688,15 @@ Concurrent validation means independent execution contexts with overlapping time
 	Expected:
 	- Preflight should fail
 	- Confirm no new JSONL files created
+
+    c) Collect validation evidence
+	TELEMETRY_REPO=automated-asssistant-systesm/task-assistant-telemetry \
+	  scripts/telemetry/collect-test-evidence.sh task-assistant-sandbox \
+	  docs/validation/results/validation/test-09/automated-asssistant-systems-task-assistant-sandbox.json
+	Expected:
+	- Validation telemetry
+	- Dashboard telemetry
+	- Single JSON output
 
 ### 10. Test re-registering repo
     a) Register garybayes/ta-sandbox
@@ -592,6 +718,15 @@ Concurrent validation means independent execution contexts with overlapping time
 	- No errors
 	- No duplicate state
 
+    c) Collect validation evidence
+	TELEMETRY_REPO=garybayes/task-assistant-telemetry \
+	  scripts/telemetry/collect-test-evidence.sh ta-sandbox \
+	  docs/validation/results/validation/test-10/garybayes-ta-sandbox.json
+	Expected:
+	- Validation telemetry
+	- Dashboard telemetry
+	- Single JSON output
+
 ### 11. Partial telemetry recovery
     a) Delete all but one JSONL file in telemetry repo
 	TELEMETRY_REPO=garybayes/task-assistant-telemetry \
@@ -610,6 +745,15 @@ Concurrent validation means independent execution contexts with overlapping time
 	- Telemetry emitted
 	- No schema errors
 
+    c) Collect validation evidence
+	TELEMETRY_REPO=garybayes/task-assistant-telemetry \
+	  scripts/telemetry/collect-test-evidence.sh ta-sandbox \
+	  docs/validation/results/validation/test-11/garybayes-ta-sandbox.json
+	Expected:
+	- Validation telemetry
+	- Dashboard telemetry
+	- Single JSON output
+
 ### 12. Telemetry write blocked
     a) Enable branch protection on telemetry repo
 
@@ -625,6 +769,15 @@ Concurrent validation means independent execution contexts with overlapping time
 	- Explicit error message
 	- No partial files created
 
+    c) Collect validation evidence
+	TELEMETRY_REPO=garybayes/task-assistant-telemetry \
+	  scripts/telemetry/collect-test-evidence.sh ta-sandbox \
+	  docs/validation/results/test-12/garybayes-ta-sandbox.json
+	Expected:
+	- Validation telemetry
+	- Dashboard telemetry
+	- Single JSON output
+
 ## Phase 3.4 Exit Criteria
 
 ### Phase 3.4 is complete when:
@@ -636,3 +789,8 @@ Concurrent validation means independent execution contexts with overlapping time
 ✅ Dashboard fanout produces consistent results across orgs
 ✅ Telemetry repo is fully bootstrapped by engines alone
 ✅ No manual repo mutation is required post-install
+📦 Validation evidence consists of:
+- Validation telemetry records for all tests
+- Dashboard telemetry records for tests involving aggregation or recovery behavior
+
+

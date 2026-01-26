@@ -3,14 +3,29 @@
 
 set -euo pipefail
 
+for cmd in gh jq yq; do
+  command -v "$cmd" >/dev/null || {
+    echo "::error::Missing dependency: $cmd"
+    exit 1
+  }
+done
+
 # ─────────────────────────────────────────────
 # Inputs (explicit; no hidden globals)
 # ─────────────────────────────────────────────
 : "${GITHUB_REPOSITORY:?GITHUB_REPOSITORY is required (owner/repo)}"
 : "${GITHUB_TOKEN:?GITHUB_TOKEN is required}"
 
+export GH_TOKEN="${GH_TOKEN:-$GITHUB_TOKEN}"
+
 TARGET_REPO="$GITHUB_REPOSITORY"
+OWNER="${TARGET_REPO%%/*}"
+REPO="${TARGET_REPO##*/}"
 CORRELATION_ID="${CORRELATION_ID:-manual-validate}"
+
+export OWNER
+export REPO
+export CORRELATION_ID
 
 # Optional tuning
 ALLOW_V1_FALLBACK="${ALLOW_V1_FALLBACK:-true}"
@@ -54,8 +69,8 @@ console.log(JSON.stringify(result, null, 2));
 
 fs.writeFileSync("infra-resolution.json", JSON.stringify(result, null, 2));
 
-if (!["INFRA_OK_V2", "INFRA_OK_V1_FALLBACK"].includes(result.outcomeCode)) {
-  console.error(`::error::Workflow validation failed: ${result.outcomeCode}`);
+if (result.outcomeCode !== "INFRA_OK") {
+  console.error(`INFRA VALIDATION FAILED: ${result.outcomeCode}`);
   process.exit(1);
 }
 EOF
@@ -85,17 +100,17 @@ EXPECTED_MILESTONES="$(yq -r '.milestones[].title' "$CONFIG")"
 
 missing=false
 
-for lbl in $EXPECTED_LABELS; do
+yq -r '.labels[].name' "$CONFIG" | while IFS= read -r lbl; do
   if ! gh label list --repo "$TARGET_REPO" --json name \
-       | jq -r '.[].name' | grep -qx "$lbl"; then
+       | jq -r '.[].name' | grep -Fxq "$lbl"; then
     echo "::error::Missing label: $lbl"
     missing=true
   fi
 done
 
-for ms in $EXPECTED_MILESTONES; do
+yq -r '.milestones[].title' "$CONFIG" | while IFS= read -r ms; do
   if ! gh api "repos/$TARGET_REPO/milestones" --paginate \
-       | jq -r '.[].title' | grep -qx "$ms"; then
+       | jq -r '.[].title' | grep -Fxq "$ms"; then
     echo "::error::Missing milestone: $ms"
     missing=true
   fi
@@ -128,17 +143,18 @@ done
 echo "✓ Required workflows present"
 
 # ─────────────────────────────────────────────
-# Validate workflow_call compatibility
+# Validate dispatch contract
 # ─────────────────────────────────────────────
-echo "→ Validating workflow_call inputs…"
+echo "→ Validating dispatch contract…"
 
-yq -e '.on.workflow_call.inputs.target_repo' \
+yq -e '.on.workflow_dispatch' .github/workflows/task-assistant-dispatch.yml >/dev/null
+yq -e '.jobs.resolve'         .github/workflows/task-assistant-dispatch.yml >/dev/null
+yq -e '.jobs.preflight'       .github/workflows/task-assistant-dispatch.yml >/dev/null
+
+echo "✓ Dispatch workflow structure valid"
+
+yq -e '.jobs.resolve.outputs.target_repo' \
   .github/workflows/task-assistant-dispatch.yml >/dev/null
-
-yq -e '.on.workflow_call.inputs.correlation_id' \
-  .github/workflows/task-assistant-dispatch.yml >/dev/null
-
-echo "✓ workflow_call inputs valid"
 
 # ─────────────────────────────────────────────
 # Validate app installation on telemetry repo

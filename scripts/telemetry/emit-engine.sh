@@ -75,52 +75,28 @@ PAYLOAD="$(
 )"
 
 # ─────────────────────────────────────────────
-# Paths
+# Paths (immutable per-run)
 # ─────────────────────────────────────────────
-REPO_DIR="telemetry/v1/repos/${REPO}"
-EVENT_FILE="$(date +%Y-%m-%d).jsonl"
-EVENT_PATH="${REPO_DIR}/${EVENT_FILE}"
+DATE="$(date +%Y-%m-%d)"
+REPO_DIR="telemetry/v1/repos/${REPO}/${DATE}"
+EVENT_PATH="${REPO_DIR}/${CORRELATION_ID}.json"
 API_BASE="repos/${TELEMETRY_REPO}/contents"
 
-TMP="$(mktemp)"
-trap 'rm -f "$TMP"' EXIT
-SHA=""
-
-# ─────────────────────────────────────────────
-# Ensure repo directory exists (idempotent)
-# ─────────────────────────────────────────────
+# Ensure directory exists (idempotent)
 gh api \
   --method PUT \
   "${API_BASE}/${REPO_DIR}/.keep" \
-  --field message="chore(telemetry): ensure repo path exists" \
+  --field message="chore(telemetry): ensure repo/day path exists" \
   --field content="$(printf '' | base64)" \
   >/dev/null 2>&1 || true
 
-# ─────────────────────────────────────────────
-# Fetch existing JSONL if present
-# ─────────────────────────────────────────────
-if EXISTING="$(gh api "${API_BASE}/${EVENT_PATH}" 2>/dev/null)"; then
-  SHA="$(jq -r '.sha' <<<"$EXISTING")"
-  jq -r '.content' <<<"$EXISTING" | base64 --decode >"$TMP"
-else
-  : >"$TMP"
-fi
+# Write immutable event
+ENCODED="$(printf '%s' "$PAYLOAD" | base64 -w0)"
 
-# Append event
-printf '%s\n' "$PAYLOAD" >>"$TMP"
-
-ENCODED="$(base64 -w0 "$TMP")"
-
-ARGS=(
-  --method PUT
-  "${API_BASE}/${EVENT_PATH}"
-  --field message="telemetry: ${ENGINE_NAME}/${ENGINE_JOB}"
-  --field content="$ENCODED"
-  --field encoding="base64"
-)
-
-if [[ -n "$SHA" && "$SHA" != "null" ]]; then
-  ARGS+=( --field sha="$SHA" )
-fi
-
-gh api "${ARGS[@]}" >/dev/null
+gh api \
+  --method PUT \
+  "${API_BASE}/${EVENT_PATH}" \
+  --field message="telemetry: ${ENGINE_NAME}/${ENGINE_JOB} (${CORRELATION_ID})" \
+  --field content="$ENCODED" \
+  --field encoding="base64" \
+  >/dev/null

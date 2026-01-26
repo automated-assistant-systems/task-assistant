@@ -1,0 +1,119 @@
+---
+name: Phase 3.4 • Concurrent Matrix Validation
+
+# yamllint disable rule:truthy
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  id-token: write
+
+env:
+  GH_TOKEN: ${{ secrets.GH_TOKEN }}
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+jobs:
+
+  # ─────────────────────────────────────────────
+  # Test 3 — Multiple Orgs (Concurrent)
+  # ─────────────────────────────────────────────
+  test-3-multi-org:
+    name: "Test 3 • Multi-org concurrency"
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        target_repo:
+          - automated-assistant-systems/task-assistant-sandbox
+          - garybayes/ta-marketplace-install-test
+
+    steps:
+      - name: Checkout Task Assistant
+        uses: actions/checkout@v4
+        with:
+          repository: automated-assistant-systems/task-assistant
+          ref: main
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Run Test 3 validation
+        env:
+          TEST_ID: test-3
+        run: |
+          scripts/validation/run-validation-test.sh \
+            "$TEST_ID" \
+            "${{ matrix.target_repo }}"
+
+  # ─────────────────────────────────────────────
+  # Test 6 — Multiple Repos, One Org (Concurrent)
+  # ─────────────────────────────────────────────
+  test-6-multi-repo-one-org:
+    name: "Test 6 • Multi-repo single-org concurrency"
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        target_repo:
+          - garybayes/ta-marketplace-install-test
+          - garybayes/ta-sandbox
+
+    steps:
+      - name: Checkout Task Assistant
+        uses: actions/checkout@v4
+        with:
+          repository: automated-assistant-systems/task-assistant
+          ref: main
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Run Test 6 validation
+        env:
+          TEST_ID: test-6
+        run: |
+          scripts/validation/run-validation-test.sh \
+            "$TEST_ID" \
+            "${{ matrix.target_repo }}"
+
+  # ─────────────────────────────────────────────
+  # Test 7 — Multiple Repos, Multiple Orgs (Concurrent)
+  # ─────────────────────────────────────────────
+  test-7-multi-org-multi-repo:
+    name: "Test 7 • Multi-org + multi-repo concurrency"
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        target_repo:
+          - automated-assistant-systems/task-assistant-sandbox
+          - garybayes/ta-marketplace-install-test
+          - garybayes/ta-sandbox
+
+    steps:
+      - name: Checkout Task Assistant
+        uses: actions/checkout@v4
+        with:
+          repository: automated-assistant-systems/task-assistant
+          ref: main
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Run Test 7 validation
+        env:
+          TEST_ID: test-7
+        run: |
+          scripts/validation/run-validation-test.sh \
+            "$TEST_ID" \
+            "${{ matrix.target_repo }}"

@@ -125,20 +125,39 @@ if [[ "$RESET_TELEMETRY" == "true" ]]; then
   echo "→ Resolving telemetry repo via infra..."
 
   TELEMETRY_REPO="$(
-    node <<'EOF'
-    import { resolveInfraForRepo } from "./lib/infra.js";
-    const res = await resolveInfraForRepo({
-      targetRepo: process.env.REPO,
-      githubToken: process.env.GITHUB_TOKEN,
-      allowV1Fallback: true,
-      requireRepoEnabled: false
-    });
-    if (!res.telemetryRepo) process.exit(1);
-    console.log(res.telemetryRepo);
-EOF
+  node -e '
+  import { resolveInfraForRepo } from "./lib/infra.js";
+
+  const target = process.env.TARGET_REPO;
+  const token  = process.env.GH_TOKEN;
+
+  if (!target || !token) {
+    console.error("Missing TARGET_REPO or GH_TOKEN");
+    process.exit(1);
+  }
+
+  const result = await resolveInfraForRepo({
+    targetRepo: target,
+    githubToken: token,
+    allowV1Fallback: true,
+    requireRepoEnabled: false,
+  });
+
+  if (!result.telemetryRepo) {
+    console.error("Telemetry repo not resolved");
+    process.exit(1);
+  }
+
+  process.stdout.write(result.telemetryRepo);
+  '
   )"
 
-  echo "✓ Telemetry repo: $TELEMETRY_REPO"
+  if [[ -z "$TELEMETRY_REPO" ]]; then
+    echo "::error::Failed to resolve telemetry repo"
+    exit 1
+  fi
+
+  echo "✓ Telemetry repo resolved: $TELEMETRY_REPO"
   echo "→ Deleting telemetry/v1/repos/$REPO_NAME …"
 
   gh api -X DELETE \
