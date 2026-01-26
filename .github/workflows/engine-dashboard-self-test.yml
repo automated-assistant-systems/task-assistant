@@ -110,6 +110,7 @@ jobs:
         if: always()
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          RESULT_FILE: result.json
         working-directory: task-assistant
         run: |
           set -euo pipefail

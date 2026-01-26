@@ -40,6 +40,15 @@ GITHUB_TOKEN=ghp_xxx \
   GITHUB_REPOSITORY=owner/repo \
   scripts/validate/validate-workflows.sh
 
+### Run Self-Test
+TARGET_REPO=owner/repo scripts/dispatch/run-self-test.sh
+
+### Run Validate
+TARGET_REPO=owner/repo scripts/dispatch/run-validate.sh
+
+### Run Enforce
+
+
 ### Collect validation evidence
 TELEMETRY_REPO=owner/task-assistant-telemetry \
   scripts/telemetry/collect-test-evidence.sh repo \

@@ -121,14 +121,10 @@ jobs:
       - name: Build dashboard
         env:
           TELEMETRY_ROOT: telemetry/telemetry/v1/repos
-          DASHBOARD_ROOT: telemetry/telemetry/v1/dashboards
         run: |
           set -euo pipefail
 
           DAY="$(date -u +%Y-%m-%d)"
-          DASHBOARD_FILE="$DASHBOARD_ROOT/$DAY.json"
-
-          mkdir -p "$DASHBOARD_ROOT"
 
           echo "→ Building dashboard for $OWNER/$REPO ($DAY)"
 
@@ -148,7 +144,7 @@ jobs:
             exit 0
           fi
 
-          node scripts/build-dashboards.js "$REPO" "$DASHBOARD_FILE"
+          node scripts/build-dashboards.js "$REPO" > dashboard.json
 
           jq -n \
             --arg repo "$REPO" \
