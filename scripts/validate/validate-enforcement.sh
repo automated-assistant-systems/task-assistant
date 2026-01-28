@@ -62,7 +62,35 @@ echo "✓ Labels applied — waiting for enforcement"
 # ------------------------------------------------------------
 # Wait for enforcement
 # ------------------------------------------------------------
-sleep 30
+echo "→ Waiting for enforcement to resolve (polling)…"
+
+MAX_WAIT=180   # seconds
+INTERVAL=5
+ELAPSED=0
+
+while true; do
+  LABELS="$(
+    gh issue view "$ISSUE_NUMBER" \
+      --repo "$REPO" \
+      --json labels \
+      | jq -r '.labels[].name'
+  )"
+
+  if ! (echo "$LABELS" | grep -q "phase-3.4" && echo "$LABELS" | grep -q "phase-3.5"); then
+    echo "✓ Enforcement resolved conflicting labels"
+    break
+  fi
+
+  if (( ELAPSED >= MAX_WAIT )); then
+    echo "::error::Enforcement did not resolve within ${MAX_WAIT}s"
+    echo "Current labels:"
+    echo "$LABELS"
+    exit 1
+  fi
+
+  sleep "$INTERVAL"
+  ELAPSED=$((ELAPSED + INTERVAL))
+done
 
 # ------------------------------------------------------------
 # Verify issue mutation

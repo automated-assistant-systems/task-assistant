@@ -61,7 +61,6 @@ TELEMETRY_REPO=owner/task-assistant-telemetry \
 
 ### Test Wrapper
 GH_TOKEN=ghp_xxx \
-GITHUB_TOKEN=ghp_xxx \
 scripts/validation/run-validation-test.sh \
   <test-id> \
   <owner/repo>

@@ -13,16 +13,16 @@ set -euo pipefail
 # This script never invokes engines directly.
 #
 # Usage:
-#   ./scripts/onboarding/verify-repo.sh <repo>
+#   ./scripts/onboarding/verify-repo.sh <owner>/<repo>
 #
 # Example:
-#   ./scripts/onboarding/verify-repo.sh task-assistant
+#   ./scripts/onboarding/verify-repo.sh automated-assistant-systems/task-assistant
 # ─────────────────────────────────────────────
 
 REPO="${1:-}"
 
 if [[ -z "$REPO" ]]; then
-  echo "Usage: verify-repo.sh <repo>"
+  echo "Usage: verify-repo.sh <owner>/<repo>"
   exit 1
 fi
 
@@ -47,11 +47,11 @@ echo "• Repo: $REPO"
 echo
 
 echo "▶ Running self-test"
-"$SELF_TEST" "$REPO"
+TARGET_REPO="$REPO" "$SELF_TEST"
 
 echo
 echo "▶ Running validate"
-"$VALIDATE" "$REPO"
+TARGET_REPO="$REPO" "$VALIDATE"
 
 echo
 echo "✔ Verification triggered"

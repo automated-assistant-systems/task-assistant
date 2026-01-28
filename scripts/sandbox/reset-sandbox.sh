@@ -60,12 +60,13 @@ echo "Reset telemetry: $RESET_TELEMETRY"
 echo
 
 # ------------------------------------------------------------
-# Auth check
+# Auth check (operator scripts require stored gh auth)
 # ------------------------------------------------------------
-gh auth status >/dev/null 2>&1 || {
-  echo "❌ gh is not authenticated. Run: gh auth login"
+if ! gh auth status >/dev/null 2>&1; then
+  echo "❌ gh is not authenticated."
+  echo "   Run: gh auth login"
   exit 1
-}
+fi
 
 # ------------------------------------------------------------
 # 1) Close open issues (preserve history)
@@ -124,32 +125,40 @@ if [[ "$RESET_TELEMETRY" == "true" ]]; then
   echo
   echo "→ Resolving telemetry repo via infra..."
 
+  export TARGET_REPO="$REPO"
+
   TELEMETRY_REPO="$(
-  node -e '
-  import { resolveInfraForRepo } from "./lib/infra.js";
+    node -e '
+    import { execSync } from "child_process";
+    import { resolveInfraForRepo } from "./lib/infra.js";
 
-  const target = process.env.TARGET_REPO;
-  const token  = process.env.GH_TOKEN;
+    const target = process.env.TARGET_REPO;
 
-  if (!target || !token) {
-    console.error("Missing TARGET_REPO or GH_TOKEN");
-    process.exit(1);
-  }
+    if (!target) {
+      console.error("Missing TARGET_REPO");
+      process.exit(1);
+    }
 
-  const result = await resolveInfraForRepo({
-    targetRepo: target,
-    githubToken: token,
-    allowV1Fallback: true,
-    requireRepoEnabled: false,
-  });
+    let token;
+    try {
+      token = execSync("gh auth token", { encoding: "utf8" }).trim();
+    } catch {
+      console.error("Failed to obtain GitHub token from gh");
+      process.exit(1);
+    }
 
-  if (!result.telemetryRepo) {
-    console.error("Telemetry repo not resolved");
-    process.exit(1);
-  }
+    const result = await resolveInfraForRepo({
+      targetRepo: target,
+      githubToken: token,
+    });
 
-  process.stdout.write(result.telemetryRepo);
-  '
+    if (!result.telemetryRepo) {
+      console.error("Telemetry repo not resolved");
+      process.exit(1);
+    }
+
+    process.stdout.write(result.telemetryRepo);
+    '
   )"
 
   if [[ -z "$TELEMETRY_REPO" ]]; then
@@ -160,13 +169,42 @@ if [[ "$RESET_TELEMETRY" == "true" ]]; then
   echo "✓ Telemetry repo resolved: $TELEMETRY_REPO"
   echo "→ Deleting telemetry/v1/repos/$REPO_NAME …"
 
-  gh api -X DELETE \
-    "repos/$TELEMETRY_REPO/contents/telemetry/v1/repos/$REPO_NAME" \
-    >/dev/null 2>&1 || {
-      echo "ℹ️ Telemetry path did not exist (already clean)"
-    }
+  # Instead of deleting the repo directory
+  # enumerate and delete children
+
+  echo "→ Deleting telemetry/v1/repos/$REPO_NAME …"
+
+  BASE_PATH="telemetry/v1/repos/$REPO_NAME"
+
+  DATES="$(gh api "repos/$TELEMETRY_REPO/contents/$BASE_PATH" \
+    --jq '.[] | select(.type=="dir") | .name' 2>/dev/null || true)"
+
+  if [[ -z "$DATES" ]]; then
+    echo "ℹ️ No telemetry dates found (already clean)"
+  else
+    for date in $DATES; do
+      echo "  → Clearing date $date"
+
+      CORR_DIRS="$(gh api "repos/$TELEMETRY_REPO/contents/$BASE_PATH/$date" \
+        --jq '.[] | select(.type=="dir") | .name' || true)"
+
+      for cid in $CORR_DIRS; do
+        echo "    → Clearing correlation $cid"
+
+        gh api "repos/$TELEMETRY_REPO/contents/$BASE_PATH/$date/$cid" \
+          --jq '.[] | select(.type=="file") | [.path, .sha] | @tsv' |
+        while IFS=$'\t' read -r path sha; do
+          gh api -X DELETE "repos/$TELEMETRY_REPO/contents/$path" \
+            -f message="reset sandbox telemetry" \
+            -f sha="$sha" >/dev/null
+          echo "      ✓ Deleted $path"
+        done
+      done
+    done
+  fi
 
   echo "✓ Telemetry reset complete"
+
 fi
 
 # ------------------------------------------------------------

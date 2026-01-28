@@ -10,6 +10,13 @@ set -euo pipefail
 # Usage:
 #   scripts/validation/run-validation-test.sh <test-id> <owner/repo>
 # ============================================================
+# ------------------------------------------------------------
+# Auth check (stored gh auth OR env-based GITHUB_TOKEN)
+# ------------------------------------------------------------
+# Operator scripts require either:
+#   - stored gh auth login, or
+#   - GITHUB_TOKEN exported
+#
 
 TEST_ID="${1:-}"
 TARGET_REPO="${2:-}"
@@ -21,9 +28,6 @@ fi
 
 OWNER="${TARGET_REPO%%/*}"
 REPO="${TARGET_REPO##*/}"
-
-# Required env
-: "${GH_TOKEN:?GH_TOKEN is required}"
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 RESULTS_DIR="$ROOT_DIR/docs/validation/results/$TEST_ID"
@@ -62,7 +66,6 @@ echo "📦 Installing Task Assistant..."
 # ------------------------------------------------------------
 echo
 echo "🏗️ Preparing repo..."
-GH_TOKEN="$GH_TOKEN" \
 node "$ROOT_DIR/scripts/prepare-repo.js" "$TARGET_REPO"
 
 # ------------------------------------------------------------
@@ -70,21 +73,21 @@ node "$ROOT_DIR/scripts/prepare-repo.js" "$TARGET_REPO"
 # ------------------------------------------------------------
 echo
 echo "🔍 Verifying integrity (post-prepare)..."
-"$VERIFY_REPO" "$REPO" prepare
+"$VERIFY_REPO" "$TARGET_REPO" prepare
 
 # ------------------------------------------------------------
 # 5. Enforcement validation
 # ------------------------------------------------------------
 echo
 echo "⚖️ Running enforcement validation..."
-"$RUN_ENFORCEMENT" "$TARGET_REPO"
+GITHUB_REPOSITORY="$TARGET_REPO" "$RUN_ENFORCEMENT"
 
 # ------------------------------------------------------------
 # 6. Post-enforcement validation
 # ------------------------------------------------------------
 echo
 echo "🔍 Validating repo (post-enforcement)..."
-"$VERIFY_REPO" "$REPO" enforce
+"$VERIFY_REPO" "$TARGET_REPO" enforce
 
 # ------------------------------------------------------------
 # 7. Collect telemetry evidence
