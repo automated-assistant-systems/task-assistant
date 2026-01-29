@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Task Assistant — Config Schema Validator (Authoritative v1)
+ * Task Assistant — Config Schema Validator (Schema v1)
  *
  * Phase: 3.4
  * Guarantees:

@@ -10,7 +10,6 @@ set -euo pipefail
 #
 # Infra detection:
 #   • v2 registry (preferred)
-#   • v1 registry (legacy fallback)
 #
 # Modes:
 #   default  → install
@@ -78,7 +77,7 @@ fi
 echo "✓ Repo accessible"
 
 # ------------------------------------------------------------
-# Infra detection (v2 first, v1 fallback)
+# Infra detection
 # ------------------------------------------------------------
 echo
 echo "🔎 Detecting infra registration…"
@@ -97,33 +96,12 @@ if gh api repos/automated-assistant-systems/task-assistant-infra/contents/infra/
   INFRA_VERSION="v2"
 fi
 
-# ---- v1 registry fallback ----
-if [[ "$INFRA_VERSION" == "none" ]]; then
-  if gh api repos/automated-assistant-systems/task-assistant-infra/contents/telemetry-registry.json \
-    --jq '.content' 2>/dev/null \
-    | base64 --decode \
-    | jq -e \
-        --arg owner "$OWNER" \
-        --arg repo "$REPO_NAME" '
-          .organizations[]
-          | select(.owner == $owner)
-          | .repositories[]
-          | select(.name == $repo and .enabled == true)
-        ' >/dev/null 2>&1; then
-    INFRA_VERSION="v1"
-  fi
-fi
-
 case "$INFRA_VERSION" in
   v2)
-    echo "✓ Repo is registered in infra v2 (preferred)"
-    ;;
-  v1)
-    echo "⚠️  Repo is registered in infra v1 (legacy fallback)"
-    echo "   v2 registration recommended before Marketplace release"
+    echo "✓ Repo is registered in infra v2"
     ;;
   none)
-    echo "⚠️  Repo is not registered in infra (v1 or v2)"
+    echo "⚠️  Repo is not registered in infra v2"
     echo "   Preflight and telemetry will fail until registered"
     ;;
 esac
