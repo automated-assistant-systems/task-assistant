@@ -96,14 +96,14 @@ jobs:
       # ─────────────────────────────────────────────
       - name: Run dashboard self-test
         env:
-          TELEMETRY_ROOT: telemetry/telemetry/v1/repos
+          TELEMETRY_ROOT: telemetry/v1/repos
         working-directory: task-assistant
         run: |
           set -euo pipefail
 
           node scripts/build-dashboards.js "$REPO" > result.json
 
-          jq -e '.ok == true or .status == "no-telemetry"' dashboard.json >/dev/null
+          jq -e '.ok == true or .status == "no-telemetry"' result.json >/dev/null
 
           jq -n \
             --arg repo "$REPO" \
