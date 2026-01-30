@@ -19,6 +19,11 @@ if [[ -z "$TEST_ID" || -z "$TARGET_REPO" ]]; then
   exit 1
 fi
 
+if [[ -z "$TARGET_REPO" ]]; then
+  echo "❌ TARGET_REPO is required"
+  exit 1
+fi
+
 RESULTS_DIR="docs/validation/results/$TEST_ID"
 mkdir -p "$RESULTS_DIR"
 
@@ -35,7 +40,7 @@ echo
 # Enforcement validation ONLY
 # ------------------------------------------------------------
 echo "⚖️ Running enforcement validation..."
-scripts/validate/validate-enforcement.sh "$TARGET_REPO"
+TARGET_REPO="$TARGET_REPO" scripts/validate/validate-enforcement.sh
 
 # ------------------------------------------------------------
 # Collect telemetry evidence
