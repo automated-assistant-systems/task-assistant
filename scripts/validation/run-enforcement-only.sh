@@ -25,38 +25,29 @@ mkdir -p "$RESULTS_DIR"
 OUT_FILE="$RESULTS_DIR/${TARGET_REPO//\//-}.json"
 
 echo
-echo "🧪 Phase 3.4 — Enforcement Validation"
+echo "🛡️ Phase 3.4 — Enforcement Validation (Matrix-Safe)"
 echo "Test ID:     $TEST_ID"
 echo "Target repo: $TARGET_REPO"
 echo "Output:      $OUT_FILE"
 echo
 
 # ------------------------------------------------------------
-# Preflight + validate (read-only safe)
+# Enforcement validation ONLY
 # ------------------------------------------------------------
-scripts/onboarding/verify-repo.sh "$TARGET_REPO"
+echo "⚖️ Running enforcement validation..."
+scripts/validate/validate-enforcement.sh "$TARGET_REPO"
 
 # ------------------------------------------------------------
-# Enforcement (mutation allowed, tolerate failures)
-# ------------------------------------------------------------
-if scripts/validate/validate-enforcement.sh "$TARGET_REPO"; then
-  echo "✓ Enforcement completed"
-else
-  echo "⚠️ Enforcement encountered access limitations"
-fi
-
-# ------------------------------------------------------------
-# Telemetry evidence
+# Collect telemetry evidence
 # ------------------------------------------------------------
 echo
 echo "📤 Collecting telemetry evidence..."
-
 scripts/telemetry/collect-test-evidence.sh \
   "$TARGET_REPO" \
   "$(date -u +%Y-%m-%d)" \
   "$OUT_FILE"
 
 echo
-echo "✅ Enforcement test $TEST_ID complete"
+echo "✅ Enforcement-only validation complete"
 echo "📄 Evidence saved to:"
 echo "   $OUT_FILE"

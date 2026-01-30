@@ -2,16 +2,17 @@
 set -euo pipefail
 
 # ============================================================
-# Phase 3.4 — Operator Matrix Prep + Trigger
+# Phase 3.4 — Operator Repo Prep + Matrix Trigger
 #
 # • Operator-only (never CI)
 # • Performs all mutation BEFORE concurrency
 # • Resets ONLY repos used by the selected test
+# • Verifies install + config (self-test + validate)
 # • Triggers matrix workflow after prep
 # ============================================================
 
 if [[ "${GITHUB_ACTIONS:-}" == "true" ]]; then
-  echo "❌ run-matrix-tests.sh is operator-only"
+  echo "❌ prepare-matrix-repos.sh is operator-only"
   exit 1
 fi
 
@@ -38,7 +39,7 @@ case "$TEST_SET" in
     )
     ;;
   *)
-    echo "Usage: run-matrix-tests.sh [all|test-03-multi-org|test-06-multi-repo|test-07-multi-org+repo]"
+    echo "Usage: prepare-matrix-repos.sh [all|test-03-multi-org|test-06-multi-repo|test-07-multi-org+repo]"
     exit 1
     ;;
 esac
@@ -49,18 +50,35 @@ echo "Test set: $TEST_SET"
 echo
 
 for repo in "${REPOS[@]}"; do
-  echo "→ Resetting $repo"
+  echo "────────────────────────────────────────────"
+  echo "▶ Preparing $repo"
+  echo
+
+  echo "→ Resetting sandbox"
   scripts/sandbox/reset-sandbox.sh "$repo" --reset-telemetry
 
+  echo
   echo "→ Installing Task Assistant"
   scripts/sandbox/install-task-assistant.sh "$repo"
 
-  echo "→ Preparing repo"
+  echo
+  echo "→ Preparing repo (labels & milestones)"
   node scripts/prepare-repo.js "$repo"
+
+  echo
+  echo "→ Running self-test (dispatch & wiring check)"
+  scripts/dispatch/run-self-test.sh "$repo"
+
+  echo
+  echo "→ Running config validation"
+  scripts/dispatch/run-validate.sh "$repo"
+
+  echo
+  echo "✓ $repo ready for matrix enforcement"
+  echo
 done
 
-echo
-echo "✓ All required repos prepared"
+echo "✓ All required repos prepared and verified"
 echo
 echo "🚀 Triggering Phase 3.4 matrix workflow"
 echo
