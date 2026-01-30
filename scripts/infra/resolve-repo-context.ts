@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { resolveInfraForRepo } from "../../lib/infra";
+import { resolveInfraForRepo } from "../../lib/infra.js";
 
 async function main() {
   const targetRepo = process.argv[2];

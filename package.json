@@ -7,6 +7,7 @@
     "dev": "ts-node --esm src/app/server.ts",
     "build": "tsc",
     "build:infra": "tsc lib/infra.ts --target ES2022 --module NodeNext --moduleResolution nodenext --types node --skipLibCheck --outDir lib",
+    "build:infra-helpers": "tsc scripts/infra/resolve-*.ts --target ES2022 --module NodeNext --moduleResolution nodenext --types node --skipLibCheck",
     "start": "node dist/app/server.js"
   },
   "dependencies": {
