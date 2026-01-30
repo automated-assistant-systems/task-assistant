@@ -13,9 +13,13 @@ set -euo pipefail
 #   • Telemetry is verified separately via evidence collection
 # ============================================================
 
-: "${GITHUB_REPOSITORY:?GITHUB_REPOSITORY is required (owner/repo)}"
+REPO="${TARGET_REPO:-${GITHUB_REPOSITORY:-}}"
 
-REPO="$GITHUB_REPOSITORY"
+if [[ -z "$REPO" ]]; then
+  echo "❌ TARGET_REPO or GITHUB_REPOSITORY is required"
+  exit 1
+fi
+
 OWNER="${REPO%%/*}"
 NAME="${REPO##*/}"
 
