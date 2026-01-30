@@ -30,7 +30,7 @@ jobs:
   # Test 3 — Multiple Orgs (Concurrent)
   # ─────────────────────────────────────────────
   test-3-multi-org:
-    if: ${{ github.event.inputs.test_set == 'all' || github.event.inputs.test_set == 'test-3' }}
+    if: ${{ github.event.inputs.test_set == 'all' || github.event.inputs.test_set == 'test-03-multi-repo' }}
     name: "Test 3 • Multi-org concurrency"
     runs-on: ubuntu-latest
 
@@ -71,7 +71,7 @@ jobs:
   # Test 6 — Multiple Repos, One Org (Concurrent)
   # ─────────────────────────────────────────────
   test-6-multi-repo-one-org:
-    if: ${{ github.event.inputs.test_set == 'all' || github.event.inputs.test_set == 'test-6' }}
+    if: ${{ github.event.inputs.test_set == 'all' || github.event.inputs.test_set == 'test-06-multi-org' }}
     name: "Test 6 • Multi-repo single-org concurrency"
     runs-on: ubuntu-latest
 
@@ -112,7 +112,7 @@ jobs:
   # Test 7 — Multiple Repos, Multiple Orgs (Concurrent)
   # ─────────────────────────────────────────────
   test-7-multi-org-multi-repo:
-    if: ${{ github.event.inputs.test_set == 'all' || github.event.inputs.test_set == 'test-7' }}
+    if: ${{ github.event.inputs.test_set == 'all' || github.event.inputs.test_set == 'test-07-multi-org+repo' }}
     name: "Test 7 • Multi-org + multi-repo concurrency"
     runs-on: ubuntu-latest
 
