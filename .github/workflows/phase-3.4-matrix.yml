@@ -53,19 +53,11 @@ jobs:
         with:
           node-version: 20
 
-      - name: Run Test 3 validation
-        env:
-          TEST_ID: test-03-multi-org
+      - name: Run enforcement-only validation
         run: |
-          scripts/validation/run-validation-test.sh \
-            "$TEST_ID" \
+          scripts/validation/run-enforcement-only.sh \
+            test-03-multi-org \
             "${{ matrix.target_repo }}"
-
-      - name: Upload validation results
-        uses: actions/upload-artifact@v4
-        with:
-          name: validation-${{ matrix.target_repo }}
-          path: docs/validation/results/test-03-multi-org/
 
   # ─────────────────────────────────────────────
   # Test 6 — Multiple Repos, One Org (Concurrent)
@@ -94,19 +86,11 @@ jobs:
         with:
           node-version: 20
 
-      - name: Run Test 6 validation
-        env:
-          TEST_ID: test-06-multi-repo
+      - name: Run enforcement-only validation
         run: |
-          scripts/validation/run-validation-test.sh \
-            "$TEST_ID" \
+          scripts/validation/run-enforcement-only.sh \
+            test-06-multi-repo \
             "${{ matrix.target_repo }}"
-
-      - name: Upload validation results
-        uses: actions/upload-artifact@v4
-        with:
-          name: validation-${{ matrix.target_repo }}
-          path: docs/validation/results/test-03-multi-org/
 
   # ─────────────────────────────────────────────
   # Test 7 — Multiple Repos, Multiple Orgs (Concurrent)
@@ -136,17 +120,8 @@ jobs:
         with:
           node-version: 20
 
-      - name: Run Test 7 validation
-        env:
-          TEST_ID: test-07-multi-org+repo
+      - name: Run enforcement-only validation
         run: |
-          scripts/validation/run-validation-test.sh \
-            "$TEST_ID" \
+          scripts/validation/run-enforcement-only.sh \
+            test-07-multi-org+repo \
             "${{ matrix.target_repo }}"
-
-      - name: Upload validation results
-        uses: actions/upload-artifact@v4
-        with:
-          name: validation-${{ matrix.target_repo }}
-          path: docs/validation/results/test-03-multi-org/
-

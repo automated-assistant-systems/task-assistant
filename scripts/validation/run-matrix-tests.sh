@@ -2,11 +2,12 @@
 set -euo pipefail
 
 # ============================================================
-# Phase 3.4 — Operator Matrix Orchestrator
+# Phase 3.4 — Operator Matrix Prep + Trigger
 #
+# • Operator-only (never CI)
+# • Performs all mutation BEFORE concurrency
 # • Resets ONLY repos used by the selected test
-# • Operator-only
-# • Triggers matrix workflow after reset
+# • Triggers matrix workflow after prep
 # ============================================================
 
 if [[ "${GITHUB_ACTIONS:-}" == "true" ]]; then
@@ -14,10 +15,10 @@ if [[ "${GITHUB_ACTIONS:-}" == "true" ]]; then
   exit 1
 fi
 
-TEST_SET="${1:-}"
+TEST_SET="${1:-all}"
 
 case "$TEST_SET" in
-  test-03-multi-org)
+  all|test-03-multi-org)
     REPOS=(
       automated-assistant-systems/task-assistant-sandbox
       garybayes/ta-marketplace-install-test
@@ -37,31 +38,36 @@ case "$TEST_SET" in
     )
     ;;
   *)
-    echo "Usage: run-matrix-tests.sh [test-03-multi-org|test-06-multi-repo|test-07-multi-org+repo]"
+    echo "Usage: run-matrix-tests.sh [all|test-03-multi-org|test-06-multi-repo|test-07-multi-org+repo]"
     exit 1
     ;;
 esac
 
 echo
-echo "🧹 Phase 3.4 — Pre-resetting sandbox repos"
+echo "🧹 Phase 3.4 — Preparing sandbox repos"
 echo "Test set: $TEST_SET"
 echo
 
 for repo in "${REPOS[@]}"; do
   echo "→ Resetting $repo"
-  if ! scripts/sandbox/reset-sandbox.sh "$repo" --reset-telemetry; then
-    echo "❌ Reset failed for $repo"
-    exit 1
-  fi
+  scripts/sandbox/reset-sandbox.sh "$repo" --reset-telemetry
+
+  echo "→ Installing Task Assistant"
+  scripts/sandbox/install-task-assistant.sh "$repo"
+
+  echo "→ Preparing repo"
+  node scripts/prepare-repo.js "$repo"
 done
 
 echo
-echo "✓ Required sandboxes reset"
+echo "✓ All required repos prepared"
+echo
+echo "🚀 Triggering Phase 3.4 matrix workflow"
 echo
 
-echo "🚀 Triggering Phase 3.4 matrix workflow"
 gh workflow run phase-3.4-matrix.yml \
   --repo automated-assistant-systems/task-assistant \
   -f test_set="$TEST_SET"
 
+echo
 echo "✓ Matrix workflow triggered"

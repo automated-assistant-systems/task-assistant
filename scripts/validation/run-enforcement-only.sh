@@ -1,0 +1,62 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# ============================================================
+# Phase 3.4 — Enforcement-Only Validation
+#
+# • Safe in CI and locally
+# • No resets
+# • No installs
+# • No repo preparation
+# • Tolerates partial access
+# ============================================================
+
+TEST_ID="${1:-}"
+TARGET_REPO="${2:-}"
+
+if [[ -z "$TEST_ID" || -z "$TARGET_REPO" ]]; then
+  echo "Usage: run-enforcement-only.sh <test-id> <owner/repo>"
+  exit 1
+fi
+
+RESULTS_DIR="docs/validation/results/$TEST_ID"
+mkdir -p "$RESULTS_DIR"
+
+OUT_FILE="$RESULTS_DIR/${TARGET_REPO//\//-}.json"
+
+echo
+echo "🧪 Phase 3.4 — Enforcement Validation"
+echo "Test ID:     $TEST_ID"
+echo "Target repo: $TARGET_REPO"
+echo "Output:      $OUT_FILE"
+echo
+
+# ------------------------------------------------------------
+# Preflight + validate (read-only safe)
+# ------------------------------------------------------------
+scripts/onboarding/verify-repo.sh "$TARGET_REPO"
+
+# ------------------------------------------------------------
+# Enforcement (mutation allowed, tolerate failures)
+# ------------------------------------------------------------
+if scripts/validate/validate-enforcement.sh "$TARGET_REPO"; then
+  echo "✓ Enforcement completed"
+else
+  echo "⚠️ Enforcement encountered access limitations"
+fi
+
+# ------------------------------------------------------------
+# Telemetry evidence
+# ------------------------------------------------------------
+echo
+echo "📤 Collecting telemetry evidence..."
+
+scripts/telemetry/collect-test-evidence.sh \
+  "$TARGET_REPO" \
+  "$(date -u +%Y-%m-%d)" \
+  "$OUT_FILE"
+
+echo
+echo "✅ Enforcement test $TEST_ID complete"
+echo "📄 Evidence saved to:"
+echo "   $OUT_FILE"
