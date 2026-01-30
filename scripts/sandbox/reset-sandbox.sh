@@ -2,222 +2,83 @@
 set -euo pipefail
 
 # ============================================================
-# Task Assistant — Sandbox Reset (INFRA v2 ONLY)
+# Task Assistant — Phase 3.4 Validation Runner
 #
-# Resets a sandbox repo to a known baseline:
-#   • Closes open issues (history preserved)
-#   • Deletes phase-* and track/* labels
-#   • Deletes all milestones
+# Behavior:
+#   • Operator run (local): full flow including reset
+#   • GitHub Actions: skips reset-sandbox automatically
 #
-# Optional:
-#   • --reset-telemetry → deletes repo telemetry (v2 layout)
-#
-# Safety:
-#   • Refuses to run unless infra context == sandbox && enabled
-#   • No infra v1 support
-#   • Idempotent (safe to run repeatedly)
+# Usage:
+#   run-validation-test.sh <test-id> <owner/repo>
 # ============================================================
 
-REPO=""
-RESET_TELEMETRY="false"
+TEST_ID="${1:-}"
+TARGET_REPO="${2:-}"
 
-for arg in "$@"; do
-  case "$arg" in
-    --reset-telemetry) RESET_TELEMETRY="true" ;;
-    *) REPO="$arg" ;;
-  esac
-done
-
-if [[ -z "$REPO" ]]; then
-  echo "Usage: scripts/sandbox/reset-sandbox.sh <owner/repo> [--reset-telemetry]"
+if [[ -z "$TEST_ID" || -z "$TARGET_REPO" ]]; then
+  echo "Usage: run-validation-test.sh <test-id> <owner/repo>"
   exit 1
 fi
 
-# ------------------------------------------------------------
-# Dependencies
-# ------------------------------------------------------------
-for cmd in gh jq node; do
-  command -v "$cmd" >/dev/null || {
-    echo "❌ Missing dependency: $cmd"
-    exit 1
-  }
-done
+RESULTS_DIR="docs/validation/results/$TEST_ID"
+mkdir -p "$RESULTS_DIR"
 
-# ------------------------------------------------------------
-# Auth check (operator script)
-# ------------------------------------------------------------
-if ! gh auth status >/dev/null 2>&1; then
-  echo "❌ gh is not authenticated"
-  echo "   Run: gh auth login"
-  exit 1
-fi
-
-OWNER="${REPO%%/*}"
-REPO_NAME="${REPO##*/}"
+OUT_FILE="$RESULTS_DIR/${TARGET_REPO//\//-}.json"
 
 echo
-echo "🧹 Task Assistant — Sandbox Reset"
-echo "Repo:            $REPO"
-echo "Reset telemetry: $RESET_TELEMETRY"
+echo "🧪 Phase 3.4 Validation Matrix"
+echo "Test ID:     $TEST_ID"
+echo "Target repo: $TARGET_REPO"
+echo "Output:      $OUT_FILE"
 echo
 
 # ------------------------------------------------------------
-# Resolve infra (v2 only)
+# Reset sandbox (operator-only)
 # ------------------------------------------------------------
-INFRA_JSON="$(
-  GITHUB_TOKEN="$(gh auth token)" \
-  node scripts/infra/resolve-repo-context.js "$REPO"
-)"
-
-CONTEXT="$(jq -r '.context' <<<"$INFRA_JSON")"
-STATE="$(jq -r '.state' <<<"$INFRA_JSON")"
-
-if [[ "$CONTEXT" != "sandbox" || "$STATE" != "enabled" ]]; then
-  echo "❌ Refusing to reset non-sandbox repo"
-  echo "   infra context=$CONTEXT state=$STATE"
-  exit 1
-fi
-
-# ------------------------------------------------------------
-# 1) Close open issues
-# ------------------------------------------------------------
-echo "→ Closing open issues..."
-
-OPEN_ISSUES="$(
-  gh issue list \
-    --repo "$REPO" \
-    --state open \
-    --limit 200 \
-    --json number \
-    --jq '.[].number' || true
-)"
-
-if [[ -n "$OPEN_ISSUES" ]]; then
-  while IFS= read -r n; do
-    gh issue close "$n" \
-      --repo "$REPO" \
-      --comment "Sandbox reset — Phase 3.4 validation baseline" \
-      >/dev/null
-    echo "✓ Closed issue #$n"
-  done <<<"$OPEN_ISSUES"
+if [[ "${GITHUB_ACTIONS:-}" == "true" ]]; then
+  echo "ℹ️  Running in GitHub Actions — skipping sandbox reset"
 else
-  echo "✓ No open issues"
+  echo "🧹 Resetting sandbox..."
+  scripts/sandbox/reset-sandbox.sh "$TARGET_REPO" --reset-telemetry
 fi
 
 # ------------------------------------------------------------
-# 2) Delete phase-* and track/* labels
+# Install Task Assistant
 # ------------------------------------------------------------
 echo
-echo "→ Deleting phase-* and track/* labels..."
-
-LABELS="$(
-  gh label list \
-    --repo "$REPO" \
-    --limit 200 \
-    --json name |
-  jq -r '.[].name' |
-  grep -E '^(phase-|track/)' || true
-)"
-
-if [[ -n "$LABELS" ]]; then
-  while IFS= read -r lbl; do
-    gh label delete "$lbl" --repo "$REPO" --yes >/dev/null || true
-    echo "✓ Deleted label: $lbl"
-  done <<<"$LABELS"
-else
-  echo "✓ No phase/track labels to delete"
-fi
+echo "📦 Installing Task Assistant..."
+scripts/sandbox/install-task-assistant.sh "$TARGET_REPO"
 
 # ------------------------------------------------------------
-# 3) Delete all milestones
+# Prepare repo (idempotent, safe in CI)
 # ------------------------------------------------------------
 echo
-echo "→ Deleting milestones..."
-
-MILESTONES="$(
-  gh api "repos/$REPO/milestones?state=all&per_page=100" \
-    --paginate |
-  jq -r '.[].number' || true
-)"
-
-if [[ -n "$MILESTONES" ]]; then
-  while IFS= read -r m; do
-    gh api -X DELETE "repos/$REPO/milestones/$m" >/dev/null || true
-    echo "✓ Deleted milestone #$m"
-  done <<<"$MILESTONES"
-else
-  echo "✓ No milestones to delete"
-fi
+echo "🏗️ Preparing repo..."
+node scripts/prepare-repo.js "$TARGET_REPO"
 
 # ------------------------------------------------------------
-# 4) Optional telemetry reset (v2 layout)
-# ------------------------------------------------------------
-if [[ "$RESET_TELEMETRY" == "true" ]]; then
-  echo
-  echo "→ Resolving telemetry repo via infra..."
-
-  TELEMETRY_REPO="$(
-    GITHUB_TOKEN="$(gh auth token)" \
-    node scripts/infra/resolve-telemetry-repo.js "$REPO"
-  )"
-
-  if [[ -z "$TELEMETRY_REPO" ]]; then
-    echo "❌ Failed to resolve telemetry repo"
-    exit 1
-  fi
-
-  echo "✓ Telemetry repo resolved: $TELEMETRY_REPO"
-
-  BASE_PATH="telemetry/v1/repos/$REPO_NAME"
-
-  echo "→ Clearing telemetry at $BASE_PATH"
-
-  DATES="$(
-    gh api "repos/$TELEMETRY_REPO/contents/$BASE_PATH" \
-      --jq '.[] | select(.type=="dir") | .name' \
-      2>/dev/null || true
-  )"
-
-  if [[ -z "$DATES" ]]; then
-    echo "ℹ️ No telemetry found (already clean)"
-  else
-    for date in $DATES; do
-      CORR_DIRS="$(
-        gh api "repos/$TELEMETRY_REPO/contents/$BASE_PATH/$date" \
-          --jq '.[] | select(.type=="dir") | .name' || true
-      )"
-
-      for cid in $CORR_DIRS; do
-        gh api "repos/$TELEMETRY_REPO/contents/$BASE_PATH/$date/$cid" \
-          --jq '.[] | select(.type=="file") | [.path, .sha] | @tsv' |
-        while IFS=$'\t' read -r path sha; do
-          gh api -X DELETE "repos/$TELEMETRY_REPO/contents/$path" \
-            -f message="reset sandbox telemetry" \
-            -f sha="$sha" >/dev/null
-          echo "✓ Deleted $path"
-        done
-      done
-    done
-  fi
-
-  echo "✓ Telemetry reset complete"
-fi
-
-# ------------------------------------------------------------
-# Summary
+# Verification (self-test + validate)
 # ------------------------------------------------------------
 echo
-echo "✔ Sandbox reset complete"
-echo
-echo "Baseline state:"
-echo "✓ No open issues"
-echo "✓ No phase/track labels"
-echo "✓ No milestones"
+scripts/onboarding/verify-repo.sh "$TARGET_REPO"
 
-if [[ "$RESET_TELEMETRY" == "true" ]]; then
-  echo "✓ Telemetry cleared for $REPO_NAME"
-else
-  echo "ℹ️ Telemetry NOT reset (use --reset-telemetry)"
-fi
+# ------------------------------------------------------------
+# Enforcement validation
+# ------------------------------------------------------------
+echo
+scripts/validate/validate-enforcement.sh "$TARGET_REPO"
+
+# ------------------------------------------------------------
+# Collect telemetry evidence
+# ------------------------------------------------------------
+echo
+echo "📤 Collecting telemetry evidence..."
+scripts/telemetry/collect-test-evidence.sh \
+  "$TARGET_REPO" \
+  "$(date -u +%Y-%m-%d)" \
+  "$OUT_FILE"
 
 echo
+echo "✅ Phase 3.4 test $TEST_ID complete"
+echo "📄 Evidence saved to:"
+echo "   $OUT_FILE"
