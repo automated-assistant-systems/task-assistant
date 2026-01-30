@@ -168,7 +168,7 @@ if [[ "$RESET_TELEMETRY" == "true" ]]; then
 
   echo "✓ Telemetry repo resolved: $TELEMETRY_REPO"
 
-  BASE_PATH="telemetry/repos/$REPO_NAME"
+  BASE_PATH="telemetry/repos/v1/$REPO_NAME"
 
   echo "→ Clearing telemetry at $BASE_PATH"
 
