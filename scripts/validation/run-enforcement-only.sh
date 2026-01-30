@@ -19,6 +19,7 @@ if [[ -z "$TEST_ID" || -z "$TARGET_REPO" ]]; then
   exit 1
 fi
 
+TARGET_REPO="${TARGET_REPO:-}"
 if [[ -z "$TARGET_REPO" ]]; then
   echo "❌ TARGET_REPO is required"
   exit 1
