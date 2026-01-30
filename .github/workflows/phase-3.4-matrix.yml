@@ -12,9 +12,9 @@ on:
         type: choice
         options:
           - all
-          - test-3
-          - test-6
-          - test-7
+          - test-03-multi-repo
+          - test-06-multi-org
+          - test-07-multi-org+repo
 
 permissions:
   contents: write
@@ -55,7 +55,7 @@ jobs:
 
       - name: Run Test 3 validation
         env:
-          TEST_ID: test-3
+          TEST_ID: test-03-multi-org
         run: |
           scripts/validation/run-validation-test.sh \
             "$TEST_ID" \
@@ -90,7 +90,7 @@ jobs:
 
       - name: Run Test 6 validation
         env:
-          TEST_ID: test-6
+          TEST_ID: test-06-multi-repo
         run: |
           scripts/validation/run-validation-test.sh \
             "$TEST_ID" \
@@ -126,7 +126,7 @@ jobs:
 
       - name: Run Test 7 validation
         env:
-          TEST_ID: test-7
+          TEST_ID: test-07-multi-org+repo
         run: |
           scripts/validation/run-validation-test.sh \
             "$TEST_ID" \
