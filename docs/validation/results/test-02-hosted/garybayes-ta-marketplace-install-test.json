@@ -1,27 +1,27 @@
 {
-  "collected_at": "2026-01-30T01:44:12Z",
-  "target_repo": "automated-assistant-systems/task-assistant-sandbox",
-  "telemetry_repo": "automated-assistant-systems/task-assistant-telemetry",
+  "collected_at": "2026-01-30T01:55:31Z",
+  "target_repo": "garybayes/ta-marketplace-install-test",
+  "telemetry_repo": "garybayes/task-assistant-telemetry",
   "date": "2026-01-30",
   "correlation_ids": [
-    "21501357464-1",
-    "21501358274-1",
-    "21501359859-1",
-    "21501359862-1"
+    "21501578511-1",
+    "21501579081-1",
+    "21501580710-1",
+    "21501580782-1"
   ],
   "records": [
     {
       "schema_version": "1.0",
-      "generated_at": "2026-01-30T01:43:31Z",
-      "correlation_id": "21501357464-1",
+      "generated_at": "2026-01-30T01:54:56Z",
+      "correlation_id": "21501578511-1",
       "source": {
         "workflow": "engine-preflight",
         "job": "preflight"
       },
       "entity": {
         "type": "repository",
-        "owner": "automated-assistant-systems",
-        "repo": "task-assistant-sandbox"
+        "owner": "garybayes",
+        "repo": "ta-marketplace-install-test"
       },
       "event": {
         "category": "preflight",
@@ -31,11 +31,11 @@
       "details": {
         "ok": true,
         "summary": "Preflight checks passed",
-        "target_repo": "automated-assistant-systems/task-assistant-sandbox",
+        "target_repo": "garybayes/ta-marketplace-install-test",
         "infra": {
-          "orgOwner": "automated-assistant-systems",
-          "targetRepoName": "task-assistant-sandbox",
-          "telemetryRepo": "automated-assistant-systems/task-assistant-telemetry",
+          "orgOwner": "garybayes",
+          "targetRepoName": "ta-marketplace-install-test",
+          "telemetryRepo": "garybayes/task-assistant-telemetry",
           "repoContext": "sandbox",
           "repoState": "enabled",
           "dashboard": {
@@ -52,16 +52,16 @@
     },
     {
       "schema_version": "1.0",
-      "generated_at": "2026-01-30T01:43:49Z",
-      "correlation_id": "21501357464-1",
+      "generated_at": "2026-01-30T01:55:08Z",
+      "correlation_id": "21501578511-1",
       "source": {
         "workflow": "engine-self-test",
         "job": "self-test"
       },
       "entity": {
         "type": "repository",
-        "owner": "automated-assistant-systems",
-        "repo": "task-assistant-sandbox"
+        "owner": "garybayes",
+        "repo": "ta-marketplace-install-test"
       },
       "event": {
         "category": "self-test",
@@ -71,7 +71,7 @@
       "details": {
         "tool": "prepare-repo",
         "version": "1.0",
-        "repo": "automated-assistant-systems/task-assistant-sandbox",
+        "repo": "garybayes/ta-marketplace-install-test",
         "mode": "dry-run",
         "ok": true,
         "summary": "Repository is compliant",
@@ -146,16 +146,16 @@
     },
     {
       "schema_version": "1.0",
-      "generated_at": "2026-01-30T01:43:33Z",
-      "correlation_id": "21501358274-1",
+      "generated_at": "2026-01-30T01:54:59Z",
+      "correlation_id": "21501579081-1",
       "source": {
         "workflow": "engine-preflight",
         "job": "preflight"
       },
       "entity": {
         "type": "repository",
-        "owner": "automated-assistant-systems",
-        "repo": "task-assistant-sandbox"
+        "owner": "garybayes",
+        "repo": "ta-marketplace-install-test"
       },
       "event": {
         "category": "preflight",
@@ -165,11 +165,11 @@
       "details": {
         "ok": true,
         "summary": "Preflight checks passed",
-        "target_repo": "automated-assistant-systems/task-assistant-sandbox",
+        "target_repo": "garybayes/ta-marketplace-install-test",
         "infra": {
-          "orgOwner": "automated-assistant-systems",
-          "targetRepoName": "task-assistant-sandbox",
-          "telemetryRepo": "automated-assistant-systems/task-assistant-telemetry",
+          "orgOwner": "garybayes",
+          "targetRepoName": "ta-marketplace-install-test",
+          "telemetryRepo": "garybayes/task-assistant-telemetry",
           "repoContext": "sandbox",
           "repoState": "enabled",
           "dashboard": {
@@ -186,16 +186,16 @@
     },
     {
       "schema_version": "1.0",
-      "generated_at": "2026-01-30T01:43:50Z",
-      "correlation_id": "21501358274-1",
+      "generated_at": "2026-01-30T01:55:13Z",
+      "correlation_id": "21501579081-1",
       "source": {
         "workflow": "engine-validate",
         "job": "validate"
       },
       "entity": {
         "type": "repository",
-        "owner": "automated-assistant-systems",
-        "repo": "task-assistant-sandbox"
+        "owner": "garybayes",
+        "repo": "ta-marketplace-install-test"
       },
       "event": {
         "category": "validate",
@@ -217,16 +217,16 @@
     },
     {
       "schema_version": "1.0",
-      "generated_at": "2026-01-30T01:43:53Z",
-      "correlation_id": "21501359859-1",
+      "generated_at": "2026-01-30T01:55:18Z",
+      "correlation_id": "21501580710-1",
       "source": {
         "workflow": "engine-enforce",
         "job": "enforce"
       },
       "entity": {
         "type": "repository",
-        "owner": "automated-assistant-systems",
-        "repo": "task-assistant-sandbox"
+        "owner": "garybayes",
+        "repo": "ta-marketplace-install-test"
       },
       "event": {
         "category": "enforce",
@@ -236,9 +236,9 @@
       "details": {
         "tool": "issue-events",
         "version": "1.1",
-        "repo": "automated-assistant-systems/task-assistant-sandbox",
+        "repo": "garybayes/ta-marketplace-install-test",
         "issue": {
-          "number": 101
+          "number": 2
         },
         "event": {
           "type": "labeled"
@@ -320,16 +320,16 @@
     },
     {
       "schema_version": "1.0",
-      "generated_at": "2026-01-30T01:43:35Z",
-      "correlation_id": "21501359859-1",
+      "generated_at": "2026-01-30T01:55:00Z",
+      "correlation_id": "21501580710-1",
       "source": {
         "workflow": "engine-preflight",
         "job": "preflight"
       },
       "entity": {
         "type": "repository",
-        "owner": "automated-assistant-systems",
-        "repo": "task-assistant-sandbox"
+        "owner": "garybayes",
+        "repo": "ta-marketplace-install-test"
       },
       "event": {
         "category": "preflight",
@@ -339,11 +339,11 @@
       "details": {
         "ok": true,
         "summary": "Preflight checks passed",
-        "target_repo": "automated-assistant-systems/task-assistant-sandbox",
+        "target_repo": "garybayes/ta-marketplace-install-test",
         "infra": {
-          "orgOwner": "automated-assistant-systems",
-          "targetRepoName": "task-assistant-sandbox",
-          "telemetryRepo": "automated-assistant-systems/task-assistant-telemetry",
+          "orgOwner": "garybayes",
+          "targetRepoName": "ta-marketplace-install-test",
+          "telemetryRepo": "garybayes/task-assistant-telemetry",
           "repoContext": "sandbox",
           "repoState": "enabled",
           "dashboard": {
@@ -360,16 +360,16 @@
     },
     {
       "schema_version": "1.0",
-      "generated_at": "2026-01-30T01:43:39Z",
-      "correlation_id": "21501359862-1",
+      "generated_at": "2026-01-30T01:55:04Z",
+      "correlation_id": "21501580782-1",
       "source": {
         "workflow": "engine-preflight",
         "job": "preflight"
       },
       "entity": {
         "type": "repository",
-        "owner": "automated-assistant-systems",
-        "repo": "task-assistant-sandbox"
+        "owner": "garybayes",
+        "repo": "ta-marketplace-install-test"
       },
       "event": {
         "category": "preflight",
@@ -379,11 +379,11 @@
       "details": {
         "ok": true,
         "summary": "Preflight checks passed",
-        "target_repo": "automated-assistant-systems/task-assistant-sandbox",
+        "target_repo": "garybayes/ta-marketplace-install-test",
         "infra": {
-          "orgOwner": "automated-assistant-systems",
-          "targetRepoName": "task-assistant-sandbox",
-          "telemetryRepo": "automated-assistant-systems/task-assistant-telemetry",
+          "orgOwner": "garybayes",
+          "targetRepoName": "ta-marketplace-install-test",
+          "telemetryRepo": "garybayes/task-assistant-telemetry",
           "repoContext": "sandbox",
           "repoState": "enabled",
           "dashboard": {
