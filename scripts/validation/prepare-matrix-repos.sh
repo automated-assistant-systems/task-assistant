@@ -67,11 +67,11 @@ for repo in "${REPOS[@]}"; do
 
   echo
   echo "→ Running self-test (dispatch & wiring check)"
-  scripts/dispatch/run-self-test.sh "$repo"
+  TARGET_REPO="$repo" scripts/dispatch/run-self-test.sh "$repo"
 
   echo
   echo "→ Running config validation"
-  scripts/dispatch/run-validate.sh "$repo"
+  TARGET_REPO="$repo" scripts/dispatch/run-validate.sh "$repo"
 
   echo
   echo "✓ $repo ready for matrix enforcement"
