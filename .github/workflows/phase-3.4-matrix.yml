@@ -12,8 +12,8 @@ on:
         type: choice
         options:
           - all
-          - test-03-multi-repo
-          - test-06-multi-org
+          - test-03-multi-org
+          - test-06-multi-repo
           - test-07-multi-org+repo
 
 permissions:
@@ -30,7 +30,7 @@ jobs:
   # Test 3 — Multiple Orgs (Concurrent)
   # ─────────────────────────────────────────────
   test-3-multi-org:
-    if: ${{ github.event.inputs.test_set == 'all' || github.event.inputs.test_set == 'test-03-multi-repo' }}
+    if: ${{ github.event.inputs.test_set == 'all' || github.event.inputs.test_set == 'test-03-multi-org' }}
     name: "Test 3 • Multi-org concurrency"
     runs-on: ubuntu-latest
 
@@ -71,7 +71,7 @@ jobs:
   # Test 6 — Multiple Repos, One Org (Concurrent)
   # ─────────────────────────────────────────────
   test-6-multi-repo-one-org:
-    if: ${{ github.event.inputs.test_set == 'all' || github.event.inputs.test_set == 'test-06-multi-org' }}
+    if: ${{ github.event.inputs.test_set == 'all' || github.event.inputs.test_set == 'test-06-multi-repo' }}
     name: "Test 6 • Multi-repo single-org concurrency"
     runs-on: ubuntu-latest
 
