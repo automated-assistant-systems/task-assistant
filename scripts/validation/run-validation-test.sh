@@ -2,41 +2,24 @@
 set -euo pipefail
 
 # ============================================================
-# Phase 3.4 — Validation Test Wrapper (Authoritative)
-#
-# Executes the full Phase 3.4 validation matrix:
-#   prepare → self-test → validate → enforce → validate → evidence
+# Task Assistant — Phase 3.4 Validation Runner
 #
 # Usage:
-#   scripts/validation/run-validation-test.sh <test-id> <owner/repo>
+#   run-validation-test.sh <test-id> <owner/repo>
 # ============================================================
-# ------------------------------------------------------------
-# Auth check (stored gh auth OR env-based GITHUB_TOKEN)
-# ------------------------------------------------------------
-# Operator scripts require either:
-#   - stored gh auth login, or
-#   - GITHUB_TOKEN exported
-#
 
 TEST_ID="${1:-}"
 TARGET_REPO="${2:-}"
 
 if [[ -z "$TEST_ID" || -z "$TARGET_REPO" ]]; then
-  echo "Usage: $0 <test-id> <owner/repo>"
+  echo "Usage: run-validation-test.sh <test-id> <owner/repo>"
   exit 1
 fi
 
-OWNER="${TARGET_REPO%%/*}"
-REPO="${TARGET_REPO##*/}"
-
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-RESULTS_DIR="$ROOT_DIR/docs/validation/results/$TEST_ID"
-OUT_FILE="$RESULTS_DIR/${OWNER}-${REPO}.json"
-
-VERIFY_REPO="$ROOT_DIR/scripts/onboarding/verify-repo.sh"
-RUN_ENFORCEMENT="$ROOT_DIR/scripts/validate/validate-enforcement.sh"
-
+RESULTS_DIR="docs/validation/results/$TEST_ID"
 mkdir -p "$RESULTS_DIR"
+
+OUT_FILE="$RESULTS_DIR/${TARGET_REPO//\//-}.json"
 
 echo
 echo "🧪 Phase 3.4 Validation Matrix"
@@ -45,61 +28,33 @@ echo "Target repo: $TARGET_REPO"
 echo "Output:      $OUT_FILE"
 echo
 
-# ------------------------------------------------------------
-# 1. Reset sandbox (including telemetry)
-# ------------------------------------------------------------
-echo "🧹 Resetting sandbox..."
-"$ROOT_DIR/scripts/sandbox/reset-sandbox.sh" \
-  "$TARGET_REPO" \
-  --reset-telemetry
+# Reset sandbox (operator-only; skipped in CI)
+if [[ "${GITHUB_ACTIONS:-}" == "true" ]]; then
+  echo "ℹ️  Running in GitHub Actions — skipping sandbox reset"
+else
+  echo "🧹 Resetting sandbox..."
+  scripts/sandbox/reset-sandbox.sh "$TARGET_REPO" --reset-telemetry
+fi
 
-# ------------------------------------------------------------
-# 2. Install Task Assistant
-# ------------------------------------------------------------
 echo
 echo "📦 Installing Task Assistant..."
-"$ROOT_DIR/scripts/sandbox/install-task-assistant.sh" \
-  "$TARGET_REPO"
+scripts/sandbox/install-task-assistant.sh "$TARGET_REPO"
 
-# ------------------------------------------------------------
-# 3. Prepare repo
-# ------------------------------------------------------------
 echo
 echo "🏗️ Preparing repo..."
-node "$ROOT_DIR/scripts/prepare-repo.js" "$TARGET_REPO"
+node scripts/prepare-repo.js "$TARGET_REPO"
 
-# ------------------------------------------------------------
-# 4. Post-prepare integrity verification
-# ------------------------------------------------------------
 echo
-echo "🔍 Verifying integrity (post-prepare)..."
-"$VERIFY_REPO" "$TARGET_REPO" prepare
+scripts/onboarding/verify-repo.sh "$TARGET_REPO"
 
-# ------------------------------------------------------------
-# 5. Enforcement validation
-# ------------------------------------------------------------
 echo
-echo "⚖️ Running enforcement validation..."
-GITHUB_REPOSITORY="$TARGET_REPO" "$RUN_ENFORCEMENT"
+scripts/validate/validate-enforcement.sh "$TARGET_REPO"
 
-# ------------------------------------------------------------
-# 6. Post-enforcement validation
-# ------------------------------------------------------------
-echo
-echo "🔍 Validating repo (post-enforcement)..."
-"$VERIFY_REPO" "$TARGET_REPO" enforce
-
-# ------------------------------------------------------------
-# 7. Collect telemetry evidence
-# ------------------------------------------------------------
 echo
 echo "📤 Collecting telemetry evidence..."
-
-DATE="$(date -u +%Y-%m-%d)"
-
-"$ROOT_DIR/scripts/telemetry/collect-test-evidence.sh" \
+scripts/telemetry/collect-test-evidence.sh \
   "$TARGET_REPO" \
-  "$DATE" \
+  "$(date -u +%Y-%m-%d)" \
   "$OUT_FILE"
 
 echo
