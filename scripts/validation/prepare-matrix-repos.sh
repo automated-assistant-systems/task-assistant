@@ -70,7 +70,7 @@ for repo in "${REPOS[@]}"; do
   TARGET_REPO="$repo" scripts/dispatch/run-self-test.sh "$repo"
 
   echo
-  echo "→ Running config validation"
+  echo "→ Running repo validation"
   TARGET_REPO="$repo" scripts/dispatch/run-validate.sh "$repo"
 
   echo
@@ -80,12 +80,3 @@ done
 
 echo "✓ All required repos prepared and verified"
 echo
-echo "🚀 Triggering Phase 3.4 matrix workflow"
-echo
-
-gh workflow run phase-3.4-matrix.yml \
-  --repo automated-assistant-systems/task-assistant \
-  -f test_set="$TEST_SET"
-
-echo
-echo "✓ Matrix workflow triggered"

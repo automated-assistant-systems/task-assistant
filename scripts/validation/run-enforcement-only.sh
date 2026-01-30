@@ -44,6 +44,18 @@ echo "⚖️ Running enforcement validation..."
 TARGET_REPO="$TARGET_REPO" scripts/validate/validate-enforcement.sh
 
 # ------------------------------------------------------------
+# Post-enforcement validation (must remain non-mutating)
+# ------------------------------------------------------------
+echo
+echo "🔍 Validating repo state post-enforcement..."
+
+echo
+echo "→ Running config validation"
+TARGET_REPO="$repo" scripts/dispatch/run-validate.sh "$repo"
+
+echo "✓ Repo remains valid after enforcement"
+
+# ------------------------------------------------------------
 # Collect telemetry evidence
 # ------------------------------------------------------------
 echo
