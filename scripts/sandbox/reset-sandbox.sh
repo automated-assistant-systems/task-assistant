@@ -34,9 +34,17 @@ fi
 # ------------------------------------------------------------
 # Guardrail: sandbox-only
 # ------------------------------------------------------------
-if [[ ! "$REPO" =~ sandbox ]]; then
+INFRA_JSON="$(
+  GITHUB_TOKEN="$(gh auth token)" \
+  node scripts/infra/resolve-repo-context.js "$REPO"
+)"
+
+CONTEXT="$(jq -r '.context' <<<"$INFRA_JSON")"
+STATE="$(jq -r '.state' <<<"$INFRA_JSON")"
+
+if [[ "$CONTEXT" != "sandbox" || "$STATE" != "enabled" ]]; then
   echo "❌ Refusing to reset non-sandbox repo: $REPO"
-  echo "   This script may only be used on sandbox repos."
+  echo "   infra context=$CONTEXT state=$STATE"
   exit 1
 fi
 

@@ -1,19 +1,44 @@
 {
-  "collected_at": "2026-01-27T23:54:44Z",
+  "collected_at": "2026-01-29T23:51:07Z",
   "target_repo": "automated-assistant-systems/task-assistant-sandbox",
   "telemetry_repo": "automated-assistant-systems/task-assistant-telemetry",
-  "date": "2026-01-27",
+  "date": "2026-01-29",
   "correlation_ids": [
-    "21418960990-1",
-    "21418962060-1",
-    "21418963992-1",
-    "21418964096-1"
+    "21498953925-1",
+    "21498954661-1",
+    "21498956235-1",
+    "21498956284-1"
   ],
   "records": [
     {
       "schema_version": "1.0",
-      "generated_at": "2026-01-27T23:54:08Z",
-      "correlation_id": "21418960990-1",
+      "generated_at": "2026-01-29T23:50:59Z",
+      "correlation_id": "21498953925-1",
+      "source": {
+        "workflow": "engine-dashboard",
+        "job": "self-test"
+      },
+      "entity": {
+        "type": "repository",
+        "owner": "automated-assistant-systems",
+        "repo": "task-assistant-sandbox"
+      },
+      "event": {
+        "category": "dashboard",
+        "action": "success",
+        "reason": null
+      },
+      "details": {
+        "ok": true,
+        "engine": "dashboard",
+        "summary": "Dashboard self-test passed",
+        "repo": "task-assistant-sandbox"
+      }
+    },
+    {
+      "schema_version": "1.0",
+      "generated_at": "2026-01-29T23:50:29Z",
+      "correlation_id": "21498953925-1",
       "source": {
         "workflow": "engine-preflight",
         "job": "preflight"
@@ -45,15 +70,15 @@
           "warnings": [],
           "reasons": [],
           "versionUsed": "v2",
-          "registrySha": "6e9fe1100d596250251ca7593c2dc1cecac496f4",
+          "registrySha": "dcda9609c00b476371ba4bc647c58c0498857227",
           "outcomeCode": "INFRA_OK"
         }
       }
     },
     {
       "schema_version": "1.0",
-      "generated_at": "2026-01-27T23:54:26Z",
-      "correlation_id": "21418960990-1",
+      "generated_at": "2026-01-29T23:50:43Z",
+      "correlation_id": "21498953925-1",
       "source": {
         "workflow": "engine-self-test",
         "job": "self-test"
@@ -146,8 +171,8 @@
     },
     {
       "schema_version": "1.0",
-      "generated_at": "2026-01-27T23:54:09Z",
-      "correlation_id": "21418962060-1",
+      "generated_at": "2026-01-29T23:50:31Z",
+      "correlation_id": "21498954661-1",
       "source": {
         "workflow": "engine-preflight",
         "job": "preflight"
@@ -179,15 +204,15 @@
           "warnings": [],
           "reasons": [],
           "versionUsed": "v2",
-          "registrySha": "6e9fe1100d596250251ca7593c2dc1cecac496f4",
+          "registrySha": "dcda9609c00b476371ba4bc647c58c0498857227",
           "outcomeCode": "INFRA_OK"
         }
       }
     },
     {
       "schema_version": "1.0",
-      "generated_at": "2026-01-27T23:54:23Z",
-      "correlation_id": "21418962060-1",
+      "generated_at": "2026-01-29T23:50:46Z",
+      "correlation_id": "21498954661-1",
       "source": {
         "workflow": "engine-validate",
         "job": "validate"
@@ -217,48 +242,8 @@
     },
     {
       "schema_version": "1.0",
-      "generated_at": "2026-01-27T23:54:15Z",
-      "correlation_id": "21418963992-1",
-      "source": {
-        "workflow": "engine-preflight",
-        "job": "preflight"
-      },
-      "entity": {
-        "type": "repository",
-        "owner": "automated-assistant-systems",
-        "repo": "task-assistant-sandbox"
-      },
-      "event": {
-        "category": "preflight",
-        "action": "success",
-        "reason": null
-      },
-      "details": {
-        "ok": true,
-        "summary": "Preflight checks passed",
-        "target_repo": "automated-assistant-systems/task-assistant-sandbox",
-        "infra": {
-          "orgOwner": "automated-assistant-systems",
-          "targetRepoName": "task-assistant-sandbox",
-          "telemetryRepo": "automated-assistant-systems/task-assistant-telemetry",
-          "repoContext": "sandbox",
-          "repoState": "enabled",
-          "dashboard": {
-            "enabled": true,
-            "public": false
-          },
-          "warnings": [],
-          "reasons": [],
-          "versionUsed": "v2",
-          "registrySha": "6e9fe1100d596250251ca7593c2dc1cecac496f4",
-          "outcomeCode": "INFRA_OK"
-        }
-      }
-    },
-    {
-      "schema_version": "1.0",
-      "generated_at": "2026-01-27T23:54:30Z",
-      "correlation_id": "21418964096-1",
+      "generated_at": "2026-01-29T23:50:53Z",
+      "correlation_id": "21498956235-1",
       "source": {
         "workflow": "engine-enforce",
         "job": "enforce"
@@ -278,7 +263,7 @@
         "version": "1.1",
         "repo": "automated-assistant-systems/task-assistant-sandbox",
         "issue": {
-          "number": 99
+          "number": 100
         },
         "event": {
           "type": "labeled"
@@ -360,8 +345,8 @@
     },
     {
       "schema_version": "1.0",
-      "generated_at": "2026-01-27T23:54:11Z",
-      "correlation_id": "21418964096-1",
+      "generated_at": "2026-01-29T23:50:33Z",
+      "correlation_id": "21498956235-1",
       "source": {
         "workflow": "engine-preflight",
         "job": "preflight"
@@ -393,7 +378,47 @@
           "warnings": [],
           "reasons": [],
           "versionUsed": "v2",
-          "registrySha": "6e9fe1100d596250251ca7593c2dc1cecac496f4",
+          "registrySha": "dcda9609c00b476371ba4bc647c58c0498857227",
+          "outcomeCode": "INFRA_OK"
+        }
+      }
+    },
+    {
+      "schema_version": "1.0",
+      "generated_at": "2026-01-29T23:50:37Z",
+      "correlation_id": "21498956284-1",
+      "source": {
+        "workflow": "engine-preflight",
+        "job": "preflight"
+      },
+      "entity": {
+        "type": "repository",
+        "owner": "automated-assistant-systems",
+        "repo": "task-assistant-sandbox"
+      },
+      "event": {
+        "category": "preflight",
+        "action": "success",
+        "reason": null
+      },
+      "details": {
+        "ok": true,
+        "summary": "Preflight checks passed",
+        "target_repo": "automated-assistant-systems/task-assistant-sandbox",
+        "infra": {
+          "orgOwner": "automated-assistant-systems",
+          "targetRepoName": "task-assistant-sandbox",
+          "telemetryRepo": "automated-assistant-systems/task-assistant-telemetry",
+          "repoContext": "sandbox",
+          "repoState": "enabled",
+          "dashboard": {
+            "enabled": true,
+            "public": false
+          },
+          "warnings": [],
+          "reasons": [],
+          "versionUsed": "v2",
+          "registrySha": "dcda9609c00b476371ba4bc647c58c0498857227",
           "outcomeCode": "INFRA_OK"
         }
       }
