@@ -180,15 +180,21 @@ if [[ "$RESET_TELEMETRY" == "true" ]]; then
       fi
 
       for cid in $CORR_DIRS; do
-        gh api "repos/$TELEMETRY_REPO/contents/$BASE_PATH/$date/$cid" \
-          --jq '.[] | select(.type=="file") | [.path, .sha] | @tsv' 2>/dev/null |
+        FILES="$(
+          gh api "repos/$TELEMETRY_REPO/contents/$BASE_PATH/$date/$cid" \
+            --jq '.[] | select(.type=="file") | [.path, .sha] | @tsv' \
+            2>/dev/null || true
+        )"
+
+        [[ -z "$FILES" ]] && continue
+
         while IFS=$'\t' read -r path sha; do
           [[ -n "$path" && -n "$sha" ]] || continue
           gh api -X DELETE "repos/$TELEMETRY_REPO/contents/$path" \
             -f message="reset sandbox telemetry" \
             -f sha="$sha" >/dev/null || true
           echo "✓ Deleted $path"
-        done
+        done <<<"$FILES"
       done
     done
   fi

@@ -2,11 +2,11 @@
 set -euo pipefail
 
 # ============================================================
-# Phase 3.4 — Operator Matrix Orchestrator (Test-Aware)
+# Phase 3.4 — Operator Matrix Orchestrator
 #
 # • Resets ONLY repos used by the selected test
-# • Assumes sandbox repos already exist
-# • Never runs inside CI
+# • Operator-only
+# • Triggers matrix workflow after reset
 # ============================================================
 
 if [[ "${GITHUB_ACTIONS:-}" == "true" ]]; then
@@ -14,15 +14,9 @@ if [[ "${GITHUB_ACTIONS:-}" == "true" ]]; then
   exit 1
 fi
 
-TEST_SET="${1:-all}"
+TEST_SET="${1:-}"
 
 case "$TEST_SET" in
-  all)
-    REPOS=(
-      automated-assistant-systems/task-assistant-sandbox
-      garybayes/ta-marketplace-install-test
-    )
-    ;;
   test-03-multi-org)
     REPOS=(
       automated-assistant-systems/task-assistant-sandbox
@@ -43,7 +37,7 @@ case "$TEST_SET" in
     )
     ;;
   *)
-    echo "Usage: run-matrix-tests.sh [all|test-03-multi-org|test-06-multi-repo|test-07-multi-org+repo]"
+    echo "Usage: run-matrix-tests.sh [test-03-multi-org|test-06-multi-repo|test-07-multi-org+repo]"
     exit 1
     ;;
 esac
@@ -55,7 +49,10 @@ echo
 
 for repo in "${REPOS[@]}"; do
   echo "→ Resetting $repo"
-  scripts/sandbox/reset-sandbox.sh "$repo" --reset-telemetry
+  if ! scripts/sandbox/reset-sandbox.sh "$repo" --reset-telemetry; then
+    echo "❌ Reset failed for $repo"
+    exit 1
+  fi
 done
 
 echo
@@ -63,12 +60,8 @@ echo "✓ Required sandboxes reset"
 echo
 
 echo "🚀 Triggering Phase 3.4 matrix workflow"
-echo
-
 gh workflow run phase-3.4-matrix.yml \
   --repo automated-assistant-systems/task-assistant \
   -f test_set="$TEST_SET"
 
-echo
 echo "✓ Matrix workflow triggered"
-
