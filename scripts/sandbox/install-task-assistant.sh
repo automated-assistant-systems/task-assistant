@@ -221,5 +221,5 @@ fi
 
 echo
 echo "✔ Install complete"
-echo "⚠️ Repo preparation \(labels & milestones) is required before workflows will fully pass."
+echo "⚠️ Repo preparation  (labels & milestones) is required before workflows will fully pass."
 echo
