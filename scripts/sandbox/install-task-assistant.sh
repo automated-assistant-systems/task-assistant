@@ -138,6 +138,9 @@ fi
 
 # ------------------------------------------------------------
 # Dispatch currency check
+# NOTE:
+# Dispatch currency checks are advisory only.
+# Failure here must NOT block install.
 # ------------------------------------------------------------
 echo
 echo "🧪 Verifying dispatch currency…"
@@ -149,21 +152,24 @@ REMOTE_CONTENT="$(
     --jq '.content' 2>/dev/null || true
 )"
 
-if [[ -z "$REMOTE_CONTENT" ]]; then
-  DISPATCH_STATUS="missing"
-else
-  REMOTE_HASH="$(
+REMOTE_HASH=""
+if [[ -n "$REMOTE_CONTENT" ]]; then
+  if ! REMOTE_HASH="$(
     printf '%s' "$REMOTE_CONTENT" \
-    | base64 --decode \
-    | sha256sum \
-    | awk '{print $1}'
-  )"
-
-  if [[ "$REMOTE_HASH" == "$CANONICAL_HASH" ]]; then
-    DISPATCH_STATUS="up-to-date"
-  else
-    DISPATCH_STATUS="out-of-date"
+      | base64 --decode 2>/dev/null \
+      | sha256sum \
+      | awk '{print $1}'
+  )"; then
+    echo "⚠️  Unable to decode remote dispatch workflow"
+    echo "   Treating as missing"
+    REMOTE_HASH=""
   fi
+fi
+
+if [[ "$REMOTE_HASH" == "$CANONICAL_HASH" ]]; then
+  DISPATCH_STATUS="up-to-date"
+else
+  DISPATCH_STATUS="out-of-date"
 fi
 
 echo "  Dispatch status: $DISPATCH_STATUS"

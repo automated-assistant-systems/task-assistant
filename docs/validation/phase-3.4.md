@@ -219,18 +219,22 @@ This will perform the following:
 	- docs/validation/results/test-03-multi-org/*
 
 ### 4. Test install process and missing setup failures
-    a) Create garybayes/ta-sandbox
-	Install Task Assistant (dispatch + config only)
+    a) Create garybayes/ta-sandbox using default settings:
+	- Repository Visibility: Public
+	- README: Off
+	- .gitignore: None
+	- License: None
+       Install Task Assistant (dispatch + config only)
 	  scripts/sandbox/install-task-assistant.sh \
 	    garybayes/ta-sandbox
-	Collect evidence
+       Collect evidence
 	  scripts/validation/capture-test-04-evidence.sh \
 	    garybayes/ta-sandbox step-a-install-only
 
     b) Trigger self-test on garybayes/ta-sandbox (not registered)
 	TARGET_REPO=garybayes/ta-sandbox \
 	  scripts/dispatch/run-self-test.sh
-      Collect evidence
+       Collect evidence
 	scripts/validation/capture-test-04-evidence.sh \
 	  garybayes/ta-sandbox step-b-self-test-unregistered
 	Expected:
