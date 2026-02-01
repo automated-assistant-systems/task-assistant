@@ -2,13 +2,12 @@
 set -euo pipefail
 
 # ============================================================
-# Phase 3.4 — Operator Repo Prep + Matrix Trigger
+# Phase 3.4 — Operator Repo Prep
 #
 # • Operator-only (never CI)
 # • Performs all mutation BEFORE concurrency
 # • Resets ONLY repos used by the selected test
 # • Verifies install + config (self-test + validate)
-# • Triggers matrix workflow after prep
 # ============================================================
 
 if [[ "${GITHUB_ACTIONS:-}" == "true" ]]; then

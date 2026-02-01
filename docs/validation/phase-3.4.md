@@ -1,739 +1,489 @@
 # Phase 3.4 Validation Plan
 ## Objective
-- validate full functionality
-- validate full functionality in host repo
+The Phase 3.4 Validation Plan is designed to validate all code paths and edge cases.
+Consequently, the tests will not only validate successful outcomes, but also verify correct responses to incorrect actions and missing conditions.
+The following is a list of specific activities covered by the tests:
+- validate full Task Assistant execution lifecycle
+- validate full Task Assistant execution lifecycle in host repo
 - validate multiple orgs running concurrently
 - validate multiple repos running concurrently
 - validate multiple orgs & multiple repos running concurrently
-- full install process
-- missing app
-- missing secrets
-- missing registration
-- missing app on telemetry
-- missing labels and milestones
-- v2 disabled repo
+- validate full install process
+- test missing app
+- test missing secrets
+- test missing registration
+- test missing app on telemetry
+- test missing labels and milestones
+- test v2 disabled repo
 - collect telemetry validation evidence
 
-Concurrent validation means independent execution contexts with overlapping time windows; no shared state or serialization is assumed.
+Concurrent validation means independent execution contexts with overlapping
+time windows; no shared state, locking, or serialization is assumed.
 
 ## Repos to Test Against
-- automated-assistant-systems/task-assistant-sandbox (v2 registry)
-- garybayes/ta-marketplace-install-test (v1 registry)
-- garybayes/ta-sandbox (to be created - will be v2 registry)
+- automated-assistant-systems/task-assistant-sandbox
+- garybayes/ta-marketplace-install-test
+- garybayes/ta-sandbox (to be created)
 
 ## Standard Test Scripts
-### Reset
-scripts/sandbox/reset-sandbox.sh owner/repo --reset-telemetry
+### Reset Sandbox
+Resets a sandbox repo to a known baseline:
+  • Closes open issues (history preserved)
+  • Deletes phase-* and track/* labels
+  • Deletes all milestones
+Optional:
+  • --reset-telemetry → deletes repo-scoped telemetry directory
+scripts/sandbox/reset-sandbox.sh <owner/repo> --reset-telemetry
 
-Note: --reset-telemetry deletes repo-scoped telemetry directories in the resolved telemetry repo. This flag is required for deterministic validation.
-
-### Install TA
-scripts/sandbox/install-task-assistant.sh owner/repo
+### Install Task Assistant
+Installs ONLY:
+  • .github/task-assistant.yml
+  • .github/workflows/task-assistant-dispatch.yml
+scripts/sandbox/install-task-assistant.sh <owner/repo>
 
 ### Prepare repo (required)
+Task Assistant — Repository Preparation Script will:
+ - Core config errors: FAIL
+ - Enforcement config errors: WARN
+ - Repo hygiene remains authoritative
+ - No telemetry emitted here
 GH_TOKEN=ghp_xxx \
   node scripts/prepare-repo.js \
-  owner/repo
+  <owner/repo>
 
-### Validate
-GITHUB_TOKEN=ghp_xxx \
-  GITHUB_REPOSITORY=owner/repo \
-  scripts/validate/validate-workflows.sh
+### Verify repository integrity after mutation
+This script is an operator convenience wrapper.
+It triggers authoritative engines via dispatch:
+  1. self-test
+  2. validate
+Engines generate correlation IDs internally.
+This script never invokes engines directly.
+scripts/onboarding/verify-repo.sh <owner>/<repo>
 
 ### Run Self-Test
-TARGET_REPO=owner/repo scripts/dispatch/run-self-test.sh
+Triggers the Task-Assistant Self-Test engine via dispatch.
+This verifies end-to-end functionality of the repo.
+TARGET_REPO=<owner/repo> scripts/dispatch/run-self-test.sh
 
 ### Run Validate
-TARGET_REPO=owner/repo scripts/dispatch/run-validate.sh
+Triggers the Task-Assistant Validate engine via dispatch.
+This validates repo hygiene (labels, milestones, enforcement invariants).
+TARGET_REPO=<owner/repo> scripts/dispatch/run-validate.sh
 
-### Run Enforce
-
+### Validate Enforcement
+Prove that invalid issue state is automatically corrected via event-driven enforcement.
+Notes:
+  • No correlation IDs are generated or passed
+  • Telemetry is verified separately via evidence collection
+scripts/validate/validate-enforcement.sh <owner/repo>
 
 ### Collect validation evidence
-GITHUB_TOKEN=ghp_xxx \
-node scripts/infra/resolve-telemetry-repo.js owner/repo
+Collect telemetry evidence for permanent verification of successful completion of tests
+scripts/telemetry/collect-test-evidence.sh \
+  <owner/repo> \
+  "$(date -u +%Y-%m-%d)" \
+  <test-id>
 
-Validation evidence is captured per-repo under docs/validation/results/.
-
-### Prune telemetry
-TELEMETRY_REPO=owner/task-assistant-telemetry \
-  scripts/telemetry/prune-telemetry.sh repo
+Validation evidence is captured per-repo under docs/validation/results/
 
 ### Test Wrapper
-GH_TOKEN=ghp_xxx \
+This script calls all of the above scripts as a one-step process for testing a repo.
 scripts/validation/run-validation-test.sh \
   <test-id> \
   <owner/repo>
 
+### Operator Repo Prep
+This script prepares multiple repos in preparation for concurrent enforcement validation
+  • Operator-only (never CI)
+  • Performs all mutation BEFORE concurrency
+  • Resets ONLY repos used by the selected test (reset-sandbox.sh)
+  • Install app + config (install-task-assistant.sh)
+  • Install labels + milestones (prepare-repo.sh)
+  • Verifies install + config (self-test + validate) (verify-repo.sh)
+scripts/validation/prepare-matrix-repos.sh <test-id>
+
+### Enforcement-Only Validation
+This script is run concurrently in separate command-lines, one per repo
+  • Safe in CI and locally
+  • No resets
+  • No installs
+  • No repo preparation
+  • Tolerates partial access
+  • performs repo enforcement (validate-enforcement.sh)
+  • validate repo hygiene (run-validate.sh)
+  • collect evidence (collect-test-evidence.sh)
+scripts/validation/run-enforcement-only.sh <test-id> <owner/repo>
+
+### Prune telemetry
+Prune all but one correlation id repo telemetry to verify correct processing of partial data.
+TELEMETRY_REPO=owner/task-assistant-telemetry \
+  scripts/telemetry/prune-telemetry.sh repo
+
+### Test 4 Evidence Capture Helper
+  • Read-only
+  • Operator-safe
+  • No mutations
+  • No workflow triggers
+  scripts/validation/capture-test-04-evidence.sh <owner/repo> <step-label>
+
+### Evidence Capture Helper
+  • Read-only
+  • Operator-safe
+  • No mutations
+  • No workflow triggers
+  scripts/validation/capture-test-evidence.sh <owner/repo> <test-id>
+
 ## Tests
-### 1. Validate multiple runs without reset
-   a) Reset the repo (v2 registry)
-	scripts/sandbox/reset-sandbox.sh \
-	  automated-assistant-systems/task-assistant-sandbox \
-	  --reset-telemetry
-   b) Install Task Assistant (dispatch + config only)
-	scripts/sandbox/install-task-assistant.sh \
+### 1. Validate full functionality of Task Assistant in org sandbox repo
+  scripts/validation/run-validation-test.sh \
+    test-01-basic \
+    automated-assistant-systems/task-assistant-sandbox
+This will perform the following:
+    a) Reset the repo
+	Expected:
+	- all issues closed
+	- all milestones deleted
+	- all Task Assistant labels removed
+	- all repo telemetry files removed
+
+    b) Install Task Assistant (dispatch + config only)
+	Expected:
+	- .github/task-assistant.yml - config file installed into repo
+	- .github/workflows/task-assistant-dispatch.yml - installed into repo
+
+    c) Prepare repo (labels + milestones)
+	Expected:
+	- Labels created
+	- Milestones created
+	- Exit code 0
+
+    d) Validate end-to-end and repo hygiene
+	Expected:
+	- Infra resolves via v2
+	- Labels & milestones verified
+	- Dispatch workflow verified
+	- App access to telemetry verified
+	- Validation telemetry emitted
+	- Exit code 0
+
+    e) Validate Enforcement
+	Expected:
+	- Verify that invalid issues were corrected to enforce repo hygiene
+	- No errors
+	- No duplicate state
+	- Validation telemetry emitted
+	- Exit code 0
+
+    f) Validate repo hygiene
+	Expected:
+	- engine-validate confirms no hygiene regression after enforcement
+	- No mutation of labels or milestones
+	- Validation telemetry emitted
+
+    g) Collect validation evidence
+	Expected:
+	- Validation telemetry
+	- Dashboard telemetry
+	- Single JSON output
+	- docs/validation/results/test-01-basic/automated-assistant-systems-task-assistant-sandbox.json
+
+### 2. Validate full functionality of Task Assistant in host org sandbox repo
+  scripts/validation/run-validation-test.sh \
+    test-02-hosted \
+    garybayes/ta-marketplace-install-test
+	Expected:
+	- Identical outcome to Test 1
+	- docs/validation/results/test-02-hosted/garybayes-ta-marketplace-install-test.json
+
+### 3. Validate full functionality of Task Assistant in multiple orgs running concurrently
+   a) Prepare Repos
+	scripts/validation/prepare-matrix-repos.sh \
+	  test-03-multi-org
+	Expected:
+	- Identical outcome to Test 1 a) - d) for repos under test
+	- automated-assistant-systems/task-assistant-sandbox
+	- garybayes/ta-marketplace-install-test
+
+    b) Validate concurrent enforcement 
+	scripts/validation/run-enforcement-only.sh \
+	  test-03-multi-org \
 	  automated-assistant-systems/task-assistant-sandbox
-
-   c) Prepare repo (labels + milestones)
-	GH_TOKEN=ghp_xxx \
-	  node scripts/prepare-repo.js \
-	    automated-assistant-systems/task-assistant-sandbox
-	Expected:
-	- Labels created
-	- Milestones create
-	- Exit code 0
-
-   d) Validate (first run)
-	GITHUB_TOKEN=ghp_xxx \
-	GITHUB_REPOSITORY=automated-assistant-systems/task-assistant-sandbox \
-	  scripts/validate/validate-workflows.sh
-	Expected:
-	- Infra resolves via v2
-	- Labels & milestones verified
-	- Dispatch workflow verified
-	- App access to telemetry verified
-	- Validation telemetry emitted
-	- Exit code 0
-
-   e) Validate (second run, no reset)
-	GITHUB_TOKEN=ghp_xxx \
-	GITHUB_REPOSITORY=automated-assistant-systems/task-assistant-sandbox \
-	  scripts/validate/validate-workflows.sh
-	Expected:
-	- Identical to outcome to (d)
-	- No errors
-	- No duplicate state
-	- Exit code 0
-
-    f) Collect validation evidence
-	TELEMETRY_REPO=automated-asssistant-systems/task-assistant-telemetry \
-	  scripts/telemetry/collect-test-evidence.sh task-assistant-sandbox \
-	  docs/validation/results/validation/test-01/automated-asssistant-systems-task-assistant-sandbox.json
-	Expected:
-	- Validation telemetry
-	- Dashboard telemetry
-	- Single JSON output
-
-### 2. Validate multiple runs without reset in host repo
-   a) Reset the repo (v1 registry)
-	scripts/sandbox/reset-sandbox.sh \
-	  garybayes/ta-marketplace-install-test \
-	  --reset-telemetry
-
-   b) Install Task Assistant (dispatch + config only)
-	scripts/sandbox/install-task-assistant.sh \
+	scripts/validation/run-enforcement-only.sh \
+	  test-03-multi-org \
 	  garybayes/ta-marketplace-install-test
-
-   c) Prepare repo (labels + milestones)
-	GH_TOKEN=ghp_xxx \
-	  node scripts/prepare-repo.js \
-	    garybayes/ta-marketplace-install-test
 	Expected:
-	- Labels created
-	- Milestones create
-	- Exit code 0
-
-   d) Validate (first run)
-	GITHUB_TOKEN=ghp_xxx \
-	GITHUB_REPOSITORY=garybayes/ta-marketplace-install-test \
-	  scripts/validate/validate-workflows.sh
-	Expected:
-	- Infra resolves via v1 fallback
-	- Labels & milestones verified
-	- Dispatch workflow verified
-	- App access to telemetry verified
-	- Validation telemetry emitted
-	- Exit code 0
-
-   e) Validate (second run, no reset)
-	GITHUB_TOKEN=ghp_xxx \
-	GITHUB_REPOSITORY=garybayes/ta-marketplace-install-test \
-	  scripts/validate/validate-workflows.sh
-	Expected:
-	- Identical to outcome to (d)
-	- No errors
-	- No duplicate state
-	- Exit code 0
-
-    f) Collect validation evidence
-	TELEMETRY_REPO=garybayes/task-assistant-telemetry \
-	  scripts/telemetry/collect-test-evidence.sh ta-marketplace-install-test \
-	  docs/validation/results/test-02/garybayes-ta-marketplace-install-test.json
-	Expected:
-	- Validation telemetry
-	- Dashboard telemetry
-	- Single JSON output
-
-### 3. Validate runs in multiple orgs running concurrently
-   a) 1. Reset the repo (v2 registry)
-	scripts/sandbox/reset-sandbox.sh \
-	  automated-assistant-systems/task-assistant-sandbox \
-	  --reset-telemetry
-
-   a) 2. Reset the repo (v1 registry)
-	scripts/sandbox/reset-sandbox.sh \
-	  garybayes/ta-marketplace-install-test \
-	  --reset-telemetry
-
-   b) 1. Install Task Assistant (dispatch + config only)
-	scripts/sandbox/install-task-assistant.sh \
-	  automated-assistant-systems/task-assistant-sandbox
-
-   b) 2. Install Task Assistant (dispatch + config only)
-	scripts/sandbox/install-task-assistant.sh \
-	  garybayes/ta-marketplace-install-test
-
-   c) 1. Prepare repo (labels + milestones)
-	GH_TOKEN=ghp_xxx \
-	  node scripts/prepare-repo.js \
-	    automated-assistant-systems/task-assistant-sandbox
-	Expected:
-	- Labels created
-	- Milestones create
-	- Exit code 0
-
-   c) 2. Prepare repo (labels + milestones)
-	GH_TOKEN=ghp_xxx \
-	  node scripts/prepare-repo.js \
-	    garybayes/ta-marketplace-install-test
-	Expected:
-	- Labels created
-	- Milestones create
-	- Exit code 0
-
-   d) 1. Validate (first run)
-	GITHUB_TOKEN=ghp_xxx \
-	GITHUB_REPOSITORY=automated-assistant-systems/task-assistant-sandbox \
-	  scripts/validate/validate-workflows.sh
-	Expected:
-	- Infra resolves via v2
-	- Labels & milestones verified
-	- Dispatch workflow verified
-	- App access to telemetry verified
-	- Validation telemetry emitted
-	- Exit code 0
-
-   d) 2. Validate (first run in second CL)
-	GITHUB_TOKEN=ghp_xxx \
-	GITHUB_REPOSITORY=garybayes/ta-marketplace-install-test \
-	  scripts/validate/validate-workflows.sh
-	Expected:
-	- Infra resolves via v2
-	- Labels & milestones verified
-	- Dispatch workflow verified
-	- App access to telemetry verified
-	- Validation telemetry emitted
-	- Exit code 0
-
-   e) 1 Validate (second run, no reset)
-	GITHUB_TOKEN=ghp_xxx \
-	GITHUB_REPOSITORY=automated-assistant-systems/task-assistant-sandbox \
-	  scripts/validate/validate-workflows.sh
-	Expected:
-	- Identical to outcome to (d)
-	- No errors
-	- No duplicate state
-	- Exit code 0
-
-   e) 2. Validate (second run in second CL, no reset)
-	GITHUB_TOKEN=ghp_xxx \
-	GITHUB_REPOSITORY=garybayes/ta-marketplace-install-test \
-	  scripts/validate/validate-workflows.sh
-	Expected:
-	- Identical to outcome to (d)
-	- No errors
-	- No duplicate state
-	- Exit code 0
-
-    f) 1. Collect validation evidence
-	TELEMETRY_REPO=automated-asssistant-systesm/task-assistant-telemetry \
-	  scripts/telemetry/collect-test-evidence.sh task-assistant-sandbox \
-	  docs/validation/results/validation/test-03/automated-asssistant-systesm-task-assistant-sandbox.json
-	Expected:
-	- Validation telemetry
-	- Dashboard telemetry
-	- Single JSON output
-
-    f) 2. Collect validation evidence
-	TELEMETRY_REPO=garybayes/task-assistant-telemetry \
-	  scripts/telemetry/collect-test-evidence.sh ta-marketplace-install-test \
-	  docs/validation/results/test-03/garybayes-ta-marketplace-install-test.json
-	Expected:
-	- Validation telemetry
-	- Dashboard telemetry
-	- Single JSON output
+	- Identical outcome to Test 1 e) - g) for repos under test
+	- automated-assistant-systems/task-assistant-sandbox
+	- garybayes/ta-marketplace-install-test
+	- JSON output file for each repo
+	- docs/validation/results/test-03-multi-org/*
 
 ### 4. Test install process and missing setup failures
-   a) Create garybayes/ta-sandbox
+    a) Create garybayes/ta-sandbox
 	Install Task Assistant (dispatch + config only)
 	  scripts/sandbox/install-task-assistant.sh \
 	    garybayes/ta-sandbox
+	Collect evidence
+	  scripts/validation/capture-test-04-evidence.sh \
+	    garybayes/ta-sandbox step-a-install-only
 
-   b) Trigger self-test on garybayes/ta-sandbox (not registered)
-	gh workflow run engine-self-test.yml \
-	  --repo automated-assistant-systems/task-assistant \
-	  -f owner=garybayes \
-	  -f repo=ta-sandbox \
-	  -f telemetry_repo=garybayes/task-assistant-telemetry \
-	  -f correlation_id=test-partial-recovery
+    b) Trigger self-test on garybayes/ta-sandbox (not registered)
+	TARGET_REPO=garybayes/ta-sandbox \
+	  scripts/dispatch/run-self-test.sh
+      Collect evidence
+	scripts/validation/capture-test-04-evidence.sh \
+	  garybayes/ta-sandbox step-b-self-test-unregistered
 	Expected:
 	- Preflight should fail
 	- Confirm no new JSONL files created
 
-   c) Register garybayes/ta-sandbox (v2 registry)
-	1. Clone infra repo and create a branch
-	  gh repo clone automated-assistant-systems/task-assistant-infra
-	  cd task-assistant-infra
-	  git checkout -b infra/register-garybayes-ta-sandbox
+    c) Register garybayes/ta-sandbox
+	cd ~/projects/task-assistant-infra
+	1. Create a branch to ensure mutations never happen on main
+	    scripts/infra/helpers/new-branch.sh \
+		infra/register-garybayes-ta-sandbox
 
 	2. Register repo using infra CLI (sandbox-safe)
-	  ./scripts/infra/infra.sh register garybayes/ta-sandbox \
-	    --telemetry-repo garybayes/task-assistant-telemetry \
-	    --reason "Phase 3.4 validation sandbox onboarding"
+	    scripts/infra/infra.sh register garybayes/ta-sandbox \
+	      --context sandbox \
+	      --telemetry-repo garybayes/task-assistant-telemetry \
+	      --reason "Phase 3.4 validation sandbox onboarding"
 
-	3. Commit the registry mutation
-	  git status
-	  git add infra/telemetry-registry.v2.json
-	  git commit -m "infra(v2): register garybayes/ta-sandbox for Phase 3.4"
+	3. Validates schema and stages registry changes
+	    scripts/infra/helpers/finalize-registry.sh
 
-	4. Open PR (required)
-	  gh pr create \
-	    --title "infra(v2): register garybayes/ta-sandbox" \
-	    --body "Registers garybayes/ta-sandbox as a sandbox repo for Phase 3.4 validation."
+	4. Commit the registry mutation
+	    git commit -m "infra: register garybayes/ta-sandbox for Phase 3.4"
+	    git push -u origin infra/register-garybayes-ta-sandbox
+
+	5. Creates PR only from clean feature branches
+	    scripts/infra/helpers/create-pr.sh
+
+	6. Merges safely and deletes branches
+	    scripts/infra/helpers/merge-pr.sh
+
+	7. Collect test evidence
+	    scripts/validation/capture-test-04-evidence.sh \
+	      garybayes/ta-sandbox step-c-infra-registered
+
+    d) Trigger self-test build (app not installed)
+	TARGET_REPO=garybayes/ta-sandbox \
+	  scripts/dispatch/run-self-test.sh
+      Collect evidence
+	scripts/validation/capture-test-04-evidence.sh \
+	  garybayes/ta-sandbox step-d-self-test-no-app
 	Expected:
-	✅ CI will run validate-registry-v2.sh
-	✅ Merge is the moment of truth — no local shortcuts
+	- Self-test should fail on garybayes/ta-sandbox
+	- Confirm no new JSONL files created
 
-	5. Post-merge verification (used in tests)
-	  GH_TOKEN=... \
-	  node -e '
-	  import { resolveInfraForRepo } from "./lib/infra.js";
-	  const r = await resolveInfraForRepo({
-	    targetRepo: "garybayes/ta-sandbox",
-	    githubToken: process.env.GH_TOKEN
-	  });
-	  console.log(JSON.stringify(r, null, 2));
-	  '
-	Expected:
-	{
-	  "versionUsed": "v2",
-	  "repoState": "enabled",
-	  "telemetryRepo": "garybayes/task-assistant-telemetry",
-	  "outcomeCode": "INFRA_OK"
-	}
+    e) Install app on garybayes/ta-sandbox
 
-   d) Trigger dashboard build (app not installed)
-	gh workflow run engine-dashboard.yml \
-	  --repo automated-assistant-systems/task-assistant \
-	  -f owner=garybayes \
-	  -f repo=ta-sandbox \
-	  -f telemetry_repo=garybayes/task-assistant-telemetry \
-	  -f correlation_id=test-partial-recovery
-	Expected:
-	- Dashboard-build should fail on garybayes/ta-sandbox
-	- No telemetry emitted
-
-   e) Install app on garybayes/ta-sandbox
-
-   f) Trigger self-test on garybayes/ta-sandbox (no secrets)
-	gh workflow run engine-self-test.yml \
-	  --repo automated-assistant-systems/task-assistant \
-	  -f owner=garybayes \
-	  -f repo=ta-sandbox \
-	  -f telemetry_repo=garybayes/task-assistant-telemetry \
-	  -f correlation_id=test-partial-recovery
-	Expected:
+    f) Trigger self-test on garybayes/ta-sandbox (no secrets)
+	TARGET_REPO=garybayes/ta-sandbox \
+	  scripts/dispatch/run-self-test.sh
+      Collect evidence
+	scripts/validation/capture-test-04-evidence.sh \
+	  garybayes/ta-sandbox step-f-app-no-secrets
+      Expected:
 	- Preflight should fail
 	- Confirm no new JSONL files created
 
-   g) Add secrets
+    g) Add secrets
 	Use GitHub UI to add CODEX_APP_ID and CODEX_PRIVATE_KEY
 
-   h) Trigger self-test on garybayes/ta-sandbox (no labels or milestones)
-	gh workflow run engine-self-test.yml \
-	  --repo automated-assistant-systems/task-assistant \
-	  -f owner=garybayes \
-	  -f repo=ta-sandbox \
-	  -f telemetry_repo=garybayes/task-assistant-telemetry \
-	  -f correlation_id=test-partial-recovery
-	Expected:
+    h) Trigger self-test on garybayes/ta-sandbox (no labels or milestones)
+	TARGET_REPO=garybayes/ta-sandbox \
+	  scripts/dispatch/run-self-test.sh
+      Collect evidence
+	scripts/validation/capture-test-04-evidence.sh \
+	  garybayes/ta-sandbox step-g-secrets-added
+      Expected:
 	- Preflight should fail
 	- Confirm no new JSONL files created
 
-   i) Prepare repo (labels + milestones)
+    i) Prepare repo (labels + milestones)
 	GH_TOKEN=ghp_xxx \
 	  node scripts/prepare-repo.js \
-	    garybayes/ta-sandbox
-	Expected:
-	- Labels created
-	- Milestones create
-	- Exit code 0
-
-   j) trigger dashboard build
-	gh workflow run engine-dashboard.yml \
-	  --repo automated-assistant-systems/task-assistant \
-	  -f owner=garybayes \
-	  -f repo=ta-sandbox \
-	  -f telemetry_repo=garybayes/task-assistant-telemetry \
-	  -f correlation_id=test-partial-recovery
-	Expected:
-	- Build directory structure
-
-### 5. Test newly created repo
-     a) Validate (new v2 repo)
-	GITHUB_TOKEN=ghp_xxx \
-	GITHUB_REPOSITORY=garybayes/ta-sandbox \
-	  scripts/validate/validate-workflows.sh
-	Expected:
-	- Infra resolves via v2
-	- Labels & milestones verified
-	- Dispatch workflow verified
-	- App access to telemetry verified
-	- Validation telemetry emitted
-	- Exit code 0
-
-    b) Collect validation evidence
-	TELEMETRY_REPO=garybayes/task-assistant-telemetry \
-	  scripts/telemetry/collect-test-evidence.sh ta-sandbox \
-	  docs/validation/results/test-05/garybayes-ta-sandbox.json
-	Expected:
-	- Validation telemetry
-	- Dashboard telemetry
-	- Single JSON output
-
-### 6. Validate multiple repos one org running concurrently
-   a) 1. Reset the repo (v2 registry)
-	scripts/sandbox/reset-sandbox.sh \
-	  garybayes/ta-sandbox \
-	  --reset-telemetry
-
-   a) 2. Reset the repo (v1 registry)
-	scripts/sandbox/reset-sandbox.sh \
-	  garybayes/ta-marketplace-install-test \
-	  --reset-telemetry
-
-   b) 1. Install Task Assistant (dispatch + config only)
-	scripts/sandbox/install-task-assistant.sh \
 	  garybayes/ta-sandbox
+	Expected:
+	- Labels created
+	- Milestones created
+	- Exit code 0
 
-   b) 2. Install Task Assistant (dispatch + config only)
-	scripts/sandbox/install-task-assistant.sh \
+    j) Validate end-to-end and repo hygiene
+	scripts/onboarding/verify-repo.sh garybayes/ta-sandbox
+       Collect evidence
+	scripts/validation/capture-test-04-evidence.sh \
+	  garybayes/ta-sandbox step-j-verify-repo-success
+	Expected:
+	- Infra resolves
+	- Labels & milestones verified
+	- Dispatch workflow verified
+	- App access to telemetry verified
+	- Validation telemetry emitted
+	- Exit code 0
+	- docs/validation/results/test-04-install-failures/*
+
+### 5. Validate Enforcement on newly created repo
+	scripts/validation/run-enforcement-only.sh \
+	  test-05-new-repo \
+	  garybayes/ta-sandbox
+	Expected:
+	- Identical outcome to Test 1 e) - g) for repo
+	- Single JSON output file
+	- docs/validation/results/test-05-new-repo/garybayes-ta-sandbox
+
+### 6. Validate full functionality of Task Assistant in multiple repos running concurrently
+   a) Prepare Repos
+	scripts/validation/prepare-matrix-repos.sh \
+	  test-06-multi-repo
+	Expected:
+	- Identical outcome to Test 1 a) - d) for repos under test
+	- garybayes/ta-marketplace-install-test
+	- garybayes/ta-sandbox
+
+    b) Validate concurrent enforcement 
+	scripts/validation/run-enforcement-only.sh \
+	  test-06-multi-repo \
 	  garybayes/ta-marketplace-install-test
-
-   c) 1. Prepare repo (labels + milestones)
-	GH_TOKEN=ghp_xxx \
-	  node scripts/prepare-repo.js \
-	    garybayes/ta-sandbox
+	scripts/validation/run-enforcement-only.sh \
+	  test-06-multi-repo \
+	  garybayes/ta-sandbox
 	Expected:
-	- Labels created
-	- Milestones create
-	- Exit code 0
+	- Identical outcome to Test 1 e) - g) for repos under test
+	- garybayes/ta-marketplace-install-test
+	- garybayes/ta-sandbox
+	- JSON output file for each repo
+	- docs/validation/results/test-06-multi-repo/*
 
-   c) 2. Prepare repo (labels + milestones)
-	GH_TOKEN=ghp_xxx \
-	  node scripts/prepare-repo.js \
-	    garybayes/ta-marketplace-install-test
+### 7. Validate full functionality of Task Assistant in multiple orgs + repos running concurrently
+   a) Prepare Repos
+	scripts/validation/prepare-matrix-repos.sh \
+	  test-07-multi-org+repo
 	Expected:
-	- Labels created
-	- Milestones create
-	- Exit code 0
+	- Identical outcome to Test 1 a) - d) for repos under test
+	- automated-assistant-systems/task-assistant-sandbox
+	- garybayes/ta-marketplace-install-test
+	- garybayes/ta-sandbox
 
-   d) 1. Validate (first run)
-	GITHUB_TOKEN=ghp_xxx \
-	GITHUB_REPOSITORY=garybayes/ta-sandbox \
-	  scripts/validate/validate-workflows.sh
-	Expected:
-	- Infra resolves via v2
-	- Labels & milestones verified
-	- Dispatch workflow verified
-	- App access to telemetry verified
-	- Validation telemetry emitted
-	- Exit code 0
-
-   d) 2. Validate (first run in second CL)
-	GITHUB_TOKEN=ghp_xxx \
-	GITHUB_REPOSITORY=garybayes/ta-marketplace-install-test \
-	  scripts/validate/validate-workflows.sh
-	Expected:
-	- Infra resolves via v1 fallback
-	- Labels & milestones verified
-	- Dispatch workflow verified
-	- App access to telemetry verified
-	- Validation telemetry emitted
-	- Exit code 0
-
-   e) 1. Validate (second run, no reset)
-	GITHUB_TOKEN=ghp_xxx \
-	GITHUB_REPOSITORY=garybayes/ta-sandbox \
-	  scripts/validate/validate-workflows.sh
-	Expected:
-	- Identical to outcome to (d)
-	- No errors
-	- No duplicate state
-	- Exit code 0
-
-   e) 2. Validate (second run in second CL, no reset)
-	GITHUB_TOKEN=ghp_xxx \
-	GITHUB_REPOSITORY=garybayes/ta-marketplace-install-test \
-	  scripts/validate/validate-workflows.sh
-	Expected:
-	- Identical to outcome to (d)
-	- No errors
-	- No duplicate state
-	- Exit code 0
-
-    f) 1. Collect validation evidence 
-	TELEMETRY_REPO=garybayes/task-assistant-telemetry \
-	  scripts/telemetry/collect-test-evidence.sh ta-sandbox \
-	  docs/validation/results/test-06/garybayes-ta-sandbox.json
-	Expected:
-	- Validation telemetry
-	- Dashboard telemetry
-	- Single JSON output
-
-    f) 2. Collect validation evidence
-	TELEMETRY_REPO=garybayes/task-assistant-telemetry \
-	  scripts/telemetry/collect-test-evidence.sh ta-marketplace-install-test \
-	  docs/validation/results/test-06/garybayes-ta-marketplace-install-test.json
-	Expected:
-	- Validation telemetry
-	- Dashboard telemetry
-	- Single JSON output
-
-### 7. Validate multiple repos & multiple orgs running concurrently
-   a) 1. Reset the repo (v2 registry)
-	scripts/sandbox/reset-sandbox.sh \
-	  automated-assistant-systems/task-assistant-sandbox \
-	  --reset-telemetry
-
-   a) 2. Reset the repo (v1 registry)
-	scripts/sandbox/reset-sandbox.sh \
-	  garybayes/ta-marketplace-install-test \
-	  --reset-telemetry
-
-   a) 3. Reset the repo (v1 registry)
-	scripts/sandbox/reset-sandbox.sh \
-	  garybayes/ta-sandbox \
-	  --reset-telemetry
-
-   b) 1. Install Task Assistant (dispatch + config only)
-	scripts/sandbox/install-task-assistant.sh \
+    b) Validate concurrent enforcement 
+	scripts/validation/run-enforcement-only.sh \
+	  test-07-multi-org+repo \
 	  automated-assistant-systems/task-assistant-sandbox
-
-   b) 2. Install Task Assistant (dispatch + config only)
-	scripts/sandbox/install-task-assistant.sh \
+	scripts/validation/run-enforcement-only.sh \
+	  test-07-multi-org+repo \
 	  garybayes/ta-marketplace-install-test
-
-   b) 3. Install Task Assistant (dispatch + config only)
-	scripts/sandbox/install-task-assistant.sh \
+	scripts/validation/run-enforcement-only.sh \
+	  test-07-multi-org+repo \
 	  garybayes/ta-sandbox
-
-   c) 1. Prepare repo (labels + milestones)
-	GH_TOKEN=ghp_xxx \
-	  node scripts/prepare-repo.js \
-	    automated-assistant-systems/task-assistant-sandbox
 	Expected:
-	- Labels created
-	- Milestones create
-	- Exit code 0
+	- Identical outcome to Test 1 e) - g) for repos under test
+	- automated-assistant-systems/task-assistant-sandbox
+	- garybayes/ta-marketplace-install-test
+	- garybayes/ta-sandbox
+	- JSON output file for each repo
+	- docs/validation/results/test-07-multi-org+repo/*
 
-   c) 2. Prepare repo (labels + milestones)
-	GH_TOKEN=ghp_xxx \
-	  node scripts/prepare-repo.js \
-	    garybayes/ta-marketplace-install-test
-	Expected:
-	- Labels created
-	- Milestones create
-	- Exit code 0
-
-   c) 3. Prepare repo (labels + milestones)
-	GH_TOKEN=ghp_xxx \
-	  node scripts/prepare-repo.js \
-	    garybayes/ta-sandbox
-	Expected:
-	- Labels created
-	- Milestones create
-	- Exit code 0
-
-   d) 1. Validate (first run)
-	GITHUB_TOKEN=ghp_xxx \
-	GITHUB_REPOSITORY=automated-assistant-systems/task-assistant-sandbox \
-	  scripts/validate/validate-workflows.sh
-	Expected:
-	- Infra resolves via v2
-	- Labels & milestones verified
-	- Dispatch workflow verified
-	- App access to telemetry verified
-	- Validation telemetry emitted
-	- Exit code 0
-
-   d) 2. Validate (first run in second CL)
-	GITHUB_TOKEN=ghp_xxx \
-	GITHUB_REPOSITORY=garybayes/ta-marketplace-install-test \
-	  scripts/validate/validate-workflows.sh
-	Expected:
-	- Infra resolves via v1 fallback
-	- Labels & milestones verified
-	- Dispatch workflow verified
-	- App access to telemetry verified
-	- Validation telemetry emitted
-	- Exit code 0
-
-   d) 3. Validate (first run in third CL)
-	GITHUB_TOKEN=ghp_xxx \
-	GITHUB_REPOSITORY=garybayes/ta-sandbox \
-	  scripts/validate/validate-workflows.sh
-	Expected:
-	- Infra resolves via v2
-	- Labels & milestones verified
-	- Dispatch workflow verified
-	- App access to telemetry verified
-	- Validation telemetry emitted
-	- Exit code 0
-
-   e) 1. Validate (second run, no reset)
-	GITHUB_TOKEN=ghp_xxx \
-	GITHUB_REPOSITORY=automated-assistant-systems/task-assistant-sandbox \
-	  scripts/validate/validate-workflows.sh
-	Expected:
-	- Identical to outcome to (d)
-	- No errors
-	- No duplicate state
-	- Exit code 0
-
-   e) 2. Validate (second run in second CL, no reset)
-	GITHUB_TOKEN=ghp_xxx \
-	GITHUB_REPOSITORY=garybayes/ta-marketplace-install-test \
-	  scripts/validate/validate-workflows.sh
-	Expected:
-	- Identical to outcome to (d)
-	- No errors
-	- No duplicate state
-	- Exit code 0
-
-   e) 3. Validate (second run in third CL, no reset)
-	GITHUB_TOKEN=ghp_xxx \
-	GITHUB_REPOSITORY=garybayes/ta-sandbox \
-	  scripts/validate/validate-workflows.sh
-	Expected:
-	- Identical to outcome to (d)
-	- No errors
-	- No duplicate state
-	- Exit code 0
-
-    f) 1. Collect validation evidence
-	TELEMETRY_REPO=automated-asssistant-systesm/task-assistant-telemetry \
-	  scripts/telemetry/collect-test-evidence.sh task-assistant-sandbox \
-	  docs/validation/results/validation/test-07/automated-asssistant-systems-task-assistant-sandbox.json
-	Expected:
-	- Validation telemetry
-	- Dashboard telemetry
-	- Single JSON output
-
-    f) 2. Collect validation evidence
-	TELEMETRY_REPO=garybayes/task-assistant-telemetry \
-	  scripts/telemetry/collect-test-evidence.sh ta-marketplace-install-test \
-	  docs/validation/results/validation/test-07/garybayes-ta-marketplace-install-test.json
-	Expected:
-	- Validation telemetry
-	- Dashboard telemetry
-	- Single JSON output
-
-    f) 3. Collect validation evidence
-	TELEMETRY_REPO=garybayes/task-assistant-telemetry \
-	  scripts/telemetry/collect-test-evidence.sh ta-sandbox \
-	  docs/validation/results/validation/test-07/garybayes-ta-sandbox.json
-	Expected:
-	- Validation telemetry
-	- Dashboard telemetry
-	- Single JSON output
-
-### 8. Test app not installed on telemetry repo (both registry versions)
+### 8. Test app not installed on telemetry repo
    a) Remove app from garybayes/task-assistant-telemetry
 
-   b) Trigger self-test garybayes/ta-marketplace-install-test (v1 registry)
-	gh workflow run engine-self-test.yml \
-	  --repo automated-assistant-systems/task-assistant \
-	  -f owner=garybayes \
-	  -f repo=ta-marketplace-install-test \
-	  -f telemetry_repo=garybayes/task-assistant-telemetry \
-	  -f correlation_id=test-partial-recovery
-	Expected:
-	- Preflight should fail
-	- Confirm no new JSONL files created
+   b) Trigger self-test garybayes/ta-sandbox
+	TARGET_REPO=garybayes/ta-sandbox \
+	  scripts/dispatch/run-self-test.sh
 
-   c) Trigger self-test garybayes/ta-sandbox (v2 registry)
-	gh workflow run engine-self-test.yml \
-	  --repo automated-assistant-systems/task-assistant \
-	  -f owner=garybayes \
-	  -f repo=ta-sandbox \
-	  -f telemetry_repo=garybayes/task-assistant-telemetry \
-	  -f correlation_id=test-partial-recovery
-	Expected:
-	- Preflight should fail
-	- Confirm no new JSONL files created
-
-    d) Collect validation evidence
-	TELEMETRY_REPO=garybayes/task-assistant-telemetry \
-	  scripts/telemetry/collect-test-evidence.sh ta-sandbox \
-	  docs/validation/results/validation/test-08/garybayes-ta-sandbox.json
+   c) Collect validation evidence
+	scripts/validation/capture-test-evidence.sh \
+	  garybayes/ta-sandbox \
+	  test-08-app-not-installed
 	Expected:
 	- Validation telemetry
 	- Dashboard telemetry
 	- Single JSON output
+	- docs/validation/results/test-08-telemetry-missing-app/garybayes-ta-sandbox.json
 
 ### 9. Validate repo disabled
-   a) Disable automated-assistant-systems/task-assistant-sandbox (v2 registry)
+   a) Disable garybayes/ta-sandbox
+	cd ~/projects/task-assistant-infra
+	1. Create a branch to ensure mutations never happen on main
+	    scripts/infra/helpers/new-branch.sh \
+		infra/disable-garybayes-ta-sandbox
 
-   b) Trigger self-test on automated-assistant-systems/task-assistant-sandbox (v2 registry)
-	gh workflow run engine-self-test.yml \
-	  --repo automated-assistant-systems/task-assistant \
-	  -f owner=automated-assistant-systems \
-	  -f repo=task-assistant-sandbox \
-	  -f telemetry_repo=garybayes/task-assistant-telemetry \
-	  -f correlation_id=test-partial-recovery
+	2. Register repo using infra CLI (sandbox-safe)
+	    scripts/infra/infra.sh disable garybayes/ta-sandbox \
+	      --context sandbox \
+	      --telemetry-repo garybayes/task-assistant-telemetry \
+	      --reason "Phase 3.4 validation sandbox disabled"
+
+	3. Validates schema and stages registry changes
+	    scripts/infra/helpers/finalize-registry.sh
+
+	4. Commit the registry mutation
+	    git commit -m "infra: disable garybayes/ta-sandbox for Phase 3.4"
+	    git push -u origin infra/disable-garybayes-ta-sandbox
+
+	5. Creates PR only from clean feature branches 
+	    scripts/infra/helpers/create-pr.sh
+
+	6. Merges safely and deletes branches
+	    scripts/infra/helpers/merge-pr.sh
+
+   b) Trigger self-test on garybayes/ta-sandbox
+	TARGET_REPO="garybayes/ta-sandbox" \
+	  scripts/dispatch/run-self-test.sh
 	Expected:
 	- Preflight should fail
 	- Confirm no new JSONL files created
 
     c) Collect validation evidence
-	TELEMETRY_REPO=automated-asssistant-systesm/task-assistant-telemetry \
-	  scripts/telemetry/collect-test-evidence.sh task-assistant-sandbox \
-	  docs/validation/results/validation/test-09/automated-asssistant-systems-task-assistant-sandbox.json
+	scripts/validation/capture-test-evidence.sh \
+	  garybayes/ta-sandbox \
+	  test-09-repo-disabled
 	Expected:
-	- Validation telemetry
-	- Dashboard telemetry
-	- Single JSON output
+	- Preflight should fail
+	- Confirm no new JSONL files created
+	- docs/validation/results/test-09-repo-disabled/garybayes-ta-sandbox.json
 
 ### 10. Test re-registering repo
-    a) Register garybayes/ta-sandbox
-	Register repo (v2 registry, PR required)
-	1. Clone task-assistant-infra
-	2. Run:
-	   scripts/infra/infra.sh register garybayes/ta-sandbox \
-	     --telemetry-repo garybayes/task-assistant-telemetry \
-	     --reason "Phase 3.4 validation sandbox onboarding"
-	3. Commit and open PR
-	4. Merge PR
-	5. Verify via validate-workflows or resolveInfraForRepo
+	cd ~/projects/task-assistant-infra
+	1. Create a branch to ensure mutations never happen on main
+	    scripts/infra/helpers/new-branch.sh \
+		infra/re-register-garybayes-ta-sandbox
 
-    b) Run the Test Script (scripts/validate/validate-workflows.sh)
-	GITHUB_TOKEN=ghp_xxx \
-	GITHUB_REPOSITORY=garybayes/ta-sandbox \
-	  scripts/validate/validate-workflows.sh
+	2. Register repo using infra CLI (sandbox-safe)
+	    scripts/infra/infra.sh register garybayes/ta-sandbox \
+	      --context sandbox \
+	      --telemetry-repo garybayes/task-assistant-telemetry \
+	      --reason "Phase 3.4 validation sandbox re-register"
+
+	3. Validates schema and stages registry changes
+	    scripts/infra/helpers/finalize-registry.sh
+
+	4. Commit the registry mutation
+	    git commit -m "infra: re-register garybayes/ta-sandbox for Phase 3.4"
+	    git push -u origin infra/re-register-garybayes-ta-sandbox
+
+	5. Creates PR only from clean feature branches
+	    scripts/infra/helpers/create-pr.sh
+
+	6. Merges safely and deletes branches
+	    scripts/infra/helpers/merge-pr.sh
+
+   b) Trigger self-test on garybayes/ta-sandbox
+	TARGET_REPO="garybayes/ta-sandbox" \
+	  scripts/dispatch/run-self-test.sh
 	Expected:
-	- No errors
-	- No duplicate state
+	- Preflight should fail
+	- Confirm no new JSONL files created
 
     c) Collect validation evidence
-	TELEMETRY_REPO=garybayes/task-assistant-telemetry \
-	  scripts/telemetry/collect-test-evidence.sh ta-sandbox \
-	  docs/validation/results/validation/test-10/garybayes-ta-sandbox.json
+	scripts/validation/capture-test-evidence.sh \
+	  garybayes/ta-sandbox \
+	  test-10-repo-re-registered
 	Expected:
 	- Validation telemetry
 	- Dashboard telemetry
 	- Single JSON output
+	- docs/validation/results/test-10-repo-re-registered/garybayes-ta-sandbox.json
 
 ### 11. Partial telemetry recovery
     a) Delete all but one JSONL file in telemetry repo
@@ -754,51 +504,58 @@ scripts/validation/run-validation-test.sh \
 	- No schema errors
 
     c) Collect validation evidence
-	TELEMETRY_REPO=garybayes/task-assistant-telemetry \
-	  scripts/telemetry/collect-test-evidence.sh ta-sandbox \
-	  docs/validation/results/validation/test-11/garybayes-ta-sandbox.json
+	scripts/validation/capture-test-evidence.sh \
+	  garybayes/ta-sandbox \
+	  test-11-partial-telemetry
 	Expected:
 	- Validation telemetry
 	- Dashboard telemetry
 	- Single JSON output
+	- docs/validation/results/test-11-partial-telemetry/garybayes-ta-sandbox.json
 
 ### 12. Telemetry write blocked
     a) Enable branch protection on telemetry repo
 
-    b) Trigger self-test
-	gh workflow run engine-self-test.yml \
-	  --repo automated-assistant-systems/task-assistant \
-	  -f owner=garybayes \
-	  -f repo=ta-sandbox \
-	  -f telemetry_repo=garybayes/task-assistant-telemetry \
-	  -f correlation_id=test-partial-recovery
+    b) Trigger self-test on garybayes/ta-sandbox
+	TARGET_REPO="garybayes/ta-sandbox" \
+	  scripts/dispatch/run-self-test.sh
+	Expected:
+	- Preflight should fail
+	- Confirm no new JSONL files created
+
+    c) Collect validation evidence
+	scripts/validation/capture-test-evidence.sh \
+	  garybayes/ta-sandbox \
+	  test-12-telemetry-blocked
 	Expected:
 	- Preflight or emit fails
 	- Explicit error message
 	- No partial files created
-
-    c) Collect validation evidence
-	TELEMETRY_REPO=garybayes/task-assistant-telemetry \
-	  scripts/telemetry/collect-test-evidence.sh ta-sandbox \
-	  docs/validation/results/test-12/garybayes-ta-sandbox.json
-	Expected:
-	- Validation telemetry
-	- Dashboard telemetry
-	- Single JSON output
+	- docs/validation/results/test-12-telemetry-blocked/garybayes-ta-sandbox.json
 
 ## Phase 3.4 Exit Criteria
 
-### Phase 3.4 is complete when:
+### Phase 3.4 testing is complete when:
 ✅ All tests 1–12 pass
 ✅ No test produces telemetry on failure paths
 ✅ No test causes cross-repo telemetry contamination
-✅ v2 registration is the only supported Marketplace path
-✅ v1 fallback works without user-visible configuration
 ✅ Dashboard fanout produces consistent results across orgs
 ✅ Telemetry repo is fully bootstrapped by engines alone
 ✅ No manual repo mutation is required post-install
 📦 Validation evidence consists of:
-- Validation telemetry records for all tests
-- Dashboard telemetry records for tests involving aggregation or recovery behavior
+  - Telemetry records for all tests
+  - Engine and telemetry records for tests involving aggregation or recovery behavior
 
-
+## Marketplace documentation is updated and complete:
+docs/marketplace
+├── README.md
+├── failure-modes.md
+├── non-behaviors.md
+├── onboarding-flow.md
+├── operator-tooling.md
+├── permissions-and-auth.md
+├── review-q+a.md
+├── reviewer-summary.md
+├── runtime-components.md
+├── submission-form.md
+└── telemetry-and-dashboards.md
