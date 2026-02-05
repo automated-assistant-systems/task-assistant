@@ -1,0 +1,468 @@
+{
+  "collected_at": "2026-02-05T12:53:28Z",
+  "target_repo": "garybayes/ta-sandbox",
+  "telemetry_repo": "garybayes/task-assistant-telemetry",
+  "date": "2026-02-05",
+  "correlation_ids": [
+    "21711915202-1",
+    "21712156407-1",
+    "21712157653-1",
+    "21712210090-1",
+    "21712210112-1"
+  ],
+  "records": [
+    {
+      "schema_version": "1.0",
+      "generated_at": "2026-02-05T12:43:20Z",
+      "correlation_id": "21711915202-1",
+      "source": {
+        "workflow": "engine-preflight",
+        "job": "preflight"
+      },
+      "entity": {
+        "type": "repository",
+        "owner": "garybayes",
+        "repo": "ta-sandbox"
+      },
+      "event": {
+        "category": "preflight",
+        "action": "success",
+        "reason": null
+      },
+      "details": {
+        "ok": true,
+        "summary": "Preflight checks passed",
+        "target_repo": "garybayes/ta-sandbox",
+        "infra": {
+          "orgOwner": "garybayes",
+          "targetRepoName": "ta-sandbox",
+          "telemetryRepo": "garybayes/task-assistant-telemetry",
+          "repoContext": "sandbox",
+          "repoState": "enabled",
+          "dashboard": {
+            "enabled": true,
+            "public": false
+          },
+          "warnings": [],
+          "reasons": [],
+          "versionUsed": "v2",
+          "registrySha": "975a8238c9e09f9b62c8859dc2b5e510e761eaad",
+          "outcomeCode": "INFRA_OK"
+        }
+      }
+    },
+    {
+      "schema_version": "1.0",
+      "generated_at": "2026-02-05T12:51:59Z",
+      "correlation_id": "21712156407-1",
+      "source": {
+        "workflow": "engine-dashboard",
+        "job": "self-test"
+      },
+      "entity": {
+        "type": "repository",
+        "owner": "garybayes",
+        "repo": "ta-sandbox"
+      },
+      "event": {
+        "category": "dashboard",
+        "action": "success",
+        "reason": null
+      },
+      "details": {
+        "ok": true,
+        "engine": "dashboard",
+        "summary": "Dashboard self-test passed",
+        "repo": "ta-sandbox"
+      }
+    },
+    {
+      "schema_version": "1.0",
+      "generated_at": "2026-02-05T12:51:21Z",
+      "correlation_id": "21712156407-1",
+      "source": {
+        "workflow": "engine-preflight",
+        "job": "preflight"
+      },
+      "entity": {
+        "type": "repository",
+        "owner": "garybayes",
+        "repo": "ta-sandbox"
+      },
+      "event": {
+        "category": "preflight",
+        "action": "success",
+        "reason": null
+      },
+      "details": {
+        "ok": true,
+        "summary": "Preflight checks passed",
+        "target_repo": "garybayes/ta-sandbox",
+        "infra": {
+          "orgOwner": "garybayes",
+          "targetRepoName": "ta-sandbox",
+          "telemetryRepo": "garybayes/task-assistant-telemetry",
+          "repoContext": "sandbox",
+          "repoState": "enabled",
+          "dashboard": {
+            "enabled": true,
+            "public": false
+          },
+          "warnings": [],
+          "reasons": [],
+          "versionUsed": "v2",
+          "registrySha": "975a8238c9e09f9b62c8859dc2b5e510e761eaad",
+          "outcomeCode": "INFRA_OK"
+        }
+      }
+    },
+    {
+      "schema_version": "1.0",
+      "generated_at": "2026-02-05T12:51:44Z",
+      "correlation_id": "21712156407-1",
+      "source": {
+        "workflow": "engine-self-test",
+        "job": "self-test"
+      },
+      "entity": {
+        "type": "repository",
+        "owner": "garybayes",
+        "repo": "ta-sandbox"
+      },
+      "event": {
+        "category": "self-test",
+        "action": "success",
+        "reason": null
+      },
+      "details": {
+        "tool": "prepare-repo",
+        "version": "1.0",
+        "repo": "garybayes/ta-sandbox",
+        "mode": "dry-run",
+        "ok": true,
+        "summary": "Repository is compliant",
+        "checks": [
+          {
+            "id": "config.load",
+            "outcome": "PASS",
+            "details": null
+          },
+          {
+            "id": "config.section.tracks",
+            "outcome": "PASS",
+            "details": null
+          },
+          {
+            "id": "config.section.labels",
+            "outcome": "PASS",
+            "details": null
+          },
+          {
+            "id": "config.section.milestones",
+            "outcome": "PASS",
+            "details": null
+          },
+          {
+            "id": "track.sprint",
+            "outcome": "PASS",
+            "details": null
+          },
+          {
+            "id": "track.backlog",
+            "outcome": "PASS",
+            "details": null
+          },
+          {
+            "id": "label.phase-3.4",
+            "outcome": "PASS",
+            "details": null
+          },
+          {
+            "id": "label.phase-3.5",
+            "outcome": "PASS",
+            "details": null
+          },
+          {
+            "id": "milestone.Phase 3.4 – Marketplace Readiness",
+            "outcome": "PASS",
+            "details": null
+          },
+          {
+            "id": "milestone.Phase 3.5 – Post-Release Hardening",
+            "outcome": "PASS",
+            "details": null
+          }
+        ],
+        "labels": {
+          "created": [],
+          "updated": [],
+          "skipped": [
+            "phase-3.4",
+            "phase-3.5"
+          ]
+        },
+        "milestones": {
+          "created": [],
+          "skipped": [
+            "Phase 3.4 – Marketplace Readiness",
+            "Phase 3.5 – Post-Release Hardening"
+          ]
+        }
+      }
+    },
+    {
+      "schema_version": "1.0",
+      "generated_at": "2026-02-05T12:51:20Z",
+      "correlation_id": "21712157653-1",
+      "source": {
+        "workflow": "engine-preflight",
+        "job": "preflight"
+      },
+      "entity": {
+        "type": "repository",
+        "owner": "garybayes",
+        "repo": "ta-sandbox"
+      },
+      "event": {
+        "category": "preflight",
+        "action": "success",
+        "reason": null
+      },
+      "details": {
+        "ok": true,
+        "summary": "Preflight checks passed",
+        "target_repo": "garybayes/ta-sandbox",
+        "infra": {
+          "orgOwner": "garybayes",
+          "targetRepoName": "ta-sandbox",
+          "telemetryRepo": "garybayes/task-assistant-telemetry",
+          "repoContext": "sandbox",
+          "repoState": "enabled",
+          "dashboard": {
+            "enabled": true,
+            "public": false
+          },
+          "warnings": [],
+          "reasons": [],
+          "versionUsed": "v2",
+          "registrySha": "975a8238c9e09f9b62c8859dc2b5e510e761eaad",
+          "outcomeCode": "INFRA_OK"
+        }
+      }
+    },
+    {
+      "schema_version": "1.0",
+      "generated_at": "2026-02-05T12:51:36Z",
+      "correlation_id": "21712157653-1",
+      "source": {
+        "workflow": "engine-validate",
+        "job": "validate"
+      },
+      "entity": {
+        "type": "repository",
+        "owner": "garybayes",
+        "repo": "ta-sandbox"
+      },
+      "event": {
+        "category": "validate",
+        "action": "success",
+        "reason": null
+      },
+      "details": {
+        "tool": "validate-config",
+        "version": "1.0",
+        "ok": true,
+        "summary": "Configuration is valid",
+        "checks": [
+          {
+            "id": "config.load",
+            "outcome": "PASS"
+          }
+        ]
+      }
+    },
+    {
+      "schema_version": "1.0",
+      "generated_at": "2026-02-05T12:53:16Z",
+      "correlation_id": "21712210090-1",
+      "source": {
+        "workflow": "engine-enforce",
+        "job": "enforce"
+      },
+      "entity": {
+        "type": "repository",
+        "owner": "garybayes",
+        "repo": "ta-sandbox"
+      },
+      "event": {
+        "category": "enforce",
+        "action": "success",
+        "reason": null
+      },
+      "details": {
+        "tool": "issue-events",
+        "version": "1.1",
+        "repo": "garybayes/ta-sandbox",
+        "issue": {
+          "number": 3
+        },
+        "event": {
+          "type": "labeled"
+        },
+        "mode": "apply",
+        "ok": true,
+        "summary": "Milestone set to match phase-3.5",
+        "checks": [
+          {
+            "id": "config.load",
+            "outcome": "PASS",
+            "details": null
+          },
+          {
+            "id": "config.schema.valid",
+            "outcome": "PASS",
+            "details": null
+          },
+          {
+            "id": "config.shape",
+            "outcome": "PASS",
+            "details": null
+          },
+          {
+            "id": "issue.load",
+            "outcome": "PASS",
+            "details": {
+              "labels_count": 2,
+              "milestone": null
+            }
+          },
+          {
+            "id": "phase.exclusive.enforced",
+            "outcome": "PASS",
+            "details": {
+              "kept": "phase-3.5",
+              "removed": [
+                "phase-3.4"
+              ]
+            }
+          },
+          {
+            "id": "phase.milestone.enforced",
+            "outcome": "PASS",
+            "details": "Phase 3.5 – Post-Release Hardening"
+          },
+          {
+            "id": "priority.exclusive",
+            "outcome": "PASS",
+            "details": "ok"
+          },
+          {
+            "id": "track.exclusive",
+            "outcome": "PASS",
+            "details": "ok"
+          },
+          {
+            "id": "state.exclusive",
+            "outcome": "PASS",
+            "details": "ok"
+          }
+        ],
+        "actions": [
+          {
+            "id": "phase.labels.pruned",
+            "kept": "phase-3.5",
+            "removed": [
+              "phase-3.4"
+            ]
+          },
+          {
+            "id": "issue.milestone.set",
+            "from": null,
+            "to": "Phase 3.5 – Post-Release Hardening",
+            "reason": "phase label phase-3.5"
+          }
+        ]
+      }
+    },
+    {
+      "schema_version": "1.0",
+      "generated_at": "2026-02-05T12:53:01Z",
+      "correlation_id": "21712210090-1",
+      "source": {
+        "workflow": "engine-preflight",
+        "job": "preflight"
+      },
+      "entity": {
+        "type": "repository",
+        "owner": "garybayes",
+        "repo": "ta-sandbox"
+      },
+      "event": {
+        "category": "preflight",
+        "action": "success",
+        "reason": null
+      },
+      "details": {
+        "ok": true,
+        "summary": "Preflight checks passed",
+        "target_repo": "garybayes/ta-sandbox",
+        "infra": {
+          "orgOwner": "garybayes",
+          "targetRepoName": "ta-sandbox",
+          "telemetryRepo": "garybayes/task-assistant-telemetry",
+          "repoContext": "sandbox",
+          "repoState": "enabled",
+          "dashboard": {
+            "enabled": true,
+            "public": false
+          },
+          "warnings": [],
+          "reasons": [],
+          "versionUsed": "v2",
+          "registrySha": "975a8238c9e09f9b62c8859dc2b5e510e761eaad",
+          "outcomeCode": "INFRA_OK"
+        }
+      }
+    },
+    {
+      "schema_version": "1.0",
+      "generated_at": "2026-02-05T12:53:02Z",
+      "correlation_id": "21712210112-1",
+      "source": {
+        "workflow": "engine-preflight",
+        "job": "preflight"
+      },
+      "entity": {
+        "type": "repository",
+        "owner": "garybayes",
+        "repo": "ta-sandbox"
+      },
+      "event": {
+        "category": "preflight",
+        "action": "success",
+        "reason": null
+      },
+      "details": {
+        "ok": true,
+        "summary": "Preflight checks passed",
+        "target_repo": "garybayes/ta-sandbox",
+        "infra": {
+          "orgOwner": "garybayes",
+          "targetRepoName": "ta-sandbox",
+          "telemetryRepo": "garybayes/task-assistant-telemetry",
+          "repoContext": "sandbox",
+          "repoState": "enabled",
+          "dashboard": {
+            "enabled": true,
+            "public": false
+          },
+          "warnings": [],
+          "reasons": [],
+          "versionUsed": "v2",
+          "registrySha": "975a8238c9e09f9b62c8859dc2b5e510e761eaad",
+          "outcomeCode": "INFRA_OK"
+        }
+      }
+    }
+  ]
+}

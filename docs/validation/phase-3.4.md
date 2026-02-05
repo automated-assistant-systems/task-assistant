@@ -133,6 +133,12 @@ TELEMETRY_REPO=owner/task-assistant-telemetry \
   • No workflow triggers
   scripts/validation/capture-test-evidence.sh <owner/repo> <test-id>
 
+## Telemetry Emission Context Note
+Telemetry emission behavior varies by repository ownership, installation context, and prior activity.
+Failures may occur at different lifecycle stages (preflight vs validate) depending on when telemetry directory paths are created or reset.
+For each repository, repeated executions are deterministic and consistent.
+Variance across repositories is expected and indicates correct context-aware behavior.
+
 ## Tests
 ### 1. Validate full functionality of Task Assistant in org sandbox repo
   scripts/validation/run-validation-test.sh \
@@ -220,6 +226,8 @@ This will perform the following:
 
 ### 4. Test install process and missing setup failures
     a) Create garybayes/ta-sandbox using default settings:
+	- Repo Name: ta-sandbox
+	- Repo Description: Task Assistant Sandbox
 	- Repository Visibility: Public
 	- README: Off
 	- .gitignore: None
@@ -448,23 +456,21 @@ This will perform the following:
 	- Confirm no new JSONL files created
 	- docs/validation/results/test-09-repo-disabled/garybayes-ta-sandbox.json
 
-### 10. Test re-registering repo
+### 10. Test re-enable repo
 	cd ~/projects/task-assistant-infra
 	1. Create a branch to ensure mutations never happen on main
 	    scripts/infra/helpers/new-branch.sh \
-		infra/register-garybayes-ta-sandbox
+		infra/enable-garybayes-ta-sandbox
 
-	2. Register repo, stage registry and changelog and verify
-	    scripts/infra/helpers/apply-infra-change.sh register \
+	2. Enable repo, stage registry and changelog and verify
+	    scripts/infra/helpers/apply-infra-change.sh enable \
 	      --owner garybayes \
 	      --repo ta-sandbox \
-	      --context sandbox \
-	      --telemetry task-assistant-telemetry \
-	      --reason "Phase 3.4 validation sandbox re-registered"
+	      --reason "Phase 3.4 validation sandbox enable"
 
 	3. Commit and push the registry and changelog mutation
 	    scripts/infra/helpers/commit-and-push-infra.sh \
-	      "infra: re-register garybayes/ta-sandbox for Phase 3.4"
+	      "infra: enable garybayes/ta-sandbox for Phase 3.4"
 
 	4. Creates PR only from clean feature branch
 	    scripts/infra/helpers/create-pr.sh
@@ -482,12 +488,14 @@ This will perform the following:
     c) Collect validation evidence
 	scripts/validation/capture-test-evidence.sh \
 	  garybayes/ta-sandbox \
-	  test-10-repo-re-registered
+	  test-10-repo-enable
 	Expected:
 	- Validation telemetry
 	- Dashboard telemetry
 	- Single JSON output
-	- docs/validation/results/test-10-repo-re-registered/garybayes-ta-sandbox.json
+	- docs/validation/results/test-10-repo-enable/garybayes-ta-sandbox.json
+
+	Infra lifecycle operations are validated under a separate operator test plan.
 
 ### 11. Partial telemetry recovery
     a) Delete all but one JSONL file in telemetry repo
@@ -519,6 +527,11 @@ This will perform the following:
 
 ### 12. Telemetry write blocked
     a) Enable branch protection on telemetry repo
+	- Ruleset Name: Phase 3.4 Test 12
+	- Enforement status: Active
+	- Target branches, Branch naming pattern: main
+	- Require a pull request before merging, require 1 approval
+	- Remainder unchecked
 
     b) Trigger self-test on garybayes/ta-sandbox
 	TARGET_REPO="garybayes/ta-sandbox" \
@@ -536,6 +549,8 @@ This will perform the following:
 	- Explicit error message
 	- No partial files created
 	- docs/validation/results/test-12-telemetry-blocked/garybayes-ta-sandbox.json
+
+    d) Delete ruleset
 
 ## Phase 3.4 Exit Criteria
 

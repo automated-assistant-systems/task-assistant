@@ -19,7 +19,8 @@ echo "Date:          $DATE"
 echo "Telemetry repo:$TELEMETRY_REPO"
 echo
 
-FILES="$(gh api repos/$TELEMETRY_REPO/contents/$BASE_PATH --jq '.[].name' | sort)"
+FILES_JSON="$(gh api repos/$TELEMETRY_REPO/contents/$BASE_PATH)"
+FILES="$(echo "$FILES_JSON" | jq -r '.[].name' | sort)"
 
 if [[ -z "$FILES" ]]; then
   echo "❌ No telemetry files found at $BASE_PATH"
@@ -31,19 +32,36 @@ echo "$FILES"
 echo
 
 KEEP="$(echo "$FILES" | head -n 1)"
-DELETE="$(echo "$FILES" | tail -n +2)"
 
 echo "✓ Preserving correlation file:"
 echo "  $KEEP"
 echo
 
-for f in $DELETE; do
-  echo "→ Deleting $f"
-  gh api -X DELETE \
-    "repos/$TELEMETRY_REPO/contents/$BASE_PATH/$f" \
-    -f message="test: prune telemetry for partial recovery"
+for dir in $(echo "$FILES" | tail -n +2); do
+  echo "→ Pruning correlation directory: $dir"
+
+  # List files inside the correlation directory
+  FILES_IN_DIR_JSON="$(gh api repos/$TELEMETRY_REPO/contents/$BASE_PATH/$dir)"
+
+  for file in $(echo "$FILES_IN_DIR_JSON" | jq -r '.[] | select(.type=="file") | .name'); do
+    # Optionally preserve .keep
+    if [[ "$file" == ".keep" ]]; then
+      echo "  ↳ preserving $dir/.keep"
+      continue
+    fi
+
+    SHA="$(echo "$FILES_IN_DIR_JSON" | jq -r ".[] | select(.name==\"$file\") | .sha")"
+
+    echo "  ↳ deleting $dir/$file"
+    gh api -X DELETE \
+      "repos/$TELEMETRY_REPO/contents/$BASE_PATH/$dir/$file" \
+      -f message="test: prune telemetry for partial recovery" \
+      -f sha="$SHA" \
+      >/dev/null
+  done
 done
 
 echo
 echo "✔ Telemetry pruned"
 echo "✔ One correlation preserved for recovery validation"
+echo
