@@ -93,7 +93,7 @@ gh api "repos/$REPO/milestones?state=all&per_page=100" \
 echo "→ Capturing recent workflow runs"
 
 gh run list \
-  --repo automated-assistant-systems/task-assistant \
+  --repo "$REPO" \
   --limit 10 \
   --json name,status,conclusion,event,createdAt \
   > "$OUT_DIR/recent-workflows.json" 2>/dev/null || true

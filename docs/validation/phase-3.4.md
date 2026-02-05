@@ -224,6 +224,9 @@ This will perform the following:
 	- README: Off
 	- .gitignore: None
 	- License: None
+       Collect evidence
+	  scripts/validation/capture-test-04-evidence.sh \
+	    garybayes/ta-sandbox step-a-pre-install-zero-state
        Install Task Assistant (dispatch + config only)
 	  scripts/sandbox/install-task-assistant.sh \
 	    garybayes/ta-sandbox
@@ -247,26 +250,25 @@ This will perform the following:
 	    scripts/infra/helpers/new-branch.sh \
 		infra/register-garybayes-ta-sandbox
 
-	2. Register repo using infra CLI (sandbox-safe)
-	    scripts/infra/infra.sh register garybayes/ta-sandbox \
+	2. Register repo, stage registry and changelog and verify
+	    scripts/infra/helpers/apply-infra-change.sh register \
+	      --owner garybayes \
+	      --repo ta-sandbox \
 	      --context sandbox \
-	      --telemetry-repo garybayes/task-assistant-telemetry \
+	      --telemetry task-assistant-telemetry \
 	      --reason "Phase 3.4 validation sandbox onboarding"
 
-	3. Validates schema and stages registry changes
-	    scripts/infra/helpers/finalize-registry.sh
+	3. Commit and push the registry and changelog mutation
+	    scripts/infra/helpers/commit-and-push-infra.sh \
+	      "infra: register garybayes/ta-sandbox for Phase 3.4"
 
-	4. Commit the registry mutation
-	    git commit -m "infra: register garybayes/ta-sandbox for Phase 3.4"
-	    git push -u origin infra/register-garybayes-ta-sandbox
-
-	5. Creates PR only from clean feature branches
+	4. Creates PR only from clean feature branch
 	    scripts/infra/helpers/create-pr.sh
 
-	6. Merges safely and deletes branches
+	5. Merges safely and deletes branch
 	    scripts/infra/helpers/merge-pr.sh
 
-	7. Collect test evidence
+	6. Collect test evidence
 	    scripts/validation/capture-test-04-evidence.sh \
 	      garybayes/ta-sandbox step-c-infra-registered
 
@@ -316,6 +318,8 @@ This will perform the following:
 
     j) Validate end-to-end and repo hygiene
 	scripts/onboarding/verify-repo.sh garybayes/ta-sandbox
+	Note: verify-repo.sh dynamically validates that all labels and milestones declared in .github/task-assistant.yml exist in the repository.
+	If verification fails due to propagation delay after preparation, rerun verify-repo.sh until it succeeds, then collect evidence.
        Collect evidence
 	scripts/validation/capture-test-04-evidence.sh \
 	  garybayes/ta-sandbox step-j-verify-repo-success
@@ -412,23 +416,20 @@ This will perform the following:
 	    scripts/infra/helpers/new-branch.sh \
 		infra/disable-garybayes-ta-sandbox
 
-	2. Register repo using infra CLI (sandbox-safe)
-	    scripts/infra/infra.sh disable garybayes/ta-sandbox \
-	      --context sandbox \
-	      --telemetry-repo garybayes/task-assistant-telemetry \
+	2. Register repo, stage registry and changelog and verify
+	    scripts/infra/helpers/apply-infra-change.sh disable \
+	      --owner garybayes \
+	      --repo ta-sandbox \
 	      --reason "Phase 3.4 validation sandbox disabled"
 
-	3. Validates schema and stages registry changes
-	    scripts/infra/helpers/finalize-registry.sh
+	3. Commit and push the registry and changelog mutation
+	    scripts/infra/helpers/commit-and-push-infra.sh \
+	      "infra: disable garybayes/ta-sandbox for Phase 3.4"
 
-	4. Commit the registry mutation
-	    git commit -m "infra: disable garybayes/ta-sandbox for Phase 3.4"
-	    git push -u origin infra/disable-garybayes-ta-sandbox
-
-	5. Creates PR only from clean feature branches 
+	4. Creates PR only from clean feature branch
 	    scripts/infra/helpers/create-pr.sh
 
-	6. Merges safely and deletes branches
+	5. Merges safely and deletes branch
 	    scripts/infra/helpers/merge-pr.sh
 
    b) Trigger self-test on garybayes/ta-sandbox
@@ -451,25 +452,24 @@ This will perform the following:
 	cd ~/projects/task-assistant-infra
 	1. Create a branch to ensure mutations never happen on main
 	    scripts/infra/helpers/new-branch.sh \
-		infra/re-register-garybayes-ta-sandbox
+		infra/register-garybayes-ta-sandbox
 
-	2. Register repo using infra CLI (sandbox-safe)
-	    scripts/infra/infra.sh register garybayes/ta-sandbox \
+	2. Register repo, stage registry and changelog and verify
+	    scripts/infra/helpers/apply-infra-change.sh register \
+	      --owner garybayes \
+	      --repo ta-sandbox \
 	      --context sandbox \
-	      --telemetry-repo garybayes/task-assistant-telemetry \
-	      --reason "Phase 3.4 validation sandbox re-register"
+	      --telemetry task-assistant-telemetry \
+	      --reason "Phase 3.4 validation sandbox re-registered"
 
-	3. Validates schema and stages registry changes
-	    scripts/infra/helpers/finalize-registry.sh
+	3. Commit and push the registry and changelog mutation
+	    scripts/infra/helpers/commit-and-push-infra.sh \
+	      "infra: re-register garybayes/ta-sandbox for Phase 3.4"
 
-	4. Commit the registry mutation
-	    git commit -m "infra: re-register garybayes/ta-sandbox for Phase 3.4"
-	    git push -u origin infra/re-register-garybayes-ta-sandbox
-
-	5. Creates PR only from clean feature branches
+	4. Creates PR only from clean feature branch
 	    scripts/infra/helpers/create-pr.sh
 
-	6. Merges safely and deletes branches
+	5. Merges safely and deletes branch
 	    scripts/infra/helpers/merge-pr.sh
 
    b) Trigger self-test on garybayes/ta-sandbox

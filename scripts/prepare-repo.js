@@ -131,7 +131,7 @@ for (const track of config.tracks) {
 
   if (!found) {
     result.labels.created.push(track.label);
-    check(`track.${track.id}`, dryRun ? "WARN" : "PASS", "Created (missingl previously)");
+    check(`track.${track.id}`, dryRun ? "WARN" : "PASS", "Created (missing previously)");
     if (!dryRun) {
       run(
         `gh label create "${track.label}" --repo ${repo} ` +

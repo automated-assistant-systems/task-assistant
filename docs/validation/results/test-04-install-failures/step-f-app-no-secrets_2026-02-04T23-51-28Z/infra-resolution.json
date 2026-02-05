@@ -1,0 +1,16 @@
+{
+  "orgOwner": "garybayes",
+  "targetRepoName": "ta-sandbox",
+  "telemetryRepo": "garybayes/task-assistant-telemetry",
+  "repoContext": "sandbox",
+  "repoState": "enabled",
+  "dashboard": {
+    "enabled": true,
+    "public": false
+  },
+  "warnings": [],
+  "reasons": [],
+  "versionUsed": "v2",
+  "registrySha": "975a8238c9e09f9b62c8859dc2b5e510e761eaad",
+  "outcomeCode": "INFRA_OK"
+}

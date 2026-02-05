@@ -1,0 +1,18 @@
+{
+  "orgOwner": "garybayes",
+  "targetRepoName": "ta-sandbox",
+  "telemetryRepo": "garybayes/task-assistant-telemetry",
+  "repoContext": "unknown",
+  "repoState": "absent",
+  "dashboard": {
+    "enabled": false,
+    "public": false
+  },
+  "warnings": [
+    "repo not explicitly registered in infra v2; using org-level telemetry routing"
+  ],
+  "reasons": [],
+  "versionUsed": "v2",
+  "registrySha": "dcda9609c00b476371ba4bc647c58c0498857227",
+  "outcomeCode": "INFRA_REPO_UNREGISTERED"
+}

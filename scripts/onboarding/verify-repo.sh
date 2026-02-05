@@ -26,6 +26,8 @@ if [[ -z "$REPO" ]]; then
   exit 1
 fi
 
+node scripts/onboarding/verify-repo-hygiene.js "$REPO"
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DISPATCH_DIR="$SCRIPT_DIR/../dispatch"
 
