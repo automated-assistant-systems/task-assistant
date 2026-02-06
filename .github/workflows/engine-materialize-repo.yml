@@ -19,9 +19,8 @@ on:
         type: string
 
 permissions:
-  contents: read
+  contents: write
   issues: write
-  metadata: read
   id-token: write
 
 jobs:
