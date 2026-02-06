@@ -1,5 +1,7 @@
 # Operator Tooling (Out of Marketplace Scope)
 
+This document is provided for transparency only.
+
 This repository contains scripts used by operators and developers for:
 
 - Local testing

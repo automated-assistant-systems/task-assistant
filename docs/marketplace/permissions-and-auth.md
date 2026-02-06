@@ -8,6 +8,8 @@ Task Assistant follows the principle of least privilege.
 
 Task Assistant uses a GitHub App installation token for all runtime behavior.
 
+All workflows run under the same GitHub App identity; no alternate credentials are used.
+
 Characteristics:
 - Repository-scoped
 - Explicitly granted by installation

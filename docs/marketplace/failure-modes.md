@@ -33,6 +33,7 @@ Task Assistant is designed to fail safely.
 - Visible only via GitHub Actions logs
 - No user-facing notifications
 - No enforcement behavior is altered
+- Failures do not retry indefinitely or escalate privileges
 
 ---
 

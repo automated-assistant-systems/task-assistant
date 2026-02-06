@@ -1,0 +1,98 @@
+---
+name: Task Assistant • Engine • Materialize Repo
+
+# yamllint disable rule:truthy
+on:
+  workflow_dispatch:
+    inputs:
+      owner:
+        description: Repository owner
+        required: true
+        type: string
+      repo:
+        description: Repository name
+        required: true
+        type: string
+      correlation_id:
+        description: Correlation ID for telemetry
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  issues: write
+  metadata: read
+  id-token: write
+
+jobs:
+  materialize:
+    runs-on: ubuntu-latest
+
+    env:
+      TARGET_OWNER: ${{ inputs.owner }}
+      TARGET_REPO: ${{ inputs.repo }}
+      CORRELATION_ID: ${{ inputs.correlation_id }}
+
+    steps:
+      # ─────────────────────────────────────────────
+      # Checkout Task Assistant (engine code only)
+      # ─────────────────────────────────────────────
+      - name: Checkout Task Assistant
+        uses: actions/checkout@v4
+        with:
+          repository: automated-assistant-systems/task-assistant
+          ref: main
+          path: task-assistant
+
+      # ─────────────────────────────────────────────
+      # Authenticate as GitHub App
+      # ─────────────────────────────────────────────
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.CODEX_APP_ID }}
+          private-key: ${{ secrets.CODEX_PRIVATE_KEY }}
+          owner: ${{ env.TARGET_OWNER }}
+          repositories: ${{ env.TARGET_REPO }}
+
+      # ─────────────────────────────────────────────
+      # Load config from target repo
+      # ─────────────────────────────────────────────
+      - name: Fetch Task Assistant config
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          gh api repos/$TARGET_OWNER/$TARGET_REPO/contents/.github/task-assistant.yml \
+            --jq '.content' | base64 -d > config.yml
+
+      # ─────────────────────────────────────────────
+      # Validate config
+      # ─────────────────────────────────────────────
+      - name: Validate configuration
+        run: |
+          node task-assistant/scripts/config/validate-config.js config.yml
+
+      # ─────────────────────────────────────────────
+      # Materialize labels & milestones
+      # ─────────────────────────────────────────────
+      - name: Materialize repository metadata
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          node task-assistant/scripts/engines/materialize-repo.js \
+            --owner "$TARGET_OWNER" \
+            --repo "$TARGET_REPO" \
+            --config config.yml \
+            --correlation-id "$CORRELATION_ID"
+
+      # ─────────────────────────────────────────────
+      # Emit telemetry
+      # ─────────────────────────────────────────────
+      - name: Emit materialization telemetry
+        run: |
+          node task-assistant/scripts/telemetry/emit.js \
+            materialize \
+            --owner "$TARGET_OWNER" \
+            --repo "$TARGET_REPO" \
+            --correlation-id "$CORRELATION_ID"

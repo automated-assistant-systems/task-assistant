@@ -1,198 +1,322 @@
-Task Assistant — GitHub App Onboarding Flow (Authoritative)
-Purpose
+# Task Assistant for GitHub — GitHub App Onboarding Flow (Authoritative)
 
-This onboarding flow installs Task Assistant into a repository without copying engine code and without granting unsafe permissions.
+This document explains how to install and use Task Assistant in a repository.
 
-After onboarding:
+It is intentionally explicit and boring.
+Experienced users can skim headings.
+New users can follow it step by step.
 
-The host repo contains only:
+Nothing in this process requires running scripts locally.
 
-Configuration (.github/task-assistant.yml)
+---
 
-Dispatcher (task-assistant-dispatch.yml)
+## What Task Assistant for GitHub Is (Mental Model)
 
-All engines run from the Task Assistant App repo
+Task Assistant for GitHub is a **GitHub App**, not a library or framework.
 
-Telemetry is written only to the org’s telemetry repo
+After installation:
 
-High-Level Architecture (Mental Model)
-User Repo (Host)
-├─ .github/task-assistant.yml        ← config only
-├─ .github/workflows/
-│  └─ task-assistant-dispatch.yml    ← dispatcher only
-│
-└─ (NO engines, NO scripts)
+- Your repository contains **only configuration and a dispatcher**
+- No engine code is copied into your repository
+- All automation runs from the Task Assistant App
+- Telemetry is written to a **separate telemetry repository**
 
-Task Assistant App Repo
-├─ engine-self-test.yml
-├─ engine-validate.yml
-├─ engine-enforce.yml
-├─ engine-dashboard.yml
-└─ runtime scripts
+### Your Repository (Host Repo)
 
-Org Telemetry Repo
-└─ telemetry/v1/repos/<repo>/*.jsonl
+.github/
+├─ task-assistant.yml
+└─ workflows/
+└─ task-assistant-dispatch.yml
 
-Onboarding Flow (Step-by-Step)
-Step 1 — Install the GitHub App
+That’s it.
 
-Actor: Org Owner / Repo Admin
+### Task Assistant for GitHub App Repository
+
+- Validation engines
+- Enforcement engines
+- Telemetry and dashboard engines
+
+### Telemetry Repository (Per Org)
+
+telemetry/v1/
+└─ repos/<owner-repo>/<yyyy-mm-dd>/<correlation_id>/*.jsonl
+
+---
+
+## Prerequisites
+
+Before starting, you must have:
+
+- Admin access to the repository
+- Permission to install GitHub Apps
+- Permission to create or choose a telemetry repository
+
+No local tooling is required.
+
+---
+
+## Step 1 — Install the GitHub App
+
+Actor: Repository Admin or Organization Owner  
 UI: GitHub Marketplace
 
-Navigate to Task Assistant on GitHub Marketplace
+1. Go to the GitHub Marketplace
+2. Find **Task Assistant for GitHub**
+3. Click **Install**
+4. Choose:
+   - Entire organization **or**
+   - Selected repositories
+5. Review and approve permissions
 
-Click Install
+### Permissions (Summary)
 
-Choose:
+- Repository metadata (read)
+- Issues (read/write — only if enforcement is configured)
+- Contents (read)
+- Contents (write — telemetry repository only)
 
-Entire organization or
+🔒 Task Assistant cannot access repositories you do not approve.
 
-Selected repositories
+---
 
-Confirm permissions
+## Step 2 — Create the Telemetry Repository (Once per Org)
 
-Permissions Granted
+Task Assistant requires a repository to store telemetry.
 
-Issues: read/write
-
-Contents: write (telemetry repos only)
-
-Metadata: read
-
-🔒 The App cannot act outside the repositories you approve.
-
-Step 2 — Create the Org Telemetry Repository (Once per Org)
-
-Repo name (required):
+**Required name:**
 
 <owner>/task-assistant-telemetry
 
 
-Purpose:
+This repository:
 
-Stores all enforcement, validation, dashboard, and audit events
+- Stores immutable telemetry (JSONL)
+- Stores derived dashboards
+- Is never written into monitored repositories
 
-Isolated per organization (no cross-org leakage)
+Recommended settings:
 
-This repo can be:
+- Visibility: Private
+- Default branch: main
 
-Private (recommended)
+This step is done once per organization.
 
-Public (optional, for transparency)
+---
 
-Step 3 — Add Required Secrets (Per Repo or Org)
+## Step 3 — Add Required Secrets
 
-Task Assistant requires two secrets to operate:
+Task Assistant authenticates using a GitHub App identity.
 
-Secret Name	Value
-CODEX_APP_ID	GitHub App ID
-CODEX_PRIVATE_KEY	GitHub App private key (.pem)
-How to Add
-gh secret set CODEX_APP_ID --repo <owner/repo> --body <app-id>
-gh secret set CODEX_PRIVATE_KEY --repo <owner/repo> --body-file key.pem
+Two secrets must be available to the repository:
 
+| Secret Name         | Value                         |
+|---------------------|-------------------------------|
+| `CODEX_APP_ID`      | GitHub App ID                 |
+| `CODEX_PRIVATE_KEY` | GitHub App private key (.pem) |
 
-💡 These may also be set as org-level secrets with access granted to selected repos.
+These can be added as:
 
-Step 4 — Install Task Assistant Files (Config + Dispatch Only)
+- Repository secrets, or
+- Organization secrets (recommended for multiple repos)
 
-Method: Automated installer (recommended)
-What gets installed:
+Secrets are managed using the GitHub UI.
+
+No Personal Access Tokens (PATs) are used.
+
+---
+
+## Step 4 — Add Task Assistant Files to the Repository
+
+Task Assistant requires **two files** to exist in the repository.
+
+### Required Files
 
 .github/task-assistant.yml
 .github/workflows/task-assistant-dispatch.yml
 
 
-What does NOT get installed:
+### What These Files Are
 
-❌ Engines
+- `task-assistant.yml`  
+  Declarative configuration only  
+  Defines labels, milestones, and enforcement rules
+  See docs/marketplace/config-reference.md for configuration information
 
-❌ Scripts
+- `task-assistant-dispatch.yml`  
+  Dispatcher workflow only  
+  Routes events to Task Assistant engines
 
-❌ Telemetry logic
+### How to Add Them
 
-❌ Runtime code
+1. Create the files in your repository
+2. Commit and push them to the default branch
 
-Dry-Run Validation (Recommended First)
-scripts/sandbox/install-task-assistant.sh <owner/repo> --dry-run
+No scripts are required.
+No engine code is copied.
 
+---
 
-This will:
+### Configuration Evolution (Recommended Reading)
 
-Verify repo access
+Task Assistant configurations are designed to evolve safely over time.
 
-Validate secrets (non-blocking)
+If this is your first install, start with the minimal configuration and
+add enforcement rules gradually.
 
-Confirm required files are missing or outdated
+📘 **Config Evolution Guide**  
+docs/config/config-evolution.md
 
-Make zero changes
+This guide shows:
+- A zero-risk starting config
+- How to introduce enforcement safely
+- How to evolve from simple → advanced rules
+- How to roll back cleanly if needed
 
-Actual Install
-scripts/sandbox/install-task-assistant.sh <owner/repo>
+You do **not** need to enable enforcement to use Task Assistant.
 
+---
 
-Result:
+## Step 5 — Register the repository (operator step)
 
-Files are committed
+Before Task Assistant can validate configuration or emit telemetry, the repository must be registered by the Task Assistant operator.
 
-Dispatcher becomes active
+Registration:
 
-Repo is now “Task Assistant–enabled”
+- Associates the repository with its telemetry destination
 
-Step 5 — First-Time Self-Test (Automatic)
+- Enables preflight resolution
 
-Once installed, Task Assistant will automatically run:
+- Is required for all enforcement and validation behavior
 
-task-assistant-dispatch.yml → self-test mode
+How registration happens:
 
+- The repository owner submits a registration request (documented in the Marketplace listing)
+
+- The operator approves and registers the repository
+
+- No automation runs until registration is complete
+
+If the repository is not registered:
+
+- Preflight fails
+
+- Validation does not run
+
+- No repository mutations occur
+
+This is expected and safe behavior.
+
+---
+
+## Step 6 — Automatic Validation on Config Changes
+
+After registration, whenever `.github/task-assistant.yml` is committed:
+- Task Assistant automatically runs validation
+- Configuration errors are reported in GitHub Actions
+- No repository mutations occur
+
+If validation fails:
+- Enforcement does not run
+- Nothing is modified
+
+This is safe to repeat as often as needed.
+
+---
+
+## Step 7 — Materialize Labels & Milestones (Manual, Optional)
+
+Task Assistant does **not** automatically create labels or milestones.
+
+When you want them created:
+
+1. Go to **Actions → Task Assistant • Dispatch**
+2. Click **Run workflow**
+3. Select mode: **materialize**
+4. Run the workflow
+
+What this does:
+
+- Reads your configuration
+- Creates missing labels and milestones
+- Emits telemetry describing what changed
+
+What this does **not** do:
+
+- Modify code
+- Create pull requests
+- Perform speculative actions
+
+This step can be re-run safely at any time.
+
+---
+
+## Step 8 — First-Time Self-Test (Optional)
+
+To verify everything is wired correctly:
+
+1. Go to **Actions → Task Assistant • Dispatch**
+2. Run with mode: **self-test**
 
 This validates:
 
-Config schema
+- Configuration
+- Telemetry routing
+- Engine execution context
+- Dashboard generation
 
-Label/milestone expectations
+Telemetry is written to the telemetry repository.
 
-Telemetry routing
+---
 
-Engine execution context
-
-Telemetry Output
-
-Written to:
-
-<owner>/task-assistant-telemetry/telemetry/v1/repos/<repo>/<date>.jsonl
-
-Step 6 — Ongoing Operation (No User Action Required)
+## Step 8 — Ongoing Operation
 
 After onboarding, Task Assistant runs automatically:
 
-Trigger	Behavior
-Issue label change	Enforcement engine
-Nightly schedule	Validation engine
-Manual dispatch	Self-test / validate
-Daily	Dashboard rebuild
+| Trigger            | Behavior                           |
+|--------------------|------------------------------------|
+| Config push        | Validation                         |
+| Issue label change | Enforcement (if configured)        |
+| Nightly schedule   | Validation                         |
+| Manual dispatch    | Self-test / validate / materialize |
+| Scheduled          | Dashboard rebuild                  |
 
-No engines ever run in the host repo.
+No user action is required for normal operation.
 
-Security Guarantees
+---
 
-✔ Host repos cannot run arbitrary engine code
-✔ App cannot cross org boundaries
-✔ Telemetry is org-isolated
-✔ Config is declarative and auditable
-✔ Engines are centrally versioned
+## Disabling or Uninstalling
 
-Uninstall / Disable
+To disable Task Assistant for a repository:
 
-To disable Task Assistant in a repo:
-
-Remove GitHub App from the repo or
-
-Delete:
-
+- Remove the GitHub App from the repo  
+  **or**
+- Delete:
 .github/task-assistant.yml
-
 .github/workflows/task-assistant-dispatch.yml
 
-No cleanup required in telemetry repo.
 
+No cleanup is required in the telemetry repository.
+
+---
+
+## Security Guarantees
+
+✔ No engine code runs in your repository  
+✔ No scripts must be executed locally  
+✔ No code is modified  
+✔ No cross-org access  
+✔ All behavior is deterministic and auditable  
+✔ All failures are contained and visible via Actions logs  
+
+---
+
+## Summary
+
+Installing Task Assistant consists of:
+
+1. Installing the GitHub App
+2. Creating a telemetry repository
+3. Adding configuration and dispatcher files
+4. Optionally materializing labels and milestones
+
+Everything else is automated, explicit, and safe.

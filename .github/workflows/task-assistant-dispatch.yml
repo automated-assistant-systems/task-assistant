@@ -3,6 +3,11 @@ name: Task Assistant • Dispatch
 
 # yamllint disable rule:truthy
 on:
+  # Validate config changes immediately
+  push:
+    paths:
+      - ".github/task-assistant.yml"
+
   workflow_dispatch:
     inputs:
       mode:
@@ -13,6 +18,7 @@ on:
         options:
           - self-test
           - validate
+          - materialize
 
   issues:
     types: [labeled]
@@ -33,7 +39,6 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       target_repo:     ${{ steps.ctx.outputs.target_repo }}
-      telemetry_repo:  ${{ steps.ctx.outputs.telemetry_repo }}
       mode:            ${{ steps.ctx.outputs.mode }}
       issue_number:    ${{ steps.ctx.outputs.issue_number }}
       event_type:      ${{ steps.ctx.outputs.event_type }}
@@ -58,6 +63,9 @@ jobs:
           case "${GITHUB_EVENT_NAME}" in
             workflow_dispatch)
               MODE="${{ inputs.mode }}"
+              ;;
+            push)
+              MODE="validate"
               ;;
             issues)
               MODE="enforce"
@@ -131,7 +139,7 @@ jobs:
       CODEX_PRIVATE_KEY: ${{ secrets.CODEX_PRIVATE_KEY }}
 
   # ─────────────────────────────────────────────
-  # Validate (nightly + manual)
+  # Validate (nightly + manual + config push)
   # ─────────────────────────────────────────────
   validate:
     if: needs.resolve.outputs.mode == 'validate'
@@ -140,6 +148,25 @@ jobs:
       - preflight
     # yamllint disable rule:line-length
     uses: automated-assistant-systems/task-assistant/.github/workflows/engine-validate.yml@main
+    # yamllint enable rule:line-length
+    with:
+      target_repo:    ${{ needs.resolve.outputs.target_repo }}
+      telemetry_repo: ${{ needs.preflight.outputs.telemetry_repo }}
+      correlation_id: ${{ needs.resolve.outputs.correlation_id }}
+    secrets:
+      CODEX_APP_ID:      ${{ secrets.CODEX_APP_ID }}
+      CODEX_PRIVATE_KEY: ${{ secrets.CODEX_PRIVATE_KEY }}
+
+  # ─────────────────────────────────────────────
+  # Materialize Repo (manual only)
+  # ─────────────────────────────────────────────
+  materialize:
+    if: needs.resolve.outputs.mode == 'materialize'
+    needs:
+      - resolve
+      - preflight
+    # yamllint disable rule:line-length
+    uses: automated-assistant-systems/task-assistant/.github/workflows/engine-materialize-repo.yml@main
     # yamllint enable rule:line-length
     with:
       target_repo:    ${{ needs.resolve.outputs.target_repo }}

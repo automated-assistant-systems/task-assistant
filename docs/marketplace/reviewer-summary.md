@@ -1,17 +1,18 @@
-Task Assistant — One-Page Marketplace Reviewer Summary
-What This App Does
+# Task Assistant — One-Page Marketplace Reviewer Summary
+
+## What This App Does
 
 Task Assistant is a GitHub App that enforces repository hygiene using explicit, configuration-driven rules and emits immutable telemetry for auditability and operator visibility.
 
 The system is intentionally conservative:
 
-No speculative behavior
+* No speculative behavior
 
-No hidden automation
+* No hidden automation
 
-No destructive actions without explicit configuration
+* No destructive actions without explicit configuration
 
-Core Design Principles
+## Core Design Principles
 
 Deterministic — same inputs produce the same outcomes
 
@@ -21,119 +22,123 @@ Auditable — all automated behavior is recorded as immutable telemetry
 
 Marketplace-safe — strict separation between enforcement, telemetry, and observability
 
-What Runs Automatically
+## What Runs Automatically
 
 Task Assistant executes only three runtime components:
+(No external services or servers are required for current functionality.)
 
-Repository Preparation Engine
+### Repository Preparation Engine
 
-Validates configuration and repository hygiene
+* Validates configuration and repository hygiene
 
-Supports dry-run execution
+* Supports dry-run execution
 
-Does not modify code or content
+* Does not modify code or content
 
-Enforcement Event Processor
+### Enforcement Event Processor
 
-Responds to GitHub events (e.g., issue updates)
+* Responds to GitHub events (e.g., issue updates)
 
-Applies only explicitly configured actions
+* Applies only explicitly configured actions
 
-Performs no speculative or self-healing mutations
+* Performs no speculative or self-healing mutations
 
-Telemetry Emission Engine
+### Telemetry Emission Engine
 
-Emits structured, append-only telemetry
+* Emits structured, append-only telemetry
 
-Records what happened, when, and why
+* Records what happened, when, and why
 
-Does not influence enforcement decisions
+* Does not influence enforcement decisions
 
-No other scripts or tools execute automatically.
+* No other scripts or tools execute automatically.
 
-Telemetry & Dashboards
-Telemetry
+## Telemetry & Dashboards
 
-Written to a dedicated, operator-owned telemetry repository
+Telemetry is organized by date and correlation ID to support deterministic recovery and audit.
 
-Stored as append-only, immutable JSONL
+### Telemetry
 
-Never modified after creation
+* Written to a dedicated, operator-owned telemetry repository
 
-Never written to monitored repositories
+* Stored as append-only, immutable JSONL
 
-Dashboards
+* Never modified after creation
 
-Derived artifacts, not authoritative data
+* Never written to monitored repositories
 
-Generated from raw telemetry by a scheduled workflow
+### Dashboards
 
-Written only to the telemetry repository
+* Derived artifacts, not authoritative data
 
-Never written to monitored repositories
+* Generated from raw telemetry by a scheduled workflow
 
-Fully regenerable and deterministic
+* Written only to the telemetry repository
 
-Dashboards have no effect on enforcement behavior.
+* Never written to monitored repositories
 
-Authentication & Permissions
+* Fully regenerable and deterministic
 
-All automation uses a GitHub App installation token
+* Dashboards have no effect on enforcement behavior.
 
-No Personal Access Tokens (PATs)
+## Authentication & Permissions
 
-No user credentials
+* All automation uses a GitHub App installation token
 
-Permissions follow least-privilege principles
+* No Personal Access Tokens (PATs)
+
+* No user credentials
+
+* Permissions follow least-privilege principles
 
 Writes are restricted to:
 
-Telemetry repository (telemetry + dashboards only)
+* Telemetry repository (telemetry + dashboards only)
 
 Task Assistant does not:
 
-Modify repository code
+* Modify repository code
 
-Create pull requests
+* Create pull requests
 
-Delete issues, PRs, or branches
+* Delete issues, PRs, or branches
 
-Failure & Safety Behavior
+## Failure & Safety Behavior
 
-Missing configuration: enforcement does not run
+* Missing configuration: enforcement does not run
 
-Empty telemetry: dashboard generation exits cleanly
+* Empty telemetry: dashboard generation exits cleanly
 
-Malformed telemetry: dashboards report error state without mutation
+* Malformed telemetry: dashboards report error state without mutation
 
-Workflow failures: visible only via GitHub Actions logs
+* Workflow failures: visible only via GitHub Actions logs
 
 Failures never:
 
-Propagate to monitored repositories
+* Propagate to monitored repositories
 
-Trigger enforcement changes
+* Trigger enforcement changes
 
-Generate user-facing noise
+* Generate user-facing noise
 
-Explicit Non-Behaviors
+## Explicit Non-Behaviors
 
 For clarity, Task Assistant does not:
 
-Modify source code
+* Modify source code
 
-Create or modify pull requests
+* Create or modify pull requests
 
-Perform self-healing or speculative actions
+* Perform self-healing or speculative actions
 
-Aggregate data across organizations
+* Aggregate data across organizations
 
-Write dashboards into user repositories
+* Write dashboards into user repositories
 
-Require users to run scripts manually
+* Require users to run scripts manually
 
-Embed UI elements inside repositories
+* Embed UI elements inside repositories
 
-Summary Statement (Reviewer-Facing)
+## Summary Statement (Reviewer-Facing)
 
 Task Assistant enforces repository hygiene using explicit configuration and emits immutable telemetry to a dedicated repository. Derived dashboards are generated separately as read-only artifacts and never modify monitored repositories. All behavior is deterministic, auditable, and designed to meet GitHub Marketplace safety standards.

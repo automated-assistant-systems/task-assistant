@@ -14,12 +14,12 @@ Data types:
 
 ### Raw Telemetry
 Path:
-telemetry/v1/repos/<owner_repo>/*.jsonl
+telemetry/v1/repos/<owner_repo>/<yyyy-mm-dd>/<correlation_id>/*.jsonl
 
 Properties:
 - Append-only
 - Immutable
-- Never rewritten or corrected
+- Never rewritten or corrected by runtime components
 - Canonical source of truth
 
 ---
@@ -29,7 +29,7 @@ Properties:
 Dashboards are derived artifacts generated from raw telemetry.
 
 Path:
-telemetry/v1/dashboards/<owner_repo>/dashboard.json
+telemetry/v1/repos/<owner_repo>/<yyyy-mm-dd>/<correlation_id>/dashboard.json
 
 Properties:
 - Fully regenerable
