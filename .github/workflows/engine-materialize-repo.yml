@@ -3,20 +3,28 @@ name: Task Assistant • Engine • Materialize Repo
 
 # yamllint disable rule:truthy
 on:
-  workflow_dispatch:
+  workflow_call:
     inputs:
-      owner:
-        description: Repository owner
+      target_repo:
+        description: "Target repository (owner/repo)"
         required: true
         type: string
-      repo:
-        description: Repository name
+
+      telemetry_repo:
+        description: "Resolved telemetry repository"
         required: true
         type: string
+
       correlation_id:
-        description: Correlation ID for telemetry
+        description: "Run-scoped correlation ID (system-generated)"
         required: true
         type: string
+
+    secrets:
+      CODEX_APP_ID:
+        required: true
+      CODEX_PRIVATE_KEY:
+        required: true
 
 permissions:
   contents: write
@@ -28,9 +36,10 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      TARGET_OWNER: ${{ inputs.owner }}
-      TARGET_REPO: ${{ inputs.repo }}
+      ENGINE_NAME: materialize
+      ENGINE_JOB: materialize
       CORRELATION_ID: ${{ inputs.correlation_id }}
+      TELEMETRY_REPO: ${{ inputs.telemetry_repo }}
 
     steps:
       # ─────────────────────────────────────────────
@@ -43,34 +52,59 @@ jobs:
           ref: main
           path: task-assistant
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        working-directory: task-assistant
+        run: |
+          set -euo pipefail
+          npm ci
+
       # ─────────────────────────────────────────────
-      # Authenticate as GitHub App
+      # Parse target repo
+      # ─────────────────────────────────────────────
+      - name: Parse target repo
+        run: |
+          TARGET="${{ inputs.target_repo }}"
+          OWNER="${TARGET%%/*}"
+          REPO="${TARGET##*/}"
+
+          echo "OWNER=$OWNER" >> "$GITHUB_ENV"
+          echo "REPO=$REPO"   >> "$GITHUB_ENV"
+
+      # ─────────────────────────────────────────────
+      # Authenticate as GitHub App (target repo)
       # ─────────────────────────────────────────────
       - name: Generate GitHub App token
         id: app-token
         uses: actions/create-github-app-token@v1
         with:
-          app-id: ${{ secrets.CODEX_APP_ID }}
+          app-id:      ${{ secrets.CODEX_APP_ID }}
           private-key: ${{ secrets.CODEX_PRIVATE_KEY }}
-          owner: ${{ env.TARGET_OWNER }}
-          repositories: ${{ env.TARGET_REPO }}
+          owner:       ${{ env.OWNER }}
 
       # ─────────────────────────────────────────────
-      # Load config from target repo
+      # Fetch config from target repo
       # ─────────────────────────────────────────────
       - name: Fetch Task Assistant config
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
-          gh api repos/$TARGET_OWNER/$TARGET_REPO/contents/.github/task-assistant.yml \
+          set -euo pipefail
+
+          gh api "repos/$OWNER/$REPO/contents/.github/task-assistant.yml" \
             --jq '.content' | base64 -d > config.yml
 
       # ─────────────────────────────────────────────
-      # Validate config
+      # Validate configuration (authoritative)
       # ─────────────────────────────────────────────
       - name: Validate configuration
+        working-directory: task-assistant
         run: |
-          node task-assistant/scripts/config/validate-config.js config.yml
+          set -euo pipefail
+          node scripts/config/validate-config.js ../config.yml
 
       # ─────────────────────────────────────────────
       # Materialize labels & milestones
@@ -78,20 +112,35 @@ jobs:
       - name: Materialize repository metadata
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        working-directory: task-assistant
         run: |
-          node task-assistant/scripts/engines/materialize-repo.js \
-            --owner "$TARGET_OWNER" \
-            --repo "$TARGET_REPO" \
-            --config config.yml \
-            --correlation-id "$CORRELATION_ID"
+          set -euo pipefail
+
+          node scripts/engines/materialize-repo.js \
+            --owner "$OWNER" \
+            --repo "$REPO" \
+            --config ../config.yml
 
       # ─────────────────────────────────────────────
-      # Emit telemetry
+      # Emit materialization telemetry
       # ─────────────────────────────────────────────
       - name: Emit materialization telemetry
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        working-directory: task-assistant
         run: |
-          node task-assistant/scripts/telemetry/emit.js \
-            materialize \
-            --owner "$TARGET_OWNER" \
-            --repo "$TARGET_REPO" \
-            --correlation-id "$CORRELATION_ID"
+          set -euo pipefail
+
+          jq -n \
+            --arg repo "$OWNER/$REPO" \
+            '{
+              ok: true,
+              summary: "Repository metadata materialized",
+              target_repo: $repo
+            }' > result.json
+
+          ENGINE_NAME="materialize" \
+          ENGINE_JOB="materialize" \
+          TELEMETRY_REPO="$TELEMETRY_REPO" \
+          RESULT_FILE="result.json" \
+          ./scripts/telemetry/emit-engine.sh

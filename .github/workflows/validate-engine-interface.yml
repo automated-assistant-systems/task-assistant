@@ -1,0 +1,80 @@
+---
+name: Task Assistant • CI • Engine Interface Validation
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/engine-*.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  validate-engine-interface:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Validate engine workflow interfaces
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          echo "🔍 Validating engine workflow interfaces"
+
+          FAILED=0
+
+          for file in .github/workflows/engine-*.yml; do
+            echo "→ Checking $file"
+
+            # ─────────────────────────────────────────────
+            # 1. Must use workflow_call
+            # ─────────────────────────────────────────────
+            if ! grep -q "^on:.*workflow_call" "$file" && ! grep -q "workflow_call:" "$file"; then
+              echo "::error file=$file::Engine must use workflow_call"
+              FAILED=1
+            fi
+
+            # ─────────────────────────────────────────────
+            # 2. Must NOT declare forbidden triggers
+            # ─────────────────────────────────────────────
+            if grep -Eq "push:|pull_request:|issues:|schedule:" "$file"; then
+              echo "::error file=$file::Engines must not define event triggers"
+              FAILED=1
+            fi
+
+            # ─────────────────────────────────────────────
+            # 3. Required inputs
+            # ─────────────────────────────────────────────
+            for input in target_repo telemetry_repo correlation_id; do
+              if ! grep -q "$input:" "$file"; then
+                echo "::error file=$file::Missing required input: $input"
+                FAILED=1
+              fi
+            done
+
+            # ─────────────────────────────────────────────
+            # 4. Correlation ID must be input-driven
+            # ─────────────────────────────────────────────
+            if grep -Eq "GITHUB_RUN_ID|uuidgen|date.*\\+%s" "$file"; then
+              echo "::error file=$file::Engines must not generate correlation IDs"
+              FAILED=1
+            fi
+
+            # ─────────────────────────────────────────────
+            # 5. Must reference telemetry emission
+            # ─────────────────────────────────────────────
+            if ! grep -Eq "emit|telemetry" "$file"; then
+              echo "::warning file=$file::No explicit telemetry emission detected"
+            fi
+
+          done
+
+          if [[ "$FAILED" -ne 0 ]]; then
+            echo "❌ Engine interface validation failed"
+            exit 1
+          fi
+
+          echo "✅ All engine workflows conform to interface spec"
