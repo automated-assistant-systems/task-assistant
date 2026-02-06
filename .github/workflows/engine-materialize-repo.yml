@@ -110,16 +110,14 @@ jobs:
       # Materialize labels & milestones
       # ─────────────────────────────────────────────
       - name: Materialize repository metadata
+        working-directory: task-assistant
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
-        working-directory: task-assistant
+          TARGET_REPO: ${{ env.TARGET_OWNER }}/${{ env.TARGET_REPO }}
+          TELEMETRY_REPO: ${{ inputs.telemetry_repo }}
+          CORRELATION_ID: ${{ inputs.correlation_id }}
         run: |
-          set -euo pipefail
-
-          node scripts/engines/materialize-repo.js \
-            --owner "$OWNER" \
-            --repo "$REPO" \
-            --config ../config.yml
+          node scripts/engines/materialize-repo.mjs
 
       # ─────────────────────────────────────────────
       # Emit materialization telemetry
