@@ -113,7 +113,7 @@ jobs:
         working-directory: task-assistant
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
-          TARGET_REPO: ${ env.OWNER }}/${{ env.REPO }}
+          TARGET_REPO: ${{ env.OWNER }}/${{ env.REPO }}
           TELEMETRY_REPO: ${{ inputs.telemetry_repo }}
           CORRELATION_ID: ${{ inputs.correlation_id }}
         run: |
