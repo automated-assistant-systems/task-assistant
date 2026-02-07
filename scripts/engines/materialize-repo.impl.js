@@ -14,7 +14,7 @@ import { execSync } from "child_process";
 import yaml from "yaml";
 import os from "os";
 import path from "path";
-import { validateConfig } from "./config/validate-config.js";
+import { validateConfig } from "../config/validate-config.js";
 
 /* ──────────────────────────────
    CLI
