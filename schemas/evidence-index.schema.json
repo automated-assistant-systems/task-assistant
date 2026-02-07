@@ -1,0 +1,150 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://task-assistant.dev/schemas/evidence-index.schema.json",
+  "allOf": [{ "$ref": "base-artifact.schema.json" }],
+  "type": "object",
+
+  "properties": {
+    "artifact_type": { "const": "evidence_index" },
+
+    "evidence": {
+      "type": "array",
+      "minItems": 1,
+      "description": "Canonical list of all evidence produced or consumed in this run",
+      "items": {
+        "type": "object",
+        "required": [
+          "evidence_id",
+          "evidence_type",
+          "engine_id",
+          "description",
+          "source"
+        ],
+        "properties": {
+          "evidence_id": {
+            "type": "string",
+            "pattern": "^EV-[A-Z0-9_-]+$"
+          },
+
+          "evidence_type": {
+            "type": "string",
+            "enum": [
+              "input",
+              "decision",
+              "diff",
+              "command",
+              "log",
+              "test_result",
+              "artifact",
+              "external_reference"
+            ]
+          },
+
+          "engine_id": {
+            "type": "string",
+            "enum": [
+              "CONFIG",
+              "GATE",
+              "POLICY",
+              "ORCH",
+              "TELEM",
+              "RECOVERY",
+              "INTAKE",
+              "CONTEXT",
+              "PLAN",
+              "MODIFY",
+              "TEST",
+              "EVAL",
+              "DELIVER"
+            ]
+          },
+
+          "description": {
+            "type": "string",
+            "minLength": 5
+          },
+
+          "source": {
+            "type": "object",
+            "required": ["type", "ref"],
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "file",
+                  "artifact",
+                  "log",
+                  "command",
+                  "url",
+                  "inline"
+                ]
+              },
+              "ref": {
+                "type": "string",
+                "description": "Path, artifact name, URL, or inline reference"
+              },
+              "hash": {
+                "type": "string",
+                "description": "Optional content hash for integrity"
+              }
+            }
+          },
+
+          "produced_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+
+          "used_by": {
+            "type": "array",
+            "description": "Which engines consumed this evidence",
+            "items": {
+              "type": "string",
+              "enum": [
+                "CONFIG",
+                "GATE",
+                "POLICY",
+                "ORCH",
+                "TELEM",
+                "RECOVERY",
+                "INTAKE",
+                "CONTEXT",
+                "PLAN",
+                "MODIFY",
+                "TEST",
+                "EVAL",
+                "DELIVER"
+              ]
+            }
+          },
+
+          "related_evidence": {
+            "type": "array",
+            "description": "Evidence graph edges",
+            "items": {
+              "type": "string",
+              "pattern": "^EV-[A-Z0-9_-]+$"
+            }
+          },
+
+          "classification": {
+            "type": "object",
+            "description": "Optional metadata for filtering and review",
+            "properties": {
+              "sensitivity": {
+                "type": "string",
+                "enum": ["public", "internal", "restricted"]
+              },
+              "confidence": {
+                "type": "string",
+                "enum": ["high", "medium", "low"]
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+
+  "required": ["evidence"]
+}

@@ -1,0 +1,144 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://task-assistant.dev/schemas/execution-plan.schema.json",
+  "allOf": [{ "$ref": "base-artifact.schema.json" }],
+  "type": "object",
+
+  "properties": {
+    "artifact_type": { "const": "execution_plan" },
+
+    "execution_mode": {
+      "type": "string",
+      "enum": ["read_only", "validate", "full"],
+      "description": "read_only = no execution, validate = dry-run validation, full = commands executed"
+    },
+
+    "environment": {
+      "type": "object",
+      "description": "Execution environment constraints",
+      "properties": {
+        "runner": {
+          "type": "string",
+          "enum": ["github-hosted", "self-hosted"]
+        },
+        "os": {
+          "type": "string",
+          "enum": ["ubuntu-latest", "windows-latest", "macos-latest"]
+        },
+        "node_version": { "type": "string" },
+        "python_version": { "type": "string" },
+        "working_directory": { "type": "string" }
+      }
+    },
+
+    "steps": {
+      "type": "array",
+      "minItems": 1,
+      "description": "Ordered execution steps; order is authoritative",
+      "items": {
+        "type": "object",
+        "required": ["id", "type", "command"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9_-]+$"
+          },
+
+          "type": {
+            "type": "string",
+            "enum": ["setup", "install", "lint", "build", "test", "custom"]
+          },
+
+          "command": {
+            "type": "string",
+            "minLength": 1
+          },
+
+          "timeout_seconds": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 3600,
+            "default": 900
+          },
+
+          "allow_failure": {
+            "type": "boolean",
+            "default": false,
+            "description": "If true, failure marks step as warning, not fatal"
+          },
+
+          "retry_policy": {
+            "type": "object",
+            "properties": {
+              "max_retries": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 3
+              },
+              "retry_on_exit_codes": {
+                "type": "array",
+                "items": { "type": "integer" }
+              }
+            }
+          },
+
+          "artifacts": {
+            "type": "object",
+            "description": "Expected outputs for evidence linking",
+            "properties": {
+              "stdout_ref": { "type": "string" },
+              "stderr_ref": { "type": "string" },
+              "reports": {
+                "type": "array",
+                "items": { "type": "string" }
+              }
+            }
+          }
+        }
+      }
+    },
+
+    "policy_constraints": {
+      "type": "object",
+      "description": "Safety constraints enforced by POLICY",
+      "properties": {
+        "network_access": {
+          "type": "boolean",
+          "default": true
+        },
+        "write_access": {
+          "type": "boolean",
+          "default": false
+        },
+        "secrets_allowed": {
+          "type": "boolean",
+          "default": false
+        },
+        "blocked_commands": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+
+    "evaluation_rules": {
+      "type": "object",
+      "description": "Rules EVAL uses to determine outcome",
+      "properties": {
+        "fail_on_first_error": {
+          "type": "boolean",
+          "default": true
+        },
+        "required_step_types": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["lint", "build", "test"]
+          }
+        }
+      }
+    }
+  },
+
+  "required": ["execution_mode", "steps"]
+}

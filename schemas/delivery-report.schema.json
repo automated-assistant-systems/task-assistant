@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://task-assistant.dev/schemas/delivery-report.schema.json",
+  "allOf": [{ "$ref": "base-artifact.schema.json" }],
+  "properties": {
+    "artifact_type": { "const": "delivery_report" },
+    "pr_url": { "type": "string", "format": "uri" },
+    "issue_comment_url": { "type": "string", "format": "uri" },
+    "labels_applied": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  }
+}

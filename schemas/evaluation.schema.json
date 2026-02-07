@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://task-assistant.dev/schemas/evaluation.schema.json",
+  "allOf": [{ "$ref": "base-artifact.schema.json" }],
+  "properties": {
+    "artifact_type": { "const": "evaluation" },
+    "outcome": {
+      "type": "string",
+      "enum": ["SUCCESS", "PARTIAL", "FAILED", "BLOCKED"]
+    },
+    "reason_codes": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "evidence_refs": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  },
+  "required": ["outcome"]
+}

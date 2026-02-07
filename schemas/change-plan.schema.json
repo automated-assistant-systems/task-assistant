@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://task-assistant.dev/schemas/change-plan.schema.json",
+  "allOf": [{ "$ref": "base-artifact.schema.json" }],
+  "properties": {
+    "artifact_type": { "const": "change_plan" },
+    "risk_level": {
+      "type": "string",
+      "enum": ["low", "medium", "high"]
+    },
+    "requires_approval": { "type": "boolean" },
+    "plan_steps": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["step", "description"],
+        "properties": {
+          "step": { "type": "integer", "minimum": 1 },
+          "description": { "type": "string" }
+        }
+      }
+    },
+    "files_to_change": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["path", "reason"],
+        "properties": {
+          "path": { "type": "string" },
+          "reason": { "type": "string" }
+        }
+      }
+    },
+    "tests_to_run": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "rollback_strategy": { "type": "string" }
+  },
+  "required": ["risk_level", "plan_steps"]
+}

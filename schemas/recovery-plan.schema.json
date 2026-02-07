@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://task-assistant.dev/schemas/recovery-plan.schema.json",
+  "allOf": [{ "$ref": "base-artifact.schema.json" }],
+  "properties": {
+    "artifact_type": { "const": "recovery_plan" },
+    "failure_class": {
+      "type": "string",
+      "enum": [
+        "CONFIG",
+        "PERMISSION",
+        "POLICY",
+        "INFRA",
+        "BUILD",
+        "LINT",
+        "TEST",
+        "LOGIC"
+      ]
+    },
+    "recommended_action": {
+      "type": "string",
+      "enum": ["retry", "adjust_plan", "request_info", "abort"]
+    }
+  },
+  "required": ["failure_class", "recommended_action"]
+}

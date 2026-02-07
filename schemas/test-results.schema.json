@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://task-assistant.dev/schemas/test-results.schema.json",
+  "allOf": [{ "$ref": "base-artifact.schema.json" }],
+  "properties": {
+    "artifact_type": { "const": "test_results" },
+    "commands": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["command", "exit_code"],
+        "properties": {
+          "command": { "type": "string" },
+          "exit_code": { "type": "integer" },
+          "duration_ms": { "type": "integer" },
+          "stdout_ref": { "type": "string" },
+          "stderr_ref": { "type": "string" }
+        }
+      }
+    }
+  },
+  "required": ["commands"]
+}

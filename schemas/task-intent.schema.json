@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://task-assistant.dev/schemas/task-intent.schema.json",
+  "allOf": [{ "$ref": "base-artifact.schema.json" }],
+  "properties": {
+    "artifact_type": { "const": "task_intent" },
+    "task_type": {
+      "type": "string",
+      "enum": ["bugfix", "feature", "refactor", "test", "docs", "maintenance"]
+    },
+    "acceptance_criteria": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "constraints": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "ambiguities": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "files_hint": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "tests_expected": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  },
+  "required": ["task_type"]
+}

@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://task-assistant.dev/schemas/capabilities.schema.json",
+  "allOf": [{ "$ref": "base-artifact.schema.json" }],
+  "properties": {
+    "artifact_type": { "const": "capabilities" },
+    "capabilities": {
+      "type": "object",
+      "required": [
+        "can_read_repo",
+        "can_write_repo",
+        "can_create_branch",
+        "can_open_pr",
+        "can_run_actions",
+        "requires_human_approval_for_modify"
+      ],
+      "properties": {
+        "can_read_repo": { "type": "boolean" },
+        "can_write_repo": { "type": "boolean" },
+        "can_create_branch": { "type": "boolean" },
+        "can_open_pr": { "type": "boolean" },
+        "can_run_actions": { "type": "boolean" },
+        "can_write_workflow_files": {
+          "type": "boolean",
+          "default": false
+        },
+        "requires_human_approval_for_modify": { "type": "boolean" },
+        "allowed_paths": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "blocked_paths": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    }
+  },
+  "required": ["capabilities"]
+}
