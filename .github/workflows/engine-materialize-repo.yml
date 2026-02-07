@@ -141,4 +141,4 @@ jobs:
           ENGINE_JOB="materialize" \
           TELEMETRY_REPO="$TELEMETRY_REPO" \
           RESULT_FILE="result.json" \
-          ./scripts/telemetry/emit-engine.sh
+          ../scripts/telemetry/emit-engine.sh
