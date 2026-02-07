@@ -2,7 +2,8 @@
 /**
  * Task Assistant — Engine: Materialize Repo
  *
- * Wraps materialize-repo.impl.js in an engine-safe, telemetry-aware shell.
+ * Engine-safe wrapper that executes materialization
+ * and emits telemetry via the canonical shell helper.
  */
 
 import { execFileSync } from "child_process";
@@ -19,8 +20,12 @@ if (!TARGET_REPO || !TELEMETRY_REPO || !CORRELATION_ID) {
   process.exit(1);
 }
 
-let output;
+let output = "";
 let ok = true;
+
+/* ─────────────────────────────────────────────
+   Run implementation
+   ───────────────────────────────────────────── */
 
 try {
   output = execFileSync(
@@ -35,11 +40,22 @@ try {
 
 fs.writeFileSync("result.json", output || "{}");
 
-/* Emit telemetry using standard helper */
-process.env.ENGINE_NAME = "materialize";
-process.env.ENGINE_JOB  = "materialize";
-process.env.RESULT_FILE = "result.json";
+/* ─────────────────────────────────────────────
+   Emit telemetry (EXECUTE, do not import)
+   ───────────────────────────────────────────── */
 
-await import("../telemetry/emit-engine.sh");
+execFileSync(
+  "bash",
+  ["scripts/telemetry/emit-engine.sh"],
+  {
+    stdio: "inherit",
+    env: {
+      ...process.env,
+      ENGINE_NAME: "materialize",
+      ENGINE_JOB: "materialize",
+      RESULT_FILE: "result.json",
+    },
+  }
+);
 
 process.exit(ok ? 0 : 1);
