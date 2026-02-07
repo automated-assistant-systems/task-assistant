@@ -40,6 +40,6 @@ process.env.ENGINE_NAME = "materialize";
 process.env.ENGINE_JOB  = "materialize";
 process.env.RESULT_FILE = "result.json";
 
-await import("../telemetry/emit-engine.js");
+await import("../telemetry/emit-engine.sh");
 
 process.exit(ok ? 0 : 1);
