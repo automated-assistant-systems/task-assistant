@@ -62,7 +62,7 @@ for repo in "${REPOS[@]}"; do
 
   echo
   echo "→ Preparing repo (labels & milestones)"
-  node scripts/prepare-repo.js "$repo"
+  scripts/dispatch/run-materialize-repo.sh "$repo"
 
   echo
   echo "→ Running self-test (dispatch & wiring check)"

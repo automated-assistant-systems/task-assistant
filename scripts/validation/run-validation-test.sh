@@ -42,7 +42,7 @@ scripts/sandbox/install-task-assistant.sh "$TARGET_REPO"
 
 echo
 echo "🏗️ Preparing repo..."
-node scripts/prepare-repo.js "$TARGET_REPO"
+scripts/dispatch/run-materialize-repo.sh "$TARGET_REPO"
 
 echo
 scripts/onboarding/verify-repo.sh "$TARGET_REPO"

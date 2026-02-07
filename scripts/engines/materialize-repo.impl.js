@@ -26,7 +26,7 @@ const dryRun = args.includes("--dry-run");
 const repo = args.find(a => !a.startsWith("--"));
 
 if (!repo) {
-  console.error("Usage: prepare-repo <owner/repo> [--dry-run] [--json]");
+  console.error("Usage: materialize-repo <owner/repo> [--dry-run] [--json]");
   process.exit(1);
 }
 
@@ -46,7 +46,7 @@ function run(cmd) {
    ────────────────────────────── */
 
 const result = {
-  tool: "prepare-repo",
+  tool: "materialize-repo",
   version: "1.0",
   repo,
   mode: dryRun ? "dry-run" : "apply",
