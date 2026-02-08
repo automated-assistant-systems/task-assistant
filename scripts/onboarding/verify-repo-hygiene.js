@@ -20,10 +20,11 @@ const raw = run(
 const config = yaml.parse(Buffer.from(raw, "base64").toString("utf8"));
 
 /* Expected labels */
-const expectedLabels = new Set([
-  ...(config.tracks || []).map(t => t.label),
-  ...(config.labels || []).map(l => l.name),
-]);
+const expectedLabels = new Set(
+  (config.tracks || [])
+    .map(t => t.label)
+    .filter(Boolean)
+);
 
 /* Expected milestones */
 const expectedMilestones = new Set(

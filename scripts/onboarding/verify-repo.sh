@@ -31,16 +31,10 @@ node scripts/onboarding/verify-repo-hygiene.js "$REPO"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DISPATCH_DIR="$SCRIPT_DIR/../dispatch"
 
-SELF_TEST="$DISPATCH_DIR/run-self-test.sh"
-VALIDATE="$DISPATCH_DIR/run-validate.sh"
+TA_DISPATCH="$DISPATCH_DIR/run-task-assistant.sh"
 
-if [[ ! -x "$SELF_TEST" ]]; then
-  echo "❌ Missing executable: $SELF_TEST"
-  exit 1
-fi
-
-if [[ ! -x "$VALIDATE" ]]; then
-  echo "❌ Missing executable: $VALIDATE"
+if [[ ! -x "$TA_DISPATCH" ]]; then
+  echo "❌ Missing executable: $TA_DISPATCH"
   exit 1
 fi
 
@@ -49,11 +43,11 @@ echo "• Repo: $REPO"
 echo
 
 echo "▶ Running self-test"
-TARGET_REPO="$REPO" "$SELF_TEST"
+$TA_DISPATCH "$REPO" --self-test
 
 echo
 echo "▶ Running validate"
-TARGET_REPO="$REPO" "$VALIDATE"
+$TA_DISPATCH "$REPO" --validate
 
 echo
 echo "✔ Verification triggered"

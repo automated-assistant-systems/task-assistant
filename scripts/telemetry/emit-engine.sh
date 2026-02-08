@@ -15,6 +15,9 @@ set -euo pipefail
 : "${GH_TOKEN:?telemetry: GH_TOKEN is not set}"
 : "${RESULT_FILE:?RESULT_FILE is required}"
 
+MAX_RETRIES=5
+RETRY_DELAY=1
+
 # ─────────────────────────────────────────────
 # Safety checks
 # ─────────────────────────────────────────────
@@ -101,12 +104,43 @@ gh api \
 # ─────────────────────────────────────────────
 ENCODED="$(printf '%s' "$PAYLOAD" | base64 -w0)"
 
-gh api \
-  --method PUT \
-  "${API_BASE}/${EVENT_PATH}" \
-  --field message="telemetry: ${ENGINE_NAME} (${CORRELATION_ID})" \
-  --field content="$ENCODED" \
-  --field encoding="base64" \
-  >/dev/null
+ATTEMPT=1
 
-echo "✓ Telemetry emitted: ${EVENT_PATH}"
+while true; do
+  set +e
+  OUTPUT="$(
+    gh api \
+      --method PUT \
+      "${API_BASE}/${EVENT_PATH}" \
+      --field message="telemetry: ${ENGINE_NAME} (${CORRELATION_ID})" \
+      --field content="$ENCODED" \
+      --field encoding="base64" \
+      2>&1
+  )"
+  STATUS=$?
+  set -e
+
+  if [[ $STATUS -eq 0 ]]; then
+    echo "✓ Telemetry emitted: ${EVENT_PATH}"
+    break
+  fi
+
+  if echo "$OUTPUT" | grep -q "HTTP 409"; then
+    if [[ $ATTEMPT -ge $MAX_RETRIES ]]; then
+      echo "::error::Telemetry emit failed after ${MAX_RETRIES} attempts"
+      echo "$OUTPUT"
+      exit 1
+    fi
+
+    echo "⚠️  Telemetry conflict (409), retrying (${ATTEMPT}/${MAX_RETRIES})…"
+    ATTEMPT=$((ATTEMPT + 1))
+    sleep "$RETRY_DELAY"
+    continue
+  fi
+
+  # Any other error is real and should fail
+  echo "::error::Telemetry emit failed"
+  echo "$OUTPUT"
+  exit 1
+done
+

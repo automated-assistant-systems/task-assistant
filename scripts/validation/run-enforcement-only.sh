@@ -51,7 +51,7 @@ echo "🔍 Validating repo state post-enforcement..."
 
 echo
 echo "→ Running config validation"
-TARGET_REPO="$TARGET_REPO" scripts/dispatch/run-validate.sh
+scripts/dispatch/run-task-assistant.sh $TARGET_REPO --validate   --wait
 
 echo "✓ Repo remains valid after enforcement"
 

@@ -62,15 +62,15 @@ for repo in "${REPOS[@]}"; do
 
   echo
   echo "→ Preparing repo (labels & milestones)"
-  scripts/dispatch/run-materialize-repo.sh "$repo"
+  scripts/dispatch/run-task-assistant.sh "$repo" --materialize --wait
 
   echo
   echo "→ Running self-test (dispatch & wiring check)"
-  TARGET_REPO="$repo" scripts/dispatch/run-self-test.sh
+  scripts/dispatch/run-task-assistant.sh "$repo" --self-test --wait
 
   echo
   echo "→ Running repo validation"
-  TARGET_REPO="$repo" scripts/dispatch/run-validate.sh
+  scripts/dispatch/run-task-assistant.sh "$repo" --validate
 
   echo
   echo "✓ $repo ready for matrix enforcement"
