@@ -92,9 +92,9 @@ echo
 # ------------------------------------------------------------
 # Dispatch
 # ------------------------------------------------------------
-MAX_RETRIES=3
-RETRY_DELAY=3
-DISPATCH_TS="$(date -u +%s)"
+MAX_RETRIES=5
+RETRY_DELAY=4
+DISPATCH_OK="false"
 
 for attempt in $(seq 1 $MAX_RETRIES); do
   if gh workflow run task-assistant-dispatch.yml \
@@ -102,7 +102,8 @@ for attempt in $(seq 1 $MAX_RETRIES); do
        -f mode="$ACTION" \
        -f correlation_id="$CORRELATION_ID"
        >/dev/null; then
-    echo "✓ Dispatched $ACTION"
+    DISPATCH_OK="true"
+    echo "✓ Dispatched $ACTION (attempt $attempt)"
     break
   fi
 
@@ -115,10 +116,15 @@ for attempt in $(seq 1 $MAX_RETRIES); do
   sleep "$RETRY_DELAY"
 done
 
+if [[ "$DISPATCH_OK" != "true" ]]; then
+  echo "❌ Failed to dispatch $ACTION after $MAX_RETRIES attempts" >&2
+  exit 1
+fi
+
 # ------------------------------------------------------------
 # Optional wait: use telemetry as the completion signal
 # ------------------------------------------------------------
-if [[ "$WAIT" == "true" ]]; then
+if [[ "$WAIT" == "true" && "$DISPATCH_OK" == "true" ]]; then
 
   echo "🔎 Resolving telemetry repository via infra…"
 

@@ -58,7 +58,7 @@ jobs:
           # ─────────────────────────────────────────────
           # Correlation (authoritative)
           # ─────────────────────────────────────────────
-          CORRELATION_ID="${{ inputs.correlation_id:-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT} }}"
+          CORRELATION_ID="${{ inputs.correlation_id || format('{0}-{1}', github.run_id, github.run_attempt) }}"
 
           TARGET_REPO="${GITHUB_REPOSITORY}"
           MODE=""
