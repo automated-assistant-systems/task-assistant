@@ -20,11 +20,6 @@ on:
           - validate
           - materialize
 
-      correlation_id:
-        description: "Run-scoped correlation ID (optional; auto-generated if omitted)"
-        required: false
-        type: string
-
   issues:
     types: [labeled]
 

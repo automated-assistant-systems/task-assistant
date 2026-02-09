@@ -80,17 +80,9 @@ if [[ -z "$REPO" || -z "$ACTION" ]]; then
   exit 1
 fi
 
-# ------------------------------------------------------------
-# Correlation (system-generated)
-# - Must exist in THIS script (for --wait)
-# - Must be passed to dispatch (so engines share it)
-# ------------------------------------------------------------
-CORRELATION_ID="$(date +%s)-$$"
-
 echo "🚀 Task Assistant Dispatch"
 echo "• Repo:           $REPO"
 echo "• Action:         $ACTION"
-echo "• Correlation:    $CORRELATION_ID"
 echo "• Wait enabled:   $WAIT"
 echo
 
@@ -118,8 +110,6 @@ for attempt in $(seq 1 $MAX_RETRIES); do
   echo "⚠️  Dispatch failed (attempt $attempt), retrying in ${RETRY_DELAY}s…"
   sleep "$RETRY_DELAY"
 done
-
-echo "✓ Dispatched $ACTION"
 
 # ------------------------------------------------------------
 # Optional wait: use telemetry as the completion signal
