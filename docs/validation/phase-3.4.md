@@ -137,6 +137,15 @@ Failures may occur at different lifecycle stages (preflight vs validate) dependi
 For each repository, repeated executions are deterministic and consistent.
 Variance across repositories is expected and indicates correct context-aware behavior.
 
+## Identity & Mutation Model
+Task Assistant enforces strict identity and infra-based controls for all repository mutations.
+
+Any action that mutates repository state (labels, milestones, issues, resets) requires:
+- GitHub permission to mutate the target repository
+- Infra authorization for the specific mutation (e.g., sandbox-only operations)
+
+Operator validation scripts must be run under an identity with sufficient permissions for all target repositories.
+
 ## Tests
 ### 1. Validate full functionality of Task Assistant in org sandbox repo
   scripts/validation/run-validation-test.sh \

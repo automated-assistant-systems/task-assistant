@@ -30,6 +30,8 @@ mkdir -p "$RESULTS_DIR"
 
 OUT_FILE="$RESULTS_DIR/${TARGET_REPO//\//-}.json"
 
+ACTIVE_USER="$(gh api user --jq .login)"
+echo "🔐 Active identity: $ACTIVE_USER"
 echo
 echo "🛡️ Phase 3.4 — Enforcement Validation (Matrix-Safe)"
 echo "Test ID:     $TEST_ID"

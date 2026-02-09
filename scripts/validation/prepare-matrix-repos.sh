@@ -15,6 +15,9 @@ if [[ "${GITHUB_ACTIONS:-}" == "true" ]]; then
   exit 1
 fi
 
+ACTIVE_USER="$(gh api user --jq .login)"
+echo "🔐 Active identity: $ACTIVE_USER"
+
 TEST_SET="${1:-all}"
 
 case "$TEST_SET" in

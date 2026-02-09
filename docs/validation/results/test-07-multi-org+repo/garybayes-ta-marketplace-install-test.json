@@ -1,18 +1,117 @@
 {
-  "collected_at": "2026-02-05T12:53:28Z",
+  "collected_at": "2026-02-09T23:18:25Z",
   "target_repo": "garybayes/ta-marketplace-install-test",
   "telemetry_repo": "garybayes/task-assistant-telemetry",
-  "date": "2026-02-05",
+  "date": "2026-02-09",
   "correlation_ids": [
-    "21712137317-1",
-    "21712209935-1",
-    "21712209947-1"
+    "1770678653-165749",
+    "1770678719-166374",
+    "1770678810-167339",
+    "1770679025-169456",
+    "21844674171-1",
+    "21844682225-1"
   ],
   "records": [
     {
       "schema_version": "1.0",
-      "generated_at": "2026-02-05T12:50:43Z",
-      "correlation_id": "21712137317-1",
+      "generated_at": "2026-02-09T23:11:58Z",
+      "correlation_id": "1770678653-165749",
+      "source": {
+        "workflow": "engine-materialize",
+        "job": "materialize"
+      },
+      "entity": {
+        "type": "repository",
+        "owner": "garybayes",
+        "repo": "ta-marketplace-install-test"
+      },
+      "event": {
+        "category": "materialize",
+        "action": "success",
+        "reason": null
+      },
+      "details": {
+        "tool": "materialize-repo",
+        "version": "1.0",
+        "repo": "garybayes/ta-marketplace-install-test",
+        "mode": "apply",
+        "ok": true,
+        "summary": "Repository is compliant",
+        "checks": [
+          {
+            "id": "config.load",
+            "outcome": "PASS",
+            "details": null
+          },
+          {
+            "id": "config.section.tracks",
+            "outcome": "PASS",
+            "details": null
+          },
+          {
+            "id": "config.section.labels",
+            "outcome": "PASS",
+            "details": null
+          },
+          {
+            "id": "config.section.milestones",
+            "outcome": "PASS",
+            "details": null
+          },
+          {
+            "id": "track.sprint",
+            "outcome": "PASS",
+            "details": "Created (missing previously)"
+          },
+          {
+            "id": "track.backlog",
+            "outcome": "PASS",
+            "details": "Created (missing previously)"
+          },
+          {
+            "id": "label.phase-3.4",
+            "outcome": "PASS",
+            "details": "Missing"
+          },
+          {
+            "id": "label.phase-3.5",
+            "outcome": "PASS",
+            "details": "Missing"
+          },
+          {
+            "id": "milestone.Phase 3.4 – Marketplace Readiness",
+            "outcome": "PASS",
+            "details": "Missing"
+          },
+          {
+            "id": "milestone.Phase 3.5 – Post-Release Hardening",
+            "outcome": "PASS",
+            "details": "Missing"
+          }
+        ],
+        "labels": {
+          "created": [
+            "track/sprint",
+            "track/backlog",
+            "phase-3.4",
+            "phase-3.5"
+          ],
+          "updated": [],
+          "skipped": []
+        },
+        "milestones": {
+          "created": [
+            "Phase 3.4 – Marketplace Readiness",
+            "Phase 3.5 – Post-Release Hardening"
+          ],
+          "skipped": []
+        }
+      }
+    },
+    {
+      "schema_version": "1.0",
+      "generated_at": "2026-02-09T23:11:38Z",
+      "correlation_id": "1770678653-165749",
       "source": {
         "workflow": "engine-preflight",
         "job": "preflight"
@@ -44,15 +143,120 @@
           "warnings": [],
           "reasons": [],
           "versionUsed": "v2",
-          "registrySha": "975a8238c9e09f9b62c8859dc2b5e510e761eaad",
+          "registrySha": "1d2a2f545f7c2c4b66207ea2cac7b3017c59d3a4",
           "outcomeCode": "INFRA_OK"
         }
       }
     },
     {
       "schema_version": "1.0",
-      "generated_at": "2026-02-05T12:50:58Z",
-      "correlation_id": "21712137317-1",
+      "generated_at": "2026-02-09T23:13:25Z",
+      "correlation_id": "1770678719-166374",
+      "source": {
+        "workflow": "engine-dashboard",
+        "job": "self-test"
+      },
+      "entity": {
+        "type": "repository",
+        "owner": "garybayes",
+        "repo": "ta-marketplace-install-test"
+      },
+      "event": {
+        "category": "dashboard",
+        "action": "success",
+        "reason": null
+      },
+      "details": {
+        "ok": true,
+        "engine": "dashboard",
+        "summary": "Dashboard self-test passed",
+        "repo": "ta-marketplace-install-test"
+      }
+    },
+    {
+      "schema_version": "1.0",
+      "generated_at": "2026-02-09T23:12:43Z",
+      "correlation_id": "1770678719-166374",
+      "source": {
+        "workflow": "engine-preflight",
+        "job": "preflight"
+      },
+      "entity": {
+        "type": "repository",
+        "owner": "garybayes",
+        "repo": "ta-marketplace-install-test"
+      },
+      "event": {
+        "category": "preflight",
+        "action": "success",
+        "reason": null
+      },
+      "details": {
+        "ok": true,
+        "summary": "Preflight checks passed",
+        "target_repo": "garybayes/ta-marketplace-install-test",
+        "infra": {
+          "orgOwner": "garybayes",
+          "targetRepoName": "ta-marketplace-install-test",
+          "telemetryRepo": "garybayes/task-assistant-telemetry",
+          "repoContext": "sandbox",
+          "repoState": "enabled",
+          "dashboard": {
+            "enabled": true,
+            "public": false
+          },
+          "warnings": [],
+          "reasons": [],
+          "versionUsed": "v2",
+          "registrySha": "1d2a2f545f7c2c4b66207ea2cac7b3017c59d3a4",
+          "outcomeCode": "INFRA_OK"
+        }
+      }
+    },
+    {
+      "schema_version": "1.0",
+      "generated_at": "2026-02-09T23:14:12Z",
+      "correlation_id": "1770678810-167339",
+      "source": {
+        "workflow": "engine-preflight",
+        "job": "preflight"
+      },
+      "entity": {
+        "type": "repository",
+        "owner": "garybayes",
+        "repo": "ta-marketplace-install-test"
+      },
+      "event": {
+        "category": "preflight",
+        "action": "success",
+        "reason": null
+      },
+      "details": {
+        "ok": true,
+        "summary": "Preflight checks passed",
+        "target_repo": "garybayes/ta-marketplace-install-test",
+        "infra": {
+          "orgOwner": "garybayes",
+          "targetRepoName": "ta-marketplace-install-test",
+          "telemetryRepo": "garybayes/task-assistant-telemetry",
+          "repoContext": "sandbox",
+          "repoState": "enabled",
+          "dashboard": {
+            "enabled": true,
+            "public": false
+          },
+          "warnings": [],
+          "reasons": [],
+          "versionUsed": "v2",
+          "registrySha": "1d2a2f545f7c2c4b66207ea2cac7b3017c59d3a4",
+          "outcomeCode": "INFRA_OK"
+        }
+      }
+    },
+    {
+      "schema_version": "1.0",
+      "generated_at": "2026-02-09T23:14:26Z",
+      "correlation_id": "1770678810-167339",
       "source": {
         "workflow": "engine-validate",
         "job": "validate"
@@ -82,8 +286,8 @@
     },
     {
       "schema_version": "1.0",
-      "generated_at": "2026-02-05T12:53:02Z",
-      "correlation_id": "21712209935-1",
+      "generated_at": "2026-02-09T23:17:55Z",
+      "correlation_id": "1770679025-169456",
       "source": {
         "workflow": "engine-preflight",
         "job": "preflight"
@@ -115,15 +319,46 @@
           "warnings": [],
           "reasons": [],
           "versionUsed": "v2",
-          "registrySha": "975a8238c9e09f9b62c8859dc2b5e510e761eaad",
+          "registrySha": "1d2a2f545f7c2c4b66207ea2cac7b3017c59d3a4",
           "outcomeCode": "INFRA_OK"
         }
       }
     },
     {
       "schema_version": "1.0",
-      "generated_at": "2026-02-05T12:53:18Z",
-      "correlation_id": "21712209947-1",
+      "generated_at": "2026-02-09T23:18:09Z",
+      "correlation_id": "1770679025-169456",
+      "source": {
+        "workflow": "engine-validate",
+        "job": "validate"
+      },
+      "entity": {
+        "type": "repository",
+        "owner": "garybayes",
+        "repo": "ta-marketplace-install-test"
+      },
+      "event": {
+        "category": "validate",
+        "action": "success",
+        "reason": null
+      },
+      "details": {
+        "tool": "validate-config",
+        "version": "1.0",
+        "ok": true,
+        "summary": "Configuration is valid",
+        "checks": [
+          {
+            "id": "config.load",
+            "outcome": "PASS"
+          }
+        ]
+      }
+    },
+    {
+      "schema_version": "1.0",
+      "generated_at": "2026-02-09T23:17:03Z",
+      "correlation_id": "21844674171-1",
       "source": {
         "workflow": "engine-enforce",
         "job": "enforce"
@@ -143,7 +378,7 @@
         "version": "1.1",
         "repo": "garybayes/ta-marketplace-install-test",
         "issue": {
-          "number": 7
+          "number": 12
         },
         "event": {
           "type": "labeled"
@@ -225,8 +460,8 @@
     },
     {
       "schema_version": "1.0",
-      "generated_at": "2026-02-05T12:52:59Z",
-      "correlation_id": "21712209947-1",
+      "generated_at": "2026-02-09T23:16:47Z",
+      "correlation_id": "21844674171-1",
       "source": {
         "workflow": "engine-preflight",
         "job": "preflight"
@@ -258,7 +493,131 @@
           "warnings": [],
           "reasons": [],
           "versionUsed": "v2",
-          "registrySha": "975a8238c9e09f9b62c8859dc2b5e510e761eaad",
+          "registrySha": "1d2a2f545f7c2c4b66207ea2cac7b3017c59d3a4",
+          "outcomeCode": "INFRA_OK"
+        }
+      }
+    },
+    {
+      "schema_version": "1.0",
+      "generated_at": "2026-02-09T23:17:29Z",
+      "correlation_id": "21844682225-1",
+      "source": {
+        "workflow": "engine-enforce",
+        "job": "enforce"
+      },
+      "entity": {
+        "type": "repository",
+        "owner": "garybayes",
+        "repo": "ta-marketplace-install-test"
+      },
+      "event": {
+        "category": "enforce",
+        "action": "success",
+        "reason": null
+      },
+      "details": {
+        "tool": "issue-events",
+        "version": "1.1",
+        "repo": "garybayes/ta-marketplace-install-test",
+        "issue": {
+          "number": 12
+        },
+        "event": {
+          "type": "labeled"
+        },
+        "mode": "apply",
+        "ok": true,
+        "summary": "No changes required",
+        "checks": [
+          {
+            "id": "config.load",
+            "outcome": "PASS",
+            "details": null
+          },
+          {
+            "id": "config.schema.valid",
+            "outcome": "PASS",
+            "details": null
+          },
+          {
+            "id": "config.shape",
+            "outcome": "PASS",
+            "details": null
+          },
+          {
+            "id": "issue.load",
+            "outcome": "PASS",
+            "details": {
+              "labels_count": 1,
+              "milestone": "Phase 3.5 – Post-Release Hardening"
+            }
+          },
+          {
+            "id": "phase.exclusive",
+            "outcome": "PASS",
+            "details": "ok"
+          },
+          {
+            "id": "phase.milestone.match",
+            "outcome": "PASS",
+            "details": "Phase 3.5 – Post-Release Hardening"
+          },
+          {
+            "id": "priority.exclusive",
+            "outcome": "PASS",
+            "details": "ok"
+          },
+          {
+            "id": "track.exclusive",
+            "outcome": "PASS",
+            "details": "ok"
+          },
+          {
+            "id": "state.exclusive",
+            "outcome": "PASS",
+            "details": "ok"
+          }
+        ],
+        "actions": []
+      }
+    },
+    {
+      "schema_version": "1.0",
+      "generated_at": "2026-02-09T23:17:10Z",
+      "correlation_id": "21844682225-1",
+      "source": {
+        "workflow": "engine-preflight",
+        "job": "preflight"
+      },
+      "entity": {
+        "type": "repository",
+        "owner": "garybayes",
+        "repo": "ta-marketplace-install-test"
+      },
+      "event": {
+        "category": "preflight",
+        "action": "success",
+        "reason": null
+      },
+      "details": {
+        "ok": true,
+        "summary": "Preflight checks passed",
+        "target_repo": "garybayes/ta-marketplace-install-test",
+        "infra": {
+          "orgOwner": "garybayes",
+          "targetRepoName": "ta-marketplace-install-test",
+          "telemetryRepo": "garybayes/task-assistant-telemetry",
+          "repoContext": "sandbox",
+          "repoState": "enabled",
+          "dashboard": {
+            "enabled": true,
+            "public": false
+          },
+          "warnings": [],
+          "reasons": [],
+          "versionUsed": "v2",
+          "registrySha": "1d2a2f545f7c2c4b66207ea2cac7b3017c59d3a4",
           "outcomeCode": "INFRA_OK"
         }
       }

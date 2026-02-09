@@ -49,13 +49,23 @@ for cmd in gh jq node; do
 done
 
 # ------------------------------------------------------------
-# Auth check
+# Auth check (429-safe)
 # ------------------------------------------------------------
-if ! gh auth status >/dev/null 2>&1; then
-  echo "❌ gh is not authenticated."
-  echo "   Run: gh auth login"
-  exit 1
+AUTH_ERR="$(mktemp)"
+
+if ! gh api rate_limit >/dev/null 2>"$AUTH_ERR"; then
+  if grep -q "429" "$AUTH_ERR"; then
+    echo "⚠️  GitHub API temporarily throttled — proceeding"
+  else
+    echo "❌ gh is not authenticated."
+    echo "   Set GH_TOKEN or run: gh auth login"
+    cat "$AUTH_ERR" >&2
+    rm -f "$AUTH_ERR"
+    exit 1
+  fi
 fi
+
+rm -f "$AUTH_ERR"
 
 OWNER="${REPO%%/*}"
 REPO_NAME="${REPO##*/}"
