@@ -20,6 +20,11 @@ on:
           - validate
           - materialize
 
+      correlation_id:
+        description: "Run-scoped correlation ID (optional; auto-generated if omitted)"
+        required: false
+        type: string
+
   issues:
     types: [labeled]
 
@@ -53,7 +58,7 @@ jobs:
           # ─────────────────────────────────────────────
           # Correlation (authoritative)
           # ─────────────────────────────────────────────
-          CORRELATION_ID="${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          CORRELATION_ID="${{ inputs.correlation_id:-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT} }}"
 
           TARGET_REPO="${GITHUB_REPOSITORY}"
           MODE=""

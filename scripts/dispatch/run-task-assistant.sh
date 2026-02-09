@@ -80,23 +80,27 @@ if [[ -z "$REPO" || -z "$ACTION" ]]; then
   exit 1
 fi
 
+CORRELATION_ID="$(date +%s)-$$"
+
 echo "🚀 Task Assistant Dispatch"
 echo "• Repo:           $REPO"
 echo "• Action:         $ACTION"
+echo "• Correlation Id: $CORRELATION_ID"
 echo "• Wait enabled:   $WAIT"
 echo
 
 # ------------------------------------------------------------
 # Dispatch
-# NOTE: dispatch workflow must accept correlation_id as an input
 # ------------------------------------------------------------
 MAX_RETRIES=3
 RETRY_DELAY=3
+DISPATCH_TS="$(date -u +%s)"
 
 for attempt in $(seq 1 $MAX_RETRIES); do
   if gh workflow run task-assistant-dispatch.yml \
        --repo "$REPO" \
        -f mode="$ACTION" \
+       -f correlation_id="$CORRELATION_ID"
        >/dev/null; then
     echo "✓ Dispatched $ACTION"
     break
@@ -151,10 +155,12 @@ if [[ "$WAIT" == "true" ]]; then
   echo
   echo "⏳ Waiting for ${EXPECTED_ENGINE} telemetry…"
 
+  MAX_WAIT=180   # seconds
+  INTERVAL=2
+  ELAPSED=0
   FOUND_DATE=""
 
-  for _ in {1..90}; do
-    # list date directories (telemetry is date-partitioned)
+  while (( ELAPSED < MAX_WAIT )); do
     for DATE in $(
       gh api "repos/$TELEMETRY_REPO/contents/telemetry/v1/repos/$REPO_NAME" \
         --jq '.[] | select(.type=="dir") | .name' 2>/dev/null
@@ -166,11 +172,13 @@ if [[ "$WAIT" == "true" ]]; then
         break 2
       fi
     done
-    sleep 2
+
+    sleep "$INTERVAL"
+    ELAPSED=$((ELAPSED + INTERVAL))
   done
 
   if [[ -z "$FOUND_DATE" ]]; then
-    echo "❌ Timed out waiting for ${EXPECTED_FILE}" >&2
+    echo "❌ Timed out waiting for ${EXPECTED_FILE} (correlation: $CORRELATION_ID)" >&2
     exit 1
   fi
 
