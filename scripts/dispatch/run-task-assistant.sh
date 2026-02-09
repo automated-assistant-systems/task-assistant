@@ -98,11 +98,26 @@ echo
 # Dispatch
 # NOTE: dispatch workflow must accept correlation_id as an input
 # ------------------------------------------------------------
-gh workflow run task-assistant-dispatch.yml \
-  --repo "$REPO" \
-  -f mode="$ACTION" \
-  -f correlation_id="$CORRELATION_ID" \
-  >/dev/null
+MAX_RETRIES=3
+RETRY_DELAY=3
+
+for attempt in $(seq 1 $MAX_RETRIES); do
+  if gh workflow run task-assistant-dispatch.yml \
+       --repo "$REPO" \
+       -f mode="$ACTION" \
+       >/dev/null; then
+    echo "✓ Dispatched $ACTION"
+    break
+  fi
+
+  if [[ "$attempt" -eq "$MAX_RETRIES" ]]; then
+    echo "❌ Failed to dispatch $ACTION after $MAX_RETRIES attempts" >&2
+    exit 1
+  fi
+
+  echo "⚠️  Dispatch failed (attempt $attempt), retrying in ${RETRY_DELAY}s…"
+  sleep "$RETRY_DELAY"
+done
 
 echo "✓ Dispatched $ACTION"
 

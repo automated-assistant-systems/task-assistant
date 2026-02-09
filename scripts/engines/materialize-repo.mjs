@@ -45,6 +45,7 @@ fs.writeFileSync("result.json", output || "{}");
    ───────────────────────────────────────────── */
 
 execFileSync(
+  export CORRELATION_ID="${CORRELATION_ID:-$(date +%s)-$$}"
   "bash",
   ["scripts/telemetry/emit-engine.sh"],
   {

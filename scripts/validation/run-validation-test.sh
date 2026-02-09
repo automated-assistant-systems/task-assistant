@@ -48,7 +48,8 @@ echo
 scripts/onboarding/verify-repo.sh "$TARGET_REPO"
 
 echo
-scripts/validate/validate-enforcement.sh "$TARGET_REPO"
+TARGET_REPO="$TARGET_REPO" \
+  scripts/validate/validate-enforcement.sh
 
 echo
 echo "📤 Collecting telemetry evidence..."
