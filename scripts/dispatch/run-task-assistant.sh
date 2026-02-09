@@ -10,12 +10,15 @@ set -euo pipefail
 #   --materialize
 #
 # Optional:
-#   --wait    (block until workflow completes)
+#   --wait    (block until telemetry proves completion)
+#
+# Requires:
+#   TELEMETRY_REPO env var when using --wait
 #
 # Usage:
-#   run-task-assistant.sh <owner/repo> --self-test [--wait]
-#   run-task-assistant.sh <owner/repo> --validate  [--wait]
-#   run-task-assistant.sh <owner/repo> --materialize [--wait]
+#   ./scripts/dispatch/run-task-assistant.sh <owner/repo> --self-test [--wait]
+#   ./scripts/dispatch/run-task-assistant.sh <owner/repo> --validate  [--wait]
+#   ./scripts/dispatch/run-task-assistant.sh <owner/repo> --materialize [--wait]
 # ============================================================
 
 REPO="${1:-}"
@@ -45,7 +48,12 @@ if [[ -z "$REPO" || -z "$ACTION" ]]; then
   exit 1
 fi
 
-CORRELATION_ID="${GITHUB_RUN_ID:-$(date +%s)}-$$"
+# ------------------------------------------------------------
+# Correlation (system-generated)
+# - Must exist in THIS script (for --wait)
+# - Must be passed to dispatch (so engines share it)
+# ------------------------------------------------------------
+CORRELATION_ID="$(date +%s)-$$"
 
 echo "🚀 Task Assistant Dispatch"
 echo "• Repo:          $REPO"
@@ -55,39 +63,52 @@ echo "• Wait enabled:  $WAIT"
 echo
 
 # ------------------------------------------------------------
-# Dispatch workflow
+# Dispatch
+# NOTE: dispatch workflow must accept correlation_id as an input
 # ------------------------------------------------------------
 gh workflow run task-assistant-dispatch.yml \
   --repo "$REPO" \
   -f mode="$ACTION" \
+  -f correlation_id="$CORRELATION_ID" \
   >/dev/null
 
 echo "✓ Dispatched $ACTION"
 
 # ------------------------------------------------------------
-# Optional wait
+# Optional wait: use telemetry as the completion signal
 # ------------------------------------------------------------
 if [[ "$WAIT" == "true" ]]; then
-  echo
-  echo "⏳ Waiting for workflow completion…"
+  : "${TELEMETRY_REPO:?TELEMETRY_REPO must be set for --wait (org/repo)}"
 
-  RUN_ID=""
-  for _ in {1..12}; do
-    RUN_ID="$(gh run list \
-      --repo "$REPO" \
-      --workflow task-assistant-dispatch.yml \
-      --json databaseId,status \
-      -q '.[] | select(.status=="in_progress") | .databaseId' \
-      | head -n 1)"
-    [[ -n "$RUN_ID" ]] && break
+  echo
+  echo "⏳ Waiting for $ACTION telemetry…"
+
+  # telemetry paths use <repo> (not owner/repo) at the moment
+  REPO_NAME="${REPO##*/}"
+  DATE="$(date +%Y-%m-%d)"
+
+  # Which file proves completion?
+  # - materialize -> materialize.json
+  # - validate    -> validate.json
+  # - self-test   -> self-test.json (and optionally dashboard.json)
+  ENGINE_FILE=""
+  case "$ACTION" in
+    materialize) ENGINE_FILE="materialize.json" ;;
+    validate)    ENGINE_FILE="validate.json" ;;
+    self-test)   ENGINE_FILE="self-test.json" ;;
+    *)           ENGINE_FILE="${ACTION}.json" ;;
+  esac
+
+  EVENT_PATH="telemetry/v1/repos/${REPO_NAME}/${DATE}/${CORRELATION_ID}/${ENGINE_FILE}"
+
+  for _ in {1..60}; do
+    if gh api "repos/${TELEMETRY_REPO}/contents/${EVENT_PATH}" >/dev/null 2>&1; then
+      echo "✅ $ACTION completed (telemetry observed)"
+      exit 0
+    fi
     sleep 2
   done
 
-  if [[ -z "$RUN_ID" ]]; then
-    echo "❌ Could not locate running workflow" >&2
-    exit 1
-  fi
-
-  gh run watch "$RUN_ID" --exit-status
-  echo "✅ $ACTION completed"
+  echo "❌ Timed out waiting for telemetry: $EVENT_PATH"
+  exit 1
 fi

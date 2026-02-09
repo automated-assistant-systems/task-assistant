@@ -42,14 +42,12 @@ Installs ONLY:
 scripts/sandbox/install-task-assistant.sh <owner/repo>
 
 ### Prepare repo (required)
-Task Assistant — Repository Preparation Script will:
+Task Assistant — Repository Preparation
  - Core config errors: FAIL
  - Enforcement config errors: WARN
  - Repo hygiene remains authoritative
- - No telemetry emitted here
-GH_TOKEN=ghp_xxx \
-  node scripts/prepare-repo.js \
-  <owner/repo>
+ - labels and milestones materialized
+scripts/dispatch/run-task-assistant.sh materialize <owner>/<repo>
 
 ### Verify repository integrity after mutation
 This script is an operator convenience wrapper.
@@ -63,12 +61,12 @@ scripts/onboarding/verify-repo.sh <owner>/<repo>
 ### Run Self-Test
 Triggers the Task-Assistant Self-Test engine via dispatch.
 This verifies end-to-end functionality of the repo.
-TARGET_REPO=<owner/repo> scripts/dispatch/run-self-test.sh
+scripts/dispatch/run-task-assistant.sh self-test <owner>/<repo>
 
 ### Run Validate
 Triggers the Task-Assistant Validate engine via dispatch.
 This validates repo hygiene (labels, milestones, enforcement invariants).
-TARGET_REPO=<owner/repo> scripts/dispatch/run-validate.sh
+scripts/dispatch/run-task-assistant.sh validate <owner>/<repo>
 
 ### Validate Enforcement
 Prove that invalid issue state is automatically corrected via event-driven enforcement.
