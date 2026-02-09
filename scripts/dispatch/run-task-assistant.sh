@@ -24,8 +24,22 @@ set -euo pipefail
 REPO="${1:-}"
 shift || true
 
+REPO_NAME="${REPO##*/}"
+
 ACTION=""
 WAIT="false"
+
+if [[ -z "${GH_TOKEN:-}" ]]; then
+  if command -v gh >/dev/null 2>&1; then
+    GH_TOKEN="$(gh auth token 2>/dev/null || true)"
+    export GH_TOKEN
+  fi
+fi
+
+if [[ -z "${GH_TOKEN:-}" ]]; then
+  echo "❌ GH_TOKEN is required (run: gh auth login)"
+  exit 1
+fi
 
 for arg in "$@"; do
   case "$arg" in
@@ -39,6 +53,24 @@ for arg in "$@"; do
       ;;
   esac
 done
+
+case "$ACTION" in
+  materialize)
+    EXPECTED_ENGINE="materialize"
+    ;;
+  validate)
+    EXPECTED_ENGINE="validate"
+    ;;
+  self-test)
+    EXPECTED_ENGINE="dashboard"
+    ;;
+  *)
+    echo "❌ Unsupported action: $ACTION" >&2
+    exit 1
+    ;;
+esac
+
+EXPECTED_FILE="${EXPECTED_ENGINE}.json"
 
 if [[ -z "$REPO" || -z "$ACTION" ]]; then
   echo "Usage:"
@@ -56,10 +88,10 @@ fi
 CORRELATION_ID="$(date +%s)-$$"
 
 echo "🚀 Task Assistant Dispatch"
-echo "• Repo:          $REPO"
-echo "• Action:        $ACTION"
-echo "• Correlation:   $CORRELATION_ID"
-echo "• Wait enabled:  $WAIT"
+echo "• Repo:           $REPO"
+echo "• Action:         $ACTION"
+echo "• Correlation:    $CORRELATION_ID"
+echo "• Wait enabled:   $WAIT"
 echo
 
 # ------------------------------------------------------------
@@ -78,37 +110,65 @@ echo "✓ Dispatched $ACTION"
 # Optional wait: use telemetry as the completion signal
 # ------------------------------------------------------------
 if [[ "$WAIT" == "true" ]]; then
-  : "${TELEMETRY_REPO:?TELEMETRY_REPO must be set for --wait (org/repo)}"
+
+  echo "🔎 Resolving telemetry repository via infra…"
+
+  TELEMETRY_REPO="$(
+    node -e '
+      import { resolveInfraForRepo } from "./lib/infra.js";
+
+      const repo = process.argv[1];
+      const token = process.env.GH_TOKEN;
+
+      if (!repo) {
+        console.error("Missing target repo");
+        process.exit(1);
+      }
+      if (!token) {
+        console.error("GH_TOKEN not set");
+        process.exit(1);
+      }
+
+      const result = await resolveInfraForRepo({
+        targetRepo: repo,
+        githubToken: token,
+      });
+
+      if (!result?.telemetryRepo) {
+        console.error("Failed to resolve telemetry repo");
+        process.exit(1);
+      }
+
+      process.stdout.write(result.telemetryRepo);
+     ' "$REPO"
+  )"
 
   echo
-  echo "⏳ Waiting for $ACTION telemetry…"
+  echo "⏳ Waiting for ${EXPECTED_ENGINE} telemetry…"
 
-  # telemetry paths use <repo> (not owner/repo) at the moment
-  REPO_NAME="${REPO##*/}"
-  DATE="$(date +%Y-%m-%d)"
+  FOUND_DATE=""
 
-  # Which file proves completion?
-  # - materialize -> materialize.json
-  # - validate    -> validate.json
-  # - self-test   -> self-test.json (and optionally dashboard.json)
-  ENGINE_FILE=""
-  case "$ACTION" in
-    materialize) ENGINE_FILE="materialize.json" ;;
-    validate)    ENGINE_FILE="validate.json" ;;
-    self-test)   ENGINE_FILE="self-test.json" ;;
-    *)           ENGINE_FILE="${ACTION}.json" ;;
-  esac
-
-  EVENT_PATH="telemetry/v1/repos/${REPO_NAME}/${DATE}/${CORRELATION_ID}/${ENGINE_FILE}"
-
-  for _ in {1..60}; do
-    if gh api "repos/${TELEMETRY_REPO}/contents/${EVENT_PATH}" >/dev/null 2>&1; then
-      echo "✅ $ACTION completed (telemetry observed)"
-      exit 0
-    fi
+  for _ in {1..90}; do
+    # list date directories (telemetry is date-partitioned)
+    for DATE in $(
+      gh api "repos/$TELEMETRY_REPO/contents/telemetry/v1/repos/$REPO_NAME" \
+        --jq '.[] | select(.type=="dir") | .name' 2>/dev/null
+    ); do
+      if gh api \
+        "repos/$TELEMETRY_REPO/contents/telemetry/v1/repos/$REPO_NAME/$DATE/$CORRELATION_ID/$EXPECTED_FILE" \
+        >/dev/null 2>&1; then
+        FOUND_DATE="$DATE"
+        break 2
+      fi
+    done
     sleep 2
   done
 
-  echo "❌ Timed out waiting for telemetry: $EVENT_PATH"
-  exit 1
+  if [[ -z "$FOUND_DATE" ]]; then
+    echo "❌ Timed out waiting for ${EXPECTED_FILE}" >&2
+    exit 1
+  fi
+
+  echo "✅ ${ACTION} completed (${EXPECTED_FILE})"
+
 fi
