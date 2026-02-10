@@ -26,7 +26,7 @@ After installation:
 .github/
 ├─ task-assistant.yml
 └─ workflows/
-└─ task-assistant-dispatch.yml
+   └─ task-assistant-dispatch.yml
 
 That’s it.
 
@@ -39,7 +39,13 @@ That’s it.
 ### Telemetry Repository (Per Org)
 
 telemetry/v1/
-└─ repos/<owner-repo>/<yyyy-mm-dd>/<correlation_id>/*.jsonl
+└─ repos/<owner-repo>/<yyyy-mm-dd>/<correlation_id>/
+   ├─ preflight.json
+   ├─ materialize.json
+   ├─ validate.json
+   ├─ enforce.json
+   ├─ self-test.json
+   └─ dashboard.json
 
 ---
 
@@ -196,6 +202,8 @@ How registration happens:
 
 - No automation runs until registration is complete
 
+The operator is the owner of the Task Assistant GitHub App and telemetry infrastructure.
+
 If the repository is not registered:
 
 - Preflight fails
@@ -268,7 +276,7 @@ Telemetry is written to the telemetry repository.
 
 ---
 
-## Step 8 — Ongoing Operation
+## Step 9 — Ongoing Operation
 
 After onboarding, Task Assistant runs automatically:
 

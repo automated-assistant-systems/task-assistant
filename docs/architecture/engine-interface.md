@@ -4,6 +4,7 @@ Status: Canonical
 Audience: Core maintainers, engine authors, Marketplace reviewers
 Scope: All runtime engines invoked by Task Assistant
 
+
 ## 1. Purpose
 
 This document defines the stable interface contract between the Task Assistant dispatcher and all runtime engines.
@@ -17,6 +18,7 @@ It exists to ensure that:
 
 Any new engine must conform to this specification.
 
+
 ## 2. Architectural Model (Non-Negotiable)
 
 Task Assistant follows a strict Dispatcher → Engine model.
@@ -26,7 +28,7 @@ Task Assistant follows a strict Dispatcher → Engine model.
 The dispatcher owns:
 - Event interpretation
 - Execution sequencing
-- Correlation ID generation
+- Correlation ID ownership and normalization
 - Engine orchestration
 
 ### Engine Responsibilities
@@ -38,15 +40,26 @@ Engines are:
 - Telemetry-emitting
 - Infra-agnostic
 
-Engines MUST NOT
-
 ### Engines must never:
 
-Discover infrastructure on their own
+- Discover infrastructure on their own
 - Generate or mutate correlation IDs
 - Inspect unrelated repositories
 - Invoke other engines
 - Contain cross-engine logic
+
+### Operator Tooling (Out of Scope)
+
+Operator tools may:
+- Trigger dispatcher workflows
+- Supply optional correlation IDs
+- Wait on telemetry as a completion signal
+
+Operator tooling:
+- Is not part of the Marketplace runtime
+- Does not alter engine behavior
+- Does not bypass dispatcher authority
+
 
 ## 3. Invocation Contract
 
@@ -60,12 +73,15 @@ correlation_id	string	dispatcher	Run-scoped correlation identifier
 
 These inputs are mandatory and uniform across all engines.
 
+
 ## 4. Correlation Model (Locked)
 
 ### Ownership
 
-- Correlation IDs are generated once by the dispatcher
-- Engines must not generate, alter, or reinterpret them
+- The dispatcher owns the correlation namespace
+- A correlation ID MAY be supplied externally (e.g., operator tooling)
+- The dispatcher MUST normalize and propagate a single correlation ID per run
+- Engines must treat the correlation ID as opaque
 
 ### Scope
 
@@ -85,7 +101,8 @@ telemetry/v1/
 - Missing files are allowed
 - Duplicate files are not
 
-## 5. Telemetry Contract
+
+## 5. Telemetry Contract (Canonical)
 
 Every engine must emit exactly one telemetry record per invocation.
 
@@ -95,16 +112,24 @@ Every engine must emit exactly one telemetry record per invocation.
 - Written only to telemetry_repo
 - Never written to the monitored repository
 
-### Required Telemetry Fields
-Field		Description
-engine		Stable engine identifier
-ok		Boolean success indicator
-target_repo	<owner>/<repo>
-correlation_id	Dispatcher-provided
-summary		Human-readable outcome
-timestamp	UTC ISO-8601
+### Canonical Telemetry Envelope
 
-Additional structured fields are allowed, but these fields are mandatory.
+Each engine emits a JSON document with the following top-level structure:
+
+- schema_version
+- generated_at (UTC ISO-8601)
+- correlation_id
+- source
+- entity
+- event
+- details
+
+### Engine Result Location
+
+- Engine-specific results MUST appear under `details`
+- Engines MUST NOT redefine repository identity fields
+- Engines MUST NOT modify correlation metadata
+
 
 ## 6. Environment Guarantees
 
@@ -121,6 +146,7 @@ Engines must not depend on:
 - Runner state
 - Artifacts from other jobs
 
+
 ## 7. Authentication Model
 
 All engines authenticate using a GitHub App installation token.
@@ -136,6 +162,7 @@ All engines authenticate using a GitHub App installation token.
 - Cross-organization access
 - Dynamic permission escalation
 
+
 ## 8. Engine Classification
 
 ### A. Read-Only Engines
@@ -145,6 +172,9 @@ Examples:
 - validate
 - self-test
 - dashboard
+
+Note: The self-test dispatcher mode invokes both the self-test and dashboard engines
+under a shared correlation ID.
 
 Rules:
 - No mutations to target_repo
@@ -164,7 +194,7 @@ Rules:
 ### C. Explicit Materialization Engines
 
 Examples:
-- materialize-repo
+- materialize
 
 Rules:
 - Manual invocation only
@@ -172,12 +202,20 @@ Rules:
 - Metadata creation only
 - No speculative behavior
 
+
 ## 9. Failure Semantics
 
 ### Engine Failure
-- Engine exits non-zero
+
+- Engines exit non-zero on failure
 - Telemetry is still emitted (ok=false)
-- No automatic retries
+- Engines do not retry internally
+
+### Dispatch & Transport Failures
+
+- Dispatch failures may be retried by operator tooling
+- Telemetry emission may retry on safe GitHub errors (e.g. 409)
+- Engine logic is never re-executed automatically
 
 ### Failure Isolation
 - Failures do not cascade
@@ -188,6 +226,7 @@ Rules:
 - No user notifications
 - No enforcement side effects
 
+
 ## 10. Engine Versioning Rules
 
 - Engines are versioned by Task Assistant repository ref
@@ -195,6 +234,7 @@ Rules:
 - Breaking interface changes require:
   - A new engine name or
   - A major phase boundary
+
 
 ## 11. Prohibited Patterns (Hard No)
 
@@ -205,6 +245,7 @@ Rules:
 - Write dashboards into monitored repositories
 - Trigger other workflows
 - Accept free-form user input
+
 
 ## 12. Compliance Checklist (For New Engines)
 

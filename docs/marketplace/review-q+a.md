@@ -122,3 +122,8 @@ Is fully auditable
 Reviewer Summary Statement (Optional Closing)
 
 Task Assistant enforces repository hygiene using explicit configuration and emits immutable telemetry to a dedicated repository. Derived dashboards are generated separately as read-only artifacts and never modify monitored repositories. All behavior is deterministic, auditable, and aligned with GitHub Marketplace safety standards.
+
+Q18: Why doesn’t the app automatically create labels and milestones on install?
+Answer:
+
+Automatic mutation on install is intentionally avoided to meet GitHub Marketplace safety expectations. Repository changes are performed only when explicitly requested via a manual materialization action.

@@ -4,6 +4,13 @@
 
 Task Assistant is a GitHub App that enforces repository hygiene using explicit, configuration-driven rules and emits immutable telemetry for auditability and operator visibility.
 
+* Manual materialization is required for repo mutations
+
+* Correlation IDs are system-generated, not user-provided
+
+* Telemetry is immutable and separated from monitored repos
+
+
 The system is intentionally conservative:
 
 * No speculative behavior

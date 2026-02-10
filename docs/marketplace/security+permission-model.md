@@ -19,6 +19,13 @@ If the active identity does not have permission to mutate a repository, the oper
 
 ✔️ Verified across single-org and multi-org test matrices
 
+Permission Enforcement Guarantees
+
+## Task Assistant strictly respects GitHub permission boundaries.
+
+If the App lacks permission to mutate a repository, all mutation attempts fail safely and emit telemetry.
+This behavior is verified by automated cross-owner test cases.
+
 ## Infra-Governed Safety Boundaries
 
 Task Assistant maintains an authoritative infra registry that classifies repositories by context and state.

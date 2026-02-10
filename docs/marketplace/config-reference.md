@@ -209,7 +209,9 @@ If validation fails:
 
 ## Materialization (Labels & Milestones)
 
-Task Assistant does not automatically create labels or milestones.
+Defining labels or milestones in configuration does not create them automatically.
+
+Creation occurs only when the Materialize Repo engine is run.
 
 To create missing items defined in the configuration:
 1. Go to Actions → Task Assistant • Dispatch
