@@ -1,21 +1,21 @@
 {
-  "collected_at": "2026-02-09T23:18:20Z",
+  "collected_at": "2026-02-10T21:20:17Z",
   "target_repo": "garybayes/ta-sandbox",
   "telemetry_repo": "garybayes/task-assistant-telemetry",
-  "date": "2026-02-09",
+  "date": "2026-02-10",
   "correlation_ids": [
-    "1770678844-167930",
-    "1770678893-168426",
-    "1770678943-168863",
-    "1770679049-169975",
-    "21844678758-1",
-    "21844682699-1"
+    "1770757994-184238",
+    "1770758033-184665",
+    "1770758117-185421",
+    "1770758360-186210",
+    "21882773871-1",
+    "21882776158-1"
   ],
   "records": [
     {
       "schema_version": "1.0",
-      "generated_at": "2026-02-09T23:14:49Z",
-      "correlation_id": "1770678844-167930",
+      "generated_at": "2026-02-10T21:13:51Z",
+      "correlation_id": "1770757994-184238",
       "source": {
         "workflow": "engine-materialize",
         "job": "materialize"
@@ -110,8 +110,8 @@
     },
     {
       "schema_version": "1.0",
-      "generated_at": "2026-02-09T23:14:27Z",
-      "correlation_id": "1770678844-167930",
+      "generated_at": "2026-02-10T21:13:33Z",
+      "correlation_id": "1770757994-184238",
       "source": {
         "workflow": "engine-preflight",
         "job": "preflight"
@@ -150,8 +150,8 @@
     },
     {
       "schema_version": "1.0",
-      "generated_at": "2026-02-09T23:15:40Z",
-      "correlation_id": "1770678893-168426",
+      "generated_at": "2026-02-10T21:15:13Z",
+      "correlation_id": "1770758033-184665",
       "source": {
         "workflow": "engine-dashboard",
         "job": "self-test"
@@ -175,8 +175,8 @@
     },
     {
       "schema_version": "1.0",
-      "generated_at": "2026-02-09T23:15:10Z",
-      "correlation_id": "1770678893-168426",
+      "generated_at": "2026-02-10T21:14:41Z",
+      "correlation_id": "1770758033-184665",
       "source": {
         "workflow": "engine-preflight",
         "job": "preflight"
@@ -215,8 +215,8 @@
     },
     {
       "schema_version": "1.0",
-      "generated_at": "2026-02-09T23:16:07Z",
-      "correlation_id": "1770678943-168863",
+      "generated_at": "2026-02-10T21:15:45Z",
+      "correlation_id": "1770758117-185421",
       "source": {
         "workflow": "engine-preflight",
         "job": "preflight"
@@ -255,8 +255,8 @@
     },
     {
       "schema_version": "1.0",
-      "generated_at": "2026-02-09T23:16:22Z",
-      "correlation_id": "1770678943-168863",
+      "generated_at": "2026-02-10T21:16:00Z",
+      "correlation_id": "1770758117-185421",
       "source": {
         "workflow": "engine-validate",
         "job": "validate"
@@ -286,8 +286,8 @@
     },
     {
       "schema_version": "1.0",
-      "generated_at": "2026-02-09T23:17:50Z",
-      "correlation_id": "1770679049-169975",
+      "generated_at": "2026-02-10T21:19:43Z",
+      "correlation_id": "1770758360-186210",
       "source": {
         "workflow": "engine-preflight",
         "job": "preflight"
@@ -326,8 +326,8 @@
     },
     {
       "schema_version": "1.0",
-      "generated_at": "2026-02-09T23:18:04Z",
-      "correlation_id": "1770679049-169975",
+      "generated_at": "2026-02-10T21:20:02Z",
+      "correlation_id": "1770758360-186210",
       "source": {
         "workflow": "engine-validate",
         "job": "validate"
@@ -357,8 +357,8 @@
     },
     {
       "schema_version": "1.0",
-      "generated_at": "2026-02-09T23:17:25Z",
-      "correlation_id": "21844678758-1",
+      "generated_at": "2026-02-10T21:19:20Z",
+      "correlation_id": "21882773871-1",
       "source": {
         "workflow": "engine-enforce",
         "job": "enforce"
@@ -378,7 +378,7 @@
         "version": "1.1",
         "repo": "garybayes/ta-sandbox",
         "issue": {
-          "number": 5
+          "number": 6
         },
         "event": {
           "type": "labeled"
@@ -460,8 +460,8 @@
     },
     {
       "schema_version": "1.0",
-      "generated_at": "2026-02-09T23:17:08Z",
-      "correlation_id": "21844678758-1",
+      "generated_at": "2026-02-10T21:19:04Z",
+      "correlation_id": "21882773871-1",
       "source": {
         "workflow": "engine-preflight",
         "job": "preflight"
@@ -500,8 +500,8 @@
     },
     {
       "schema_version": "1.0",
-      "generated_at": "2026-02-09T23:17:36Z",
-      "correlation_id": "21844682699-1",
+      "generated_at": "2026-02-10T21:19:41Z",
+      "correlation_id": "21882776158-1",
       "source": {
         "workflow": "engine-enforce",
         "job": "enforce"
@@ -521,7 +521,7 @@
         "version": "1.1",
         "repo": "garybayes/ta-sandbox",
         "issue": {
-          "number": 5
+          "number": 6
         },
         "event": {
           "type": "labeled"
@@ -584,8 +584,8 @@
     },
     {
       "schema_version": "1.0",
-      "generated_at": "2026-02-09T23:17:11Z",
-      "correlation_id": "21844682699-1",
+      "generated_at": "2026-02-10T21:19:09Z",
+      "correlation_id": "21882776158-1",
       "source": {
         "workflow": "engine-preflight",
         "job": "preflight"
