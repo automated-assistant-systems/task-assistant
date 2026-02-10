@@ -121,6 +121,21 @@ if [[ "$DISPATCH_OK" != "true" ]]; then
   exit 1
 fi
 
+RUN_ID="$(
+  gh run list \
+    --repo "$REPO" \
+    --workflow "task-assistant-dispatch.yml" \
+    --json databaseId,createdAt \
+    --jq ".[] | select(.createdAt | fromdateiso8601 >= $DISPATCH_TS) | .databaseId" \
+    | head -n1
+)"
+
+if [[ -z "$RUN_ID" ]]; then
+  echo "❌ Dispatch accepted but no workflow run was created"
+  echo "   Likely cause: invalid workflow syntax"
+  exit 1
+fi
+
 # ------------------------------------------------------------
 # Optional wait: use telemetry as the completion signal
 # ------------------------------------------------------------
