@@ -98,7 +98,7 @@ jobs:
   preflight:
     needs: resolve
     # yamllint disable rule:line-length
-    uses: automated-assistant-systems/task-assistant/.github/workflows/engine-preflight.yml@main
+    uses: automated-assistant-systems/task-assistant/.github/workflows/engine-preflight.yml@${{ github.ref_name }}
     # yamllint enable rule:line-length
     with:
       target_repo:    ${{ needs.resolve.outputs.target_repo }}
@@ -116,7 +116,7 @@ jobs:
       - resolve
       - preflight
     # yamllint disable rule:line-length
-    uses: automated-assistant-systems/task-assistant/.github/workflows/engine-self-test.yml@main
+    uses: automated-assistant-systems/task-assistant/.github/workflows/engine-self-test.yml@${{ github.ref_name }}
     # yamllint enable rule:line-length
     with:
       target_repo:    ${{ needs.resolve.outputs.target_repo }}
@@ -133,7 +133,7 @@ jobs:
       - preflight
       - self_test_core
     # yamllint disable rule:line-length
-    uses: automated-assistant-systems/task-assistant/.github/workflows/engine-dashboard-self-test.yml@main
+    uses: automated-assistant-systems/task-assistant/.github/workflows/engine-dashboard-self-test.yml@${{ github.ref_name }}
     # yamllint enable rule:line-length
     with:
       target_repo:    ${{ needs.resolve.outputs.target_repo }}
@@ -152,7 +152,7 @@ jobs:
       - resolve
       - preflight
     # yamllint disable rule:line-length
-    uses: automated-assistant-systems/task-assistant/.github/workflows/engine-validate.yml@main
+    uses: automated-assistant-systems/task-assistant/.github/workflows/engine-validate.yml@${{ github.ref_name }}
     # yamllint enable rule:line-length
     with:
       target_repo:    ${{ needs.resolve.outputs.target_repo }}
@@ -171,7 +171,7 @@ jobs:
       - resolve
       - preflight
     # yamllint disable rule:line-length
-    uses: automated-assistant-systems/task-assistant/.github/workflows/engine-materialize-repo.yml@main
+    uses: automated-assistant-systems/task-assistant/.github/workflows/engine-materialize-repo.yml@${{ github.ref_name }}
     # yamllint enable rule:line-length
     with:
       target_repo:    ${{ needs.resolve.outputs.target_repo }}
@@ -192,7 +192,7 @@ jobs:
       - resolve
       - preflight
     # yamllint disable rule:line-length
-    uses: automated-assistant-systems/task-assistant/.github/workflows/engine-enforce.yml@main
+    uses: automated-assistant-systems/task-assistant/.github/workflows/engine-enforce.yml@${{ github.ref_name }}
     # yamllint enable rule:line-length
     with:
       target_repo:    ${{ needs.resolve.outputs.target_repo }}
