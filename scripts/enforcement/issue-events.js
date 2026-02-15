@@ -97,7 +97,7 @@ const result = {
   version: "1.1",
   repo: repoArg,
   issue: { number: Number(issueNumber) },
-  event: { type: eventType },
+  issue_event: { type: eventType },
   mode: "apply",
   ok: true,
   summary: "No changes required",
