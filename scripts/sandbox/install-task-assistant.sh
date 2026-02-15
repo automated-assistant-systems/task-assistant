@@ -1,33 +1,38 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# ============================================================
-# Task Assistant — Marketplace Installer (Phase 3.4)
-#
-# Installs ONLY:
-#   • .github/task-assistant.yml
-#   • .github/workflows/task-assistant-dispatch.yml
-#
-# Infra detection:
-#   • v2 registry (preferred)
-#
-# Modes:
-#   default  → install
-#   --dry-run → validate only
-# ============================================================
-
 REPO=""
 DRY_RUN="false"
+REF=""
 
-for arg in "$@"; do
-  case "$arg" in
-    --dry-run) DRY_RUN="true" ;;
-    *) REPO="$arg" ;;
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --dry-run)
+      DRY_RUN="true"
+      shift
+      ;;
+    --ref)
+      REF="$2"
+      shift 2
+      ;;
+    --ref=*)
+      REF="${1#*=}"
+      shift
+      ;;
+    *)
+      if [[ -z "$REPO" ]]; then
+        REPO="$1"
+      else
+        echo "Unexpected argument: $1"
+        exit 1
+      fi
+      shift
+      ;;
   esac
 done
 
 if [[ -z "$REPO" ]]; then
-  echo "Usage: scripts/sandbox/install-task-assistant.sh <owner/repo> [--dry-run]"
+  echo "Usage: scripts/sandbox/install-task-assistant.sh <owner/repo> [--ref <tag|branch>] [--dry-run]"
   exit 1
 fi
 
@@ -42,175 +47,86 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 OWNER="${REPO%%/*}"
 REPO_NAME="${REPO##*/}"
 
+# ------------------------------------------------------------
+# Resolve ref (default: latest release)
+# ------------------------------------------------------------
+if [[ -z "$REF" ]]; then
+  REF="$(gh release list \
+    --repo automated-assistant-systems/task-assistant \
+    --limit 1 \
+    --json tagName \
+    --jq '.[0].tagName')"
+
+  if [[ -z "$REF" ]]; then
+    echo "❌ Unable to determine latest release tag"
+    exit 1
+  fi
+fi
+
 echo
-echo "📦 Task Assistant — Marketplace Install (Phase 3.4)"
+echo "📦 Task Assistant — Marketplace Install"
 echo "Target repo:  $REPO"
+echo "Ref:          $REF"
 echo "Mode:         $([[ "$DRY_RUN" == "true" ]] && echo "DRY-RUN" || echo "INSTALL")"
 echo
 
 # ------------------------------------------------------------
-# Task Assistant source integrity
+# Validate ref exists remotely
+# ------------------------------------------------------------
+if ! git ls-remote --exit-code https://github.com/automated-assistant-systems/task-assistant.git "$REF" >/dev/null 2>&1; then
+  echo "❌ Ref does not exist in Task Assistant repo: $REF"
+  exit 1
+fi
+
+# ------------------------------------------------------------
+# Integrity checks
 # ------------------------------------------------------------
 [[ -f "$ROOT_DIR/.github/task-assistant.yml" ]] || {
-  echo "❌ Missing .github/task-assistant.yml in Task Assistant repo"
+  echo "❌ Missing .github/task-assistant.yml"
   exit 1
 }
 
 [[ -f "$ROOT_DIR/.github/workflows/task-assistant-dispatch.yml" ]] || {
-  echo "❌ Missing task-assistant-dispatch.yml in Task Assistant repo"
+  echo "❌ Missing task-assistant-dispatch.yml"
   exit 1
 }
-
-# ------------------------------------------------------------
-# Auth + repo access
-# ------------------------------------------------------------
-gh auth status >/dev/null 2>&1 || {
-  echo "❌ gh is not authenticated. Run: gh auth login"
-  exit 1
-}
-
-if ! gh repo view "$REPO" >/dev/null 2>&1; then
-  echo "❌ Cannot access repo: $REPO"
-  exit 1
-fi
-
-echo "✓ Repo accessible"
-
-# ------------------------------------------------------------
-# Infra detection
-# ------------------------------------------------------------
-echo
-echo "🔎 Detecting infra registration…"
-
-INFRA_VERSION="none"
-
-# ---- v2 registry ----
-if gh api repos/automated-assistant-systems/task-assistant-infra/contents/infra/telemetry-registry.v2.json \
-  --jq '.content' 2>/dev/null \
-  | base64 --decode \
-  | jq -e \
-      --arg owner "$OWNER" \
-      --arg repo "$REPO_NAME" '
-        .orgs[$owner].repos[$repo].state == "enabled"
-      ' >/dev/null 2>&1; then
-  INFRA_VERSION="v2"
-fi
-
-case "$INFRA_VERSION" in
-  v2)
-    echo "✓ Repo is registered in infra v2"
-    ;;
-  none)
-    echo "⚠️  Repo is not registered in infra v2"
-    echo "   Preflight and telemetry will fail until registered"
-    ;;
-esac
-
-# ------------------------------------------------------------
-# Secrets check (repo OR org)
-# ------------------------------------------------------------
-echo
-echo "🔐 Checking GitHub App secrets (repo or org)…"
-
-missing=()
-
-for secret in CODEX_APP_ID CODEX_PRIVATE_KEY; do
-  if gh secret list --repo "$REPO" | awk '{print $1}' | grep -qx "$secret"; then
-    continue
-  fi
-
-  if gh secret list --org "$OWNER" | awk '{print $1}' | grep -qx "$secret"; then
-    continue
-  fi
-
-  missing+=("$secret")
-done
-
-if [[ ${#missing[@]} -gt 0 ]]; then
-  echo "⚠️  Missing secrets:"
-  for s in "${missing[@]}"; do
-    echo "  - $s"
-  done
-  echo "→ Preflight engine will fail until secrets are added"
-else
-  echo "✓ Required secrets visible"
-fi
-
-# ------------------------------------------------------------
-# Dispatch currency check
-# NOTE:
-# Dispatch currency checks are advisory only.
-# Failure here must NOT block install.
-# ------------------------------------------------------------
-echo
-echo "🧪 Verifying dispatch currency…"
-
-CANONICAL_HASH="$(sha256sum "$ROOT_DIR/.github/workflows/task-assistant-dispatch.yml" | awk '{print $1}')"
-
-REMOTE_CONTENT="$(
-  gh api "repos/$REPO/contents/.github/workflows/task-assistant-dispatch.yml" \
-    --jq '.content' 2>/dev/null || true
-)"
-
-REMOTE_HASH=""
-if [[ -n "$REMOTE_CONTENT" ]]; then
-  if ! REMOTE_HASH="$(
-    printf '%s' "$REMOTE_CONTENT" \
-      | base64 --decode 2>/dev/null \
-      | sha256sum \
-      | awk '{print $1}'
-  )"; then
-    echo "⚠️  Unable to decode remote dispatch workflow"
-    echo "   Treating as missing"
-    REMOTE_HASH=""
-  fi
-fi
-
-if [[ "$REMOTE_HASH" == "$CANONICAL_HASH" ]]; then
-  DISPATCH_STATUS="up-to-date"
-else
-  DISPATCH_STATUS="out-of-date"
-fi
-
-echo "  Dispatch status: $DISPATCH_STATUS"
 
 # ------------------------------------------------------------
 # Dry-run exit
 # ------------------------------------------------------------
 if [[ "$DRY_RUN" == "true" ]]; then
-  echo
-  echo "🧪 Dry-run complete — no changes made"
-  echo
-  echo "Would install / update:"
-  echo "  • .github/task-assistant.yml"
-  if [[ "$DISPATCH_STATUS" != "up-to-date" ]]; then
-    echo "  • .github/workflows/task-assistant-dispatch.yml (update required)"
-  else
-    echo "  • .github/workflows/task-assistant-dispatch.yml (already current)"
-  fi
-  echo
+  echo "🧪 Dry-run complete"
   exit 0
 fi
 
 # ------------------------------------------------------------
-# Real install
+# Install
 # ------------------------------------------------------------
 WORKDIR="$(mktemp -d)"
 TARGET_DIR="$WORKDIR/target"
 trap 'rm -rf "$WORKDIR"' EXIT
 
-echo
 echo "→ Cloning target repo…"
 gh repo clone "$REPO" "$TARGET_DIR" -- --quiet
 
 mkdir -p "$TARGET_DIR/.github/workflows"
 
+# Copy config as-is
 rsync -a \
   "$ROOT_DIR/.github/task-assistant.yml" \
   "$TARGET_DIR/.github/task-assistant.yml"
 
+# Copy dispatch and inject ref
+TMP_DISPATCH="$WORKDIR/task-assistant-dispatch.yml"
+cp "$ROOT_DIR/.github/workflows/task-assistant-dispatch.yml" "$TMP_DISPATCH"
+
+# Replace ref in reusable workflow uses lines
+sed -i \
+  "s|automated-assistant-systems/task-assistant/.github/workflows/\(engine-.*\.yml\)@.*|automated-assistant-systems/task-assistant/.github/workflows/\1@$REF|g" \
+  "$TMP_DISPATCH"
+
 rsync -a \
-  "$ROOT_DIR/.github/workflows/task-assistant-dispatch.yml" \
+  "$TMP_DISPATCH" \
   "$TARGET_DIR/.github/workflows/task-assistant-dispatch.yml"
 
 cd "$TARGET_DIR"
@@ -220,12 +136,10 @@ git add .github/task-assistant.yml .github/workflows/task-assistant-dispatch.yml
 if git diff --cached --quiet; then
   echo "✓ Repo already up to date"
 else
-  git commit -m "chore: install Task Assistant (config + dispatch)" >/dev/null
+  git commit -m "chore: install Task Assistant (@$REF)" >/dev/null
   git push >/dev/null
-  echo "✓ Task Assistant installed into $REPO"
+  echo "✓ Task Assistant installed into $REPO (@$REF)"
 fi
 
 echo
 echo "✔ Install complete"
-echo "⚠️ Repo preparation  (labels & milestones) is required before workflows will fully pass."
-echo

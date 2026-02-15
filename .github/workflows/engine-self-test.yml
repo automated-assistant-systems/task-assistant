@@ -5,6 +5,9 @@ name: Task Assistant • Engine • Self-Test
 on:
   workflow_call:
     inputs:
+      engine_ref:
+        required: true
+        type: string
       target_repo:
         required: true
         type: string
@@ -41,7 +44,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: automated-assistant-systems/task-assistant
-          ref: main
+          ref: ${{ inputs.engine_ref }}
           path: task-assistant
 
       - uses: actions/setup-node@v4
