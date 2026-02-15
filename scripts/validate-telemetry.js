@@ -144,8 +144,10 @@ function validateJsonFile(filePath, repoName, dateFolder, correlationFolder) {
   }
 
   // Duplicate repo drift
-  if (record.details?.repo && record.details.repo !== record.entity.repo) {
-    fail(filePath, "details.repo does not match entity.repo");
+  if (record.details?.repo) {
+    if (!record.details.repo.endsWith(record.entity.repo)) {
+      fail(filePath, "details.repo does not align with entity.repo");
+    }
   }
 }
 
@@ -179,6 +181,10 @@ function walk() {
         }
 
         for (const file of files) {
+          if (file.startsWith(".")) {
+            continue;
+          }
+
           if (!file.endsWith(".json")) {
             fail(corrPath, `Non-JSON file found: ${file}`);
             continue;

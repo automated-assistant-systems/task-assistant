@@ -31,6 +31,18 @@ if [[ ! -f "$RESULT_FILE" ]]; then
   exit 1
 fi
 
+# Result file must be non-empty and valid JSON
+if [[ ! -s "$RESULT_FILE" ]] || ! jq empty "$RESULT_FILE" >/dev/null 2>&1; then
+  echo "⚠️  Result file missing or invalid — generating failure payload"
+
+  jq -n \
+    --arg reason "${ENGINE_NAME} execution failed prior to telemetry emission"
+    '{
+      ok: false,
+      summary: $reason
+    }' > "$RESULT_FILE"
+fi
+
 # Payload must not redefine repo identity
 if jq -e '.. | objects | has("owner") and has("repo")' "$RESULT_FILE" >/dev/null; then
   echo "::error::Result payload must not redefine owner/repo"
