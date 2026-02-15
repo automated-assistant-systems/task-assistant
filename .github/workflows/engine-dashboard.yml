@@ -116,6 +116,17 @@ jobs:
           token: ${{ steps.app-token.outputs.token }}
 
       # ─────────────────────────────────────────────
+      # Validate telemetry (hard gate)
+      # ─────────────────────────────────────────────
+      - name: Validate telemetry
+        env:
+          TELEMETRY_ROOT: telemetry/telemetry/v1/repos
+        run: |
+          set -euo pipefail
+          echo "→ Validating telemetry structure"
+          node scripts/validate-telemetry.js
+
+      # ─────────────────────────────────────────────
       # Build dashboard (daily file, non-fatal)
       # ─────────────────────────────────────────────
       - name: Build dashboard

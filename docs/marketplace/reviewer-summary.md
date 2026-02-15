@@ -149,3 +149,15 @@ For clarity, Task Assistant does not:
 ## Summary Statement (Reviewer-Facing)
 
 Task Assistant enforces repository hygiene using explicit configuration and emits immutable telemetry to a dedicated repository. Derived dashboards are generated separately as read-only artifacts and never modify monitored repositories. All behavior is deterministic, auditable, and designed to meet GitHub Marketplace safety standards.
+
+### Validation Evidence
+
+All Phase 3.4 validation Test 07 was executed against the
+`v0.3.4.r.3` release artifact.
+
+Test 07 (multi-org + repo matrix) evidence was committed after tagging
+to preserve tag immutability and is available at:
+
+Commit: main 9e0ccdd
+Path: docs/validation/results/test-07-multi-org+repo/
+
