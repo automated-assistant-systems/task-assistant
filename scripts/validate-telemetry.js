@@ -138,10 +138,16 @@ function validateJsonFile(filePath, repoName, dateFolder, correlationFolder) {
     fail(filePath, `Repo mismatch: path=${repoName}, entity.repo=${record.entity.repo}`);
   }
 
-  // Nested event collision
-  if ("event" in record.details) {
-    fail(filePath, "details.event is not allowed (use details.issue_event)");
+  // Transitional rule for v1.0 compatibility
+  const hasLegacyEvent = "event" in record.details;
+  const hasIssueEvent = "issue_event" in record.details;
+
+  if (hasLegacyEvent && hasIssueEvent) {
+    fail(filePath, "details must not contain both event and issue_event");
   }
+
+  // Legacy event is allowed under schema v1.0
+  // Future schema versions may forbid it
 
   // Duplicate repo drift
   if (record.details?.repo) {
