@@ -112,18 +112,48 @@ jobs:
       # ─────────────────────────────────────────────
       # Confirm dispatch pinned to release tag
       # ─────────────────────────────────────────────
-      - name: Ensure dispatch pins immutable tag
+      - name: Ensure dispatch pins immutable tag (strict)
         run: |
           set -euo pipefail
 
           TAG="${{ inputs.release_tag }}"
+          FILE=".github/workflows/task-assistant-dispatch.yml"
 
-          if ! grep -R "@$TAG" .github/workflows/task-assistant-dispatch.yml >/dev/null; then
-            echo "❌ Dispatch not pinned to release tag $TAG"
+          if [[ ! -f "$FILE" ]]; then
+            echo "❌ Dispatch file missing"
             exit 1
           fi
 
-          echo "✓ Dispatch pinned correctly"
+          # Extract only engine reusable workflow refs
+          REFS="$(
+            grep -E 'uses:\s*automated-assistant-systems/task-assistant/\.github/workflows/engine-[^@]+@' "$FILE" \
+              | sed -E 's/^.*@([^ ]+).*$/\1/' \
+              | sort -u
+          )"
+
+          if [[ -z "$REFS" ]]; then
+            echo "❌ No engine refs found in dispatch"
+            exit 1
+          fi
+
+          echo "Detected engine refs:"
+          echo "$REFS"
+
+          BAD=0
+          while read -r REF; do
+            [[ -z "$REF" ]] && continue
+            if [[ "$REF" != "$TAG" ]]; then
+              echo "❌ Dispatch engine ref '$REF' does not match release tag '$TAG'"
+              BAD=1
+            fi
+          done <<< "$REFS"
+
+          if [[ "$BAD" -ne 0 ]]; then
+            echo "❌ Dispatch must be fully pinned to $TAG before release"
+            exit 1
+          fi
+
+          echo "✓ Dispatch correctly pinned to $TAG"
 
       # ─────────────────────────────────────────────
       # Success

@@ -1,11 +1,10 @@
 ---
-name: Task Assistant • Release • Auto Publish
+name: Task Assistant • Release • Auto
 
 # yamllint disable rule:truthy
 on:
   workflow_run:
-    workflows:
-      - "Task Assistant • Release • Tag Self-Consistency"
+    workflows: ["Task Assistant • Release Gate"]
     types:
       - completed
 
@@ -14,83 +13,115 @@ permissions:
   id-token: write
 
 jobs:
-  publish:
-    if: >
-      github.event.workflow_run.conclusion == 'success' &&
-      startsWith(github.event.workflow_run.head_branch, 'v')
+  release:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
 
-    env:
-      ENGINE_NAME: release
-      ENGINE_JOB: publish
-
     steps:
-      - name: Extract tag
+      - name: Checkout Task Assistant
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: |
+          set -euo pipefail
+          npm ci
+
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.CODEX_APP_ID }}
+          private-key: ${{ secrets.CODEX_PRIVATE_KEY }}
+
+      - name: Resolve release tag
         id: tag
         run: |
           set -euo pipefail
-          TAG="${{ github.event.workflow_run.head_branch }}"
-          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          TAG="${GITHUB_REF_NAME}"
+          echo "TAG=$TAG" >> "$GITHUB_ENV"
 
-      - name: Determine prerelease
-        id: prerelease
-        run: |
-          set -euo pipefail
-          TAG="${{ steps.tag.outputs.tag }}"
-          if [[ "$TAG" =~ - ]]; then
-            echo "is_prerelease=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "is_prerelease=false" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Generate correlation ID
-        run: |
-          set -euo pipefail
-          echo "CORRELATION_ID=${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_ENV"
-
-      - name: Checkout Task Assistant
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ steps.tag.outputs.tag }}
-
+      # ─────────────────────────────────────────────
+      # Attempt release creation
+      # ─────────────────────────────────────────────
       - name: Create GitHub Release
         id: create_release
-        if: steps.prerelease.outputs.is_prerelease == 'false'
-        uses: softprops/action-gh-release@v1
-        with:
-          tag_name: ${{ steps.tag.outputs.tag }}
-          generate_release_notes: true
-          prerelease: false
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build release result payload
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           set -euo pipefail
 
-          TAG="${{ steps.tag.outputs.tag }}"
-          PRERELEASE="${{ steps.prerelease.outputs.is_prerelease }}"
-          URL="${{ steps.create_release.outputs.url || '' }}"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release already exists"
+            echo "RELEASE_STATUS=exists" >> "$GITHUB_ENV"
+            exit 0
+          fi
+
+          if [[ "$TAG" == *-* ]]; then
+            PRERELEASE_FLAG="--prerelease"
+          else
+            PRERELEASE_FLAG=""
+          fi
+
+          if gh release create "$TAG" $PRERELEASE_FLAG \
+              --title "$TAG" \
+              --notes "Automated release for $TAG"; then
+            echo "RELEASE_STATUS=success" >> "$GITHUB_ENV"
+          else
+            echo "RELEASE_STATUS=failure" >> "$GITHUB_ENV"
+            exit 1
+          fi
+
+      # ─────────────────────────────────────────────
+      # Build release telemetry payload
+      # ─────────────────────────────────────────────
+      - name: Build release telemetry result
+        if: always()
+        run: |
+          set -euo pipefail
+
+          STATUS="${RELEASE_STATUS:-failure}"
+
+          if [[ "$STATUS" == "success" || "$STATUS" == "exists" ]]; then
+            OK=true
+            ACTION=success
+            SUMMARY="Release created or already exists"
+          else
+            OK=false
+            ACTION=failure
+            SUMMARY="Release creation failed"
+          fi
 
           jq -n \
             --arg tag "$TAG" \
-            --arg url "$URL" \
-            --argjson pre "$PRERELEASE" \
+            --arg sha "$GITHUB_SHA" \
+            --argjson ok "$OK" \
+            --arg summary "$SUMMARY" \
             '{
-              ok: true,
+              ok: $ok,
               tag: $tag,
-              prerelease: ($pre == "true"),
-              release_url: $url
+              commit: $sha,
+              summary: $summary
             }' > result.json
 
+      # ─────────────────────────────────────────────
+      # Emit telemetry (non-blocking)
+      # ─────────────────────────────────────────────
       - name: Emit release telemetry
+        if: always()
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          OWNER: ${{ github.repository_owner }}
-          REPO: ${{ github.event.repository.name }}
-          TELEMETRY_REPO: automated-assistant-systems/task-assistant-telemetry
-          RESULT_FILE: result.json
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           set -euo pipefail
+
           chmod +x scripts/telemetry/emit-engine.sh
-          ./scripts/telemetry/emit-engine.sh
+
+          ENGINE_NAME="release" \
+          ENGINE_JOB="release" \
+          RESULT_FILE="result.json" \
+          ./scripts/telemetry/emit-engine.sh || \
+            echo "::warning::Release telemetry emit failed (non-fatal)."
