@@ -1,0 +1,132 @@
+---
+name: Release • Pre-Tag Gate
+
+# yamllint disable rule:truthy
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Tag to validate (e.g. v0.3.5)"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  validate-release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate tag format
+        run: |
+          set -euo pipefail
+
+          TAG="${{ inputs.release_tag }}"
+
+          if ! [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "❌ Invalid tag format. Must match vX.Y.Z"
+            exit 1
+          fi
+
+          echo "✓ Tag format valid"
+
+      # ─────────────────────────────────────────────
+      # Engine Governance Check
+      # ─────────────────────────────────────────────
+      - name: Enforce engine governance
+        run: |
+          set -euo pipefail
+
+          if grep -R "ref:[[:space:]]*main" .github/workflows; then
+            echo "❌ ref: main found in workflows"
+            exit 1
+          fi
+
+          if grep -R "@phase-" .github/workflows; then
+            echo "❌ Branch engine refs detected. Must pin immutable tag before release."
+            exit 1
+          fi
+
+          echo "✓ Engine governance validated"
+
+      # ─────────────────────────────────────────────
+      # Telemetry Schema Lock Check
+      # ─────────────────────────────────────────────
+      - name: Ensure telemetry schema unchanged
+        run: |
+          set -euo pipefail
+
+          git fetch origin main
+
+          if git diff --name-only origin/main -- docs/telemetry/schema-v1.0.md | grep -q .; then
+            echo "❌ Telemetry schema changed without version bump"
+            exit 1
+          fi
+
+          echo "✓ Telemetry schema unchanged"
+
+      # ─────────────────────────────────────────────
+      # Validator must pass on sample data
+      # ─────────────────────────────────────────────
+      - name: Install dependencies
+        run: |
+          set -euo pipefail
+          npm ci
+
+      - name: Validate telemetry directory (if present)
+        run: |
+          set -euo pipefail
+
+          if [[ -d "telemetry" ]]; then
+            echo "Running telemetry validator..."
+            node scripts/validate-telemetry.js
+          else
+            echo "No telemetry directory present (acceptable)"
+          fi
+
+      # ─────────────────────────────────────────────
+      # Dashboard reducer smoke test
+      # ─────────────────────────────────────────────
+      - name: Dashboard reducer smoke test
+        run: |
+          set -euo pipefail
+
+          export TELEMETRY_ROOT="./telemetry/v1/repos"
+
+          if [[ -d "$TELEMETRY_ROOT" ]]; then
+            echo "Running dashboard reducer smoke test..."
+            node scripts/build-dashboards.js "$(ls "$TELEMETRY_ROOT" | head -n1)" >/dev/null || {
+              echo "❌ Dashboard reducer failed"
+              exit 1
+            }
+          else
+            echo "No telemetry present for reducer test (acceptable)"
+          fi
+
+      # ─────────────────────────────────────────────
+      # Confirm dispatch pinned to release tag
+      # ─────────────────────────────────────────────
+      - name: Ensure dispatch pins immutable tag
+        run: |
+          set -euo pipefail
+
+          TAG="${{ inputs.release_tag }}"
+
+          if ! grep -R "@$TAG" .github/workflows/task-assistant-dispatch.yml >/dev/null; then
+            echo "❌ Dispatch not pinned to release tag $TAG"
+            exit 1
+          fi
+
+          echo "✓ Dispatch pinned correctly"
+
+      # ─────────────────────────────────────────────
+      # Success
+      # ─────────────────────────────────────────────
+      - name: Release gate passed
+        run: echo "🎉 Release validation passed — safe to tag."
