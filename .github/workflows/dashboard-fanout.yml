@@ -11,6 +11,10 @@ permissions:
   contents: write
   id-token: write
 
+concurrency:
+  group: dashboard-fanout
+  cancel-in-progress: false
+
 jobs:
   fanout:
     runs-on: ubuntu-latest
@@ -21,19 +25,33 @@ jobs:
       ENGINE_REF: phase-3.5
 
     steps:
+
+      # ─────────────────────────────────────────────
+      # Checkout deterministic engine version
+      # ─────────────────────────────────────────────
       - name: Checkout Task Assistant
         uses: actions/checkout@v4
+        with:
+          ref: ${{ env.ENGINE_REF }}
+          fetch-depth: 1
 
+      # ─────────────────────────────────────────────
+      # Setup Node
+      # ─────────────────────────────────────────────
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: npm
 
       - name: Install dependencies
         run: |
           set -euo pipefail
           npm ci
 
+      # ─────────────────────────────────────────────
+      # Generate GitHub App token
+      # ─────────────────────────────────────────────
       - name: Generate GitHub App token
         id: app-token
         uses: actions/create-github-app-token@v1
@@ -41,11 +59,17 @@ jobs:
           app-id: ${{ secrets.CODEX_APP_ID }}
           private-key: ${{ secrets.CODEX_PRIVATE_KEY }}
 
+      # ─────────────────────────────────────────────
+      # Generate correlation ID
+      # ─────────────────────────────────────────────
       - name: Generate correlation ID
         run: |
           set -euo pipefail
           echo "CORRELATION_ID=${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_ENV"
 
+      # ─────────────────────────────────────────────
+      # Resolve dashboard fanout plan (strict)
+      # ─────────────────────────────────────────────
       - name: Resolve dashboard fanout plan
         env:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
@@ -54,19 +78,33 @@ jobs:
 
           node -e '
             import { listDashboardEligibleRepos } from "./lib/infra.js";
+
             const plan = await listDashboardEligibleRepos({
               githubToken: process.env.GITHUB_TOKEN,
               allowV1Fallback: true
             });
+
             if (!Array.isArray(plan)) {
               console.error("Fanout plan invalid");
               process.exit(1);
             }
+
+            // Validate shape
+            for (const row of plan) {
+              if (!row.owner || !row.repo || !row.telemetryRepo) {
+                console.error("Fanout plan contains invalid row:", row);
+                process.exit(1);
+              }
+            }
+
             console.log(JSON.stringify(plan, null, 2));
           ' > fanout-plan.json
 
           jq -e 'type == "array"' fanout-plan.json >/dev/null
 
+      # ─────────────────────────────────────────────
+      # Trigger dashboard builds (isolated per repo)
+      # ─────────────────────────────────────────────
       - name: Trigger dashboard builds
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
@@ -80,6 +118,10 @@ jobs:
             exit 0
           fi
 
+          echo "→ Fanout count: $COUNT"
+
+          FAILURES=0
+
           jq -c '.[]' fanout-plan.json | while read -r row; do
             OWNER="$(echo "$row" | jq -r '.owner')"
             REPO="$(echo "$row" | jq -r '.repo')"
@@ -87,11 +129,47 @@ jobs:
 
             echo "→ Triggering dashboard build for $OWNER/$REPO"
 
-            gh workflow run engine-dashboard.yml \
+            if ! gh workflow run engine-dashboard.yml \
               --repo "${GITHUB_REPOSITORY}" \
               -f engine_ref="$ENGINE_REF" \
               -f owner="$OWNER" \
               -f repo="$REPO" \
               -f telemetry_repo="$TELEMETRY_REPO" \
-              -f correlation_id="$CORRELATION_ID"
+              -f correlation_id="$CORRELATION_ID"; then
+                echo "⚠️ Failed to trigger dashboard for $OWNER/$REPO"
+                FAILURES=$((FAILURES + 1))
+            fi
           done
+
+          if [[ "$FAILURES" -gt 0 ]]; then
+            echo "::warning::$FAILURES dashboard trigger(s) failed"
+          fi
+
+      # ─────────────────────────────────────────────
+      # Emit fanout telemetry (always)
+      # ─────────────────────────────────────────────
+      - name: Emit fanout telemetry
+        if: always()
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          set -euo pipefail
+
+          jq -n \
+            --arg ref "$ENGINE_REF" \
+            --arg count "$(jq length fanout-plan.json)" \
+            '{
+              ok: true,
+              engine_ref: $ref,
+              dashboards_triggered: ($count | tonumber),
+              summary: "Fanout executed"
+            }' > result.json
+
+          chmod +x scripts/telemetry/emit-engine.sh
+
+          OWNER="${GITHUB_REPOSITORY%%/*}" \
+          REPO="${GITHUB_REPOSITORY##*/}" \
+          TELEMETRY_REPO="${GITHUB_REPOSITORY}" \
+          RESULT_FILE="result.json" \
+          ./scripts/telemetry/emit-engine.sh || \
+            echo "::warning::Fanout telemetry emit failed."

@@ -1,0 +1,119 @@
+---
+name: Governance • Engine Ref Enforcement
+
+# yamllint disable rule:truthy
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/**"
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/**"
+
+permissions:
+  contents: read
+
+jobs:
+  enforce:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Engine Ref Governance Check
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          echo "🔎 Scanning workflows for governance violations..."
+
+          VIOLATIONS=0
+
+          # ─────────────────────────────────────────────
+          # 1. ref: main is forbidden
+          # ─────────────────────────────────────────────
+          if grep -R --line-number "ref:[[:space:]]*main" .github/workflows; then
+            echo "❌ ref: main is forbidden."
+            VIOLATIONS=1
+          fi
+
+          # ─────────────────────────────────────────────
+          # 2. Direct reusable engine calls must not pin branches
+          #    Only immutable tags (vX.Y.Z) allowed on main branch
+          # ─────────────────────────────────────────────
+          if [[ "${GITHUB_REF##*/}" == "main" ]]; then
+            echo "🔒 Production branch detected (main)"
+
+            # detect @phase- or @feature- etc
+            if grep -R --line-number "@phase-" .github/workflows; then
+              echo "❌ Branch engine refs not allowed on main."
+              VIOLATIONS=1
+            fi
+
+            if grep -R --line-number "@feature-" .github/workflows; then
+              echo "❌ Feature engine refs not allowed on main."
+              VIOLATIONS=1
+            fi
+          fi
+
+          # ─────────────────────────────────────────────
+          # 3. All reusable engine calls must pass engine_ref input
+          # ─────────────────────────────────────────────
+          for file in $(grep -Rl "uses: automated-assistant-systems/task-assistant/.github/workflows/engine-" .github/workflows || true); do
+            echo "Checking engine invocation in $file"
+
+            if ! grep -A5 "uses: automated-assistant-systems/task-assistant/.github/workflows/engine-" "$file" | grep -q "engine_ref:"; then
+              echo "❌ $file calls reusable engine but does not pass engine_ref"
+              VIOLATIONS=1
+            fi
+          done
+
+          # ─────────────────────────────────────────────
+          # 4. Engine workflows must accept engine_ref input
+          # ─────────────────────────────────────────────
+          for file in .github/workflows/engine-*.yml; do
+            if [[ -f "$file" ]]; then
+              if ! grep -q "engine_ref:" "$file"; then
+                echo "❌ $file does not define engine_ref input"
+                VIOLATIONS=1
+              fi
+
+              if ! grep -q "ref: \${{ inputs.engine_ref }}" "$file"; then
+                echo "❌ $file does not use inputs.engine_ref for checkout"
+                VIOLATIONS=1
+              fi
+            fi
+          done
+
+          # ─────────────────────────────────────────────
+          # 5. Cron workflows must not rely on floating branch
+          # ─────────────────────────────────────────────
+          for file in $(grep -Rl "schedule:" .github/workflows || true); do
+            echo "Checking cron workflow: $file"
+
+            if grep -q "@phase-" "$file"; then
+              echo "⚠️  Cron pinned to branch ref (allowed in dev, forbidden on main)"
+            fi
+
+            if [[ "${GITHUB_REF##*/}" == "main" ]]; then
+              if grep -q "@phase-" "$file"; then
+                echo "❌ Cron must use immutable tag on main"
+                VIOLATIONS=1
+              fi
+            fi
+          done
+
+          # ─────────────────────────────────────────────
+          # Final result
+          # ─────────────────────────────────────────────
+          if [[ "$VIOLATIONS" -ne 0 ]]; then
+            echo ""
+            echo "❌ Engine Ref Governance FAILED"
+            exit 1
+          fi
+
+          echo ""
+          echo "✅ Engine Ref Governance PASSED"

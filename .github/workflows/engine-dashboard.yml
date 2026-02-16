@@ -51,6 +51,10 @@ permissions:
   contents: write
   id-token: write
 
+concurrency:
+  group: dashboard-${{ inputs.owner }}-${{ inputs.repo }}
+  cancel-in-progress: false
+
 env:
   ENGINE_NAME: dashboard
   ENGINE_JOB: dashboard
@@ -65,22 +69,46 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+
+      # ─────────────────────────────────────────────
+      # Validate required inputs (defensive)
+      # ─────────────────────────────────────────────
+      - name: Validate inputs
+        run: |
+          set -euo pipefail
+
+          [[ -n "$OWNER" ]] || { echo "::error::OWNER missing"; exit 1; }
+          [[ -n "$REPO" ]] || { echo "::error::REPO missing"; exit 1; }
+          [[ -n "$TELEMETRY_REPO" ]] || { echo "::error::TELEMETRY_REPO missing"; exit 1; }
+          [[ -n "$CORRELATION_ID" ]] || { echo "::error::CORRELATION_ID missing"; exit 1; }
+
+      # ─────────────────────────────────────────────
+      # Checkout Task Assistant at deterministic ref
+      # ─────────────────────────────────────────────
       - name: Checkout Task Assistant
         uses: actions/checkout@v4
         with:
           repository: automated-assistant-systems/task-assistant
           ref: ${{ inputs.engine_ref }}
+          fetch-depth: 1
 
+      # ─────────────────────────────────────────────
+      # Setup Node (locked major)
+      # ─────────────────────────────────────────────
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: npm
 
-      - name: Install dependencies
+      - name: Install dependencies (clean)
         run: |
           set -euo pipefail
           npm ci
 
+      # ─────────────────────────────────────────────
+      # Generate GitHub App token (repo-scoped)
+      # ─────────────────────────────────────────────
       - name: Generate GitHub App token
         id: app-token
         uses: actions/create-github-app-token@v1
@@ -89,39 +117,80 @@ jobs:
           private-key: ${{ secrets.CODEX_PRIVATE_KEY }}
           owner: ${{ inputs.owner }}
 
+      # ─────────────────────────────────────────────
+      # Checkout telemetry repository (isolated path)
+      # ─────────────────────────────────────────────
       - name: Checkout telemetry repository
         uses: actions/checkout@v4
         with:
           repository: ${{ inputs.telemetry_repo }}
           path: telemetry
           token: ${{ steps.app-token.outputs.token }}
+          fetch-depth: 1
 
-      - name: Validate telemetry (hard gate)
-        env:
-          TELEMETRY_ROOT: telemetry/telemetry/v1/repos
+      # ─────────────────────────────────────────────
+      # Validate telemetry root existence (hard gate)
+      # ─────────────────────────────────────────────
+      - name: Validate telemetry root
+        run: |
+          set -euo pipefail
+
+          TELEMETRY_ROOT="telemetry/telemetry/v1/repos"
+
+          if [[ ! -d "$TELEMETRY_ROOT" ]]; then
+            echo "::error::Telemetry root missing"
+            exit 1
+          fi
+
+          echo "TELEMETRY_ROOT=$TELEMETRY_ROOT" >> "$GITHUB_ENV"
+
+      # ─────────────────────────────────────────────
+      # Validate telemetry structure (hard gate)
+      # ─────────────────────────────────────────────
+      - name: Validate telemetry
         run: |
           set -euo pipefail
           node scripts/validate-telemetry.js
 
+      # ─────────────────────────────────────────────
+      # Build dashboard (pure reducer)
+      # ─────────────────────────────────────────────
       - name: Build dashboard
-        env:
-          TELEMETRY_ROOT: telemetry/telemetry/v1/repos
         run: |
           set -euo pipefail
 
           if [[ ! -d "$TELEMETRY_ROOT/$REPO" ]]; then
+            echo "ℹ️ No telemetry for repo"
+
             jq -n \
               --arg repo "$REPO" \
-              '{ ok: true, repo: $repo, status: "no-telemetry" }' > result.json
+              '{
+                ok: true,
+                repo: $repo,
+                status: "no-telemetry",
+                summary: "No telemetry present"
+              }' > result.json
+
             exit 0
           fi
 
           node scripts/build-dashboards.js "$REPO" > dashboard.json
 
+          # Validate reducer output is valid JSON
+          jq empty dashboard.json
+
           jq -n \
             --arg repo "$REPO" \
-            '{ ok: true, repo: $repo, status: "healthy" }' > result.json
+            '{
+              ok: true,
+              repo: $repo,
+              status: "healthy",
+              summary: "Dashboard rebuilt"
+            }' > result.json
 
+      # ─────────────────────────────────────────────
+      # Emit dashboard telemetry (non-blocking)
+      # ─────────────────────────────────────────────
       - name: Emit dashboard telemetry
         if: always()
         env:
@@ -129,8 +198,11 @@ jobs:
         run: |
           set -euo pipefail
 
+          chmod +x scripts/telemetry/emit-engine.sh
+
           OWNER="$OWNER" \
           REPO="$REPO" \
           TELEMETRY_REPO="$TELEMETRY_REPO" \
           RESULT_FILE="result.json" \
-          ./scripts/telemetry/emit-engine.sh
+          ./scripts/telemetry/emit-engine.sh || \
+            echo "::warning::Telemetry emit failed (non-fatal for dashboard)."
