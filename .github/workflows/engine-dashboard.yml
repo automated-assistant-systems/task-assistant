@@ -25,12 +25,6 @@ on:
         type: boolean
         default: false
 
-    secrets:
-      CODEX_APP_ID:
-        required: true
-      CODEX_PRIVATE_KEY:
-        required: true
-
   workflow_call:
     inputs:
       engine_ref:
@@ -53,12 +47,6 @@ on:
         type: boolean
         default: false
 
-    secrets:
-      CODEX_APP_ID:
-        required: true
-      CODEX_PRIVATE_KEY:
-        required: true
-
 permissions:
   contents: write
   id-token: write
@@ -71,25 +59,18 @@ env:
   REPO: ${{ inputs.repo }}
   TELEMETRY_REPO: ${{ inputs.telemetry_repo }}
   CORRELATION_ID: ${{ inputs.correlation_id }}
-  DASHBOARD_PUBLIC: ${{ inputs.public }}
 
 jobs:
   dashboard:
     runs-on: ubuntu-latest
 
     steps:
-      # ─────────────────────────────────────────────
-      # Checkout Task Assistant
-      # ─────────────────────────────────────────────
       - name: Checkout Task Assistant
         uses: actions/checkout@v4
         with:
           repository: automated-assistant-systems/task-assistant
           ref: ${{ inputs.engine_ref }}
 
-      # ─────────────────────────────────────────────
-      # Setup Node
-      # ─────────────────────────────────────────────
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
@@ -100,9 +81,6 @@ jobs:
           set -euo pipefail
           npm ci
 
-      # ─────────────────────────────────────────────
-      # Generate GitHub App token
-      # ─────────────────────────────────────────────
       - name: Generate GitHub App token
         id: app-token
         uses: actions/create-github-app-token@v1
@@ -111,9 +89,6 @@ jobs:
           private-key: ${{ secrets.CODEX_PRIVATE_KEY }}
           owner: ${{ inputs.owner }}
 
-      # ─────────────────────────────────────────────
-      # Checkout telemetry repository
-      # ─────────────────────────────────────────────
       - name: Checkout telemetry repository
         uses: actions/checkout@v4
         with:
@@ -121,43 +96,23 @@ jobs:
           path: telemetry
           token: ${{ steps.app-token.outputs.token }}
 
-      # ─────────────────────────────────────────────
-      # Validate telemetry (hard gate)
-      # ─────────────────────────────────────────────
-      - name: Validate telemetry
+      - name: Validate telemetry (hard gate)
         env:
           TELEMETRY_ROOT: telemetry/telemetry/v1/repos
         run: |
           set -euo pipefail
-          echo "→ Validating telemetry structure"
           node scripts/validate-telemetry.js
 
-      # ─────────────────────────────────────────────
-      # Build dashboard (daily file, non-fatal)
-      # ─────────────────────────────────────────────
       - name: Build dashboard
         env:
           TELEMETRY_ROOT: telemetry/telemetry/v1/repos
         run: |
           set -euo pipefail
 
-          DAY="$(date -u +%Y-%m-%d)"
-
-          echo "→ Building dashboard for $OWNER/$REPO ($DAY)"
-
           if [[ ! -d "$TELEMETRY_ROOT/$REPO" ]]; then
-            echo "ℹ️ No telemetry present (first run)"
-
             jq -n \
               --arg repo "$REPO" \
-              --arg day "$DAY" \
-              '{
-                ok: false,
-                date: $day,
-                repo: $repo,
-                status: "no-telemetry"
-              }' > result.json
-
+              '{ ok: true, repo: $repo, status: "no-telemetry" }' > result.json
             exit 0
           fi
 
@@ -165,17 +120,8 @@ jobs:
 
           jq -n \
             --arg repo "$REPO" \
-            --arg day "$DAY" \
-            '{
-              ok: true,
-              date: $day,
-              repo: $repo,
-              status: "healthy"
-            }' > result.json
+            '{ ok: true, repo: $repo, status: "healthy" }' > result.json
 
-      # ─────────────────────────────────────────────
-      # Emit dashboard telemetry (ALWAYS)
-      # ─────────────────────────────────────────────
       - name: Emit dashboard telemetry
         if: always()
         env:

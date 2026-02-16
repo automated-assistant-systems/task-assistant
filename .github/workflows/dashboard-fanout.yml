@@ -3,7 +3,7 @@ name: Task Assistant • Dashboard • Fanout
 
 # yamllint disable rule:truthy
 on:
-  workflow_dispatch: {}
+  workflow_dispatch:
   schedule:
     - cron: "0 4 * * *"
 
@@ -18,11 +18,9 @@ jobs:
     env:
       ENGINE_NAME: dashboard
       ENGINE_JOB: fanout
+      ENGINE_REF: phase-3.5
 
     steps:
-      # ─────────────────────────────────────────────
-      # Checkout Task Assistant (infra + scripts)
-      # ─────────────────────────────────────────────
       - name: Checkout Task Assistant
         uses: actions/checkout@v4
 
@@ -36,22 +34,6 @@ jobs:
           set -euo pipefail
           npm ci
 
-      # ─────────────────────────────────────────────
-      # Resolve host repo context (authoritative)
-      # ─────────────────────────────────────────────
-      - name: Resolve repo context
-        run: |
-          set -euo pipefail
-
-          OWNER="${GITHUB_REPOSITORY%%/*}"
-          REPO="${GITHUB_REPOSITORY##*/}"
-
-          echo "OWNER=$OWNER" >> "$GITHUB_ENV"
-          echo "REPO=$REPO" >> "$GITHUB_ENV"
-
-      # ─────────────────────────────────────────────
-      # Generate GitHub App token (infra access)
-      # ─────────────────────────────────────────────
       - name: Generate GitHub App token
         id: app-token
         uses: actions/create-github-app-token@v1
@@ -59,80 +41,32 @@ jobs:
           app-id: ${{ secrets.CODEX_APP_ID }}
           private-key: ${{ secrets.CODEX_PRIVATE_KEY }}
 
-      # ─────────────────────────────────────────────
-      # Generate correlation ID
-      # ─────────────────────────────────────────────
       - name: Generate correlation ID
         run: |
           set -euo pipefail
           echo "CORRELATION_ID=${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_ENV"
 
-      # ─────────────────────────────────────────────
-      # Resolve telemetry repo for host (once)
-      # ─────────────────────────────────────────────
-      - name: Resolve infra for fanout telemetry
-        env:
-          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
-        run: |
-          set -euo pipefail
-
-          cat > resolve-fanout-infra.mjs <<'JS'
-          import fs from "fs";
-          import { resolveInfraForRepo } from "./lib/infra.js";
-
-          const result = await resolveInfraForRepo({
-            targetRepo: process.env.GITHUB_REPOSITORY,
-            githubToken: process.env.GITHUB_TOKEN
-          });
-
-          if (!result.telemetryRepo) {
-            console.error("::error::Unable to resolve telemetry repo for fanout");
-            process.exit(1);
-          }
-
-          fs.writeFileSync(
-            "fanout-infra.json",
-            JSON.stringify(result, null, 2)
-          );
-          JS
-
-          node resolve-fanout-infra.mjs
-
-          TELEMETRY_REPO="$(jq -r '.telemetryRepo' fanout-infra.json)"
-          echo "TELEMETRY_REPO=$TELEMETRY_REPO" >> "$GITHUB_ENV"
-
-      # ─────────────────────────────────────────────
-      # Enumerate dashboard-eligible repos (v2 + v1)
-      # ─────────────────────────────────────────────
       - name: Resolve dashboard fanout plan
         env:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           set -euo pipefail
 
-          cat > resolve-dashboard-fanout.mjs <<'JS'
-          import fs from "fs";
-          import { listDashboardEligibleRepos } from "./lib/infra.js";
+          node -e '
+            import { listDashboardEligibleRepos } from "./lib/infra.js";
+            const plan = await listDashboardEligibleRepos({
+              githubToken: process.env.GITHUB_TOKEN,
+              allowV1Fallback: true
+            });
+            if (!Array.isArray(plan)) {
+              console.error("Fanout plan invalid");
+              process.exit(1);
+            }
+            console.log(JSON.stringify(plan, null, 2));
+          ' > fanout-plan.json
 
-          const plan = await listDashboardEligibleRepos({
-            githubToken: process.env.GITHUB_TOKEN,
-            allowV1Fallback: true
-          });
+          jq -e 'type == "array"' fanout-plan.json >/dev/null
 
-          fs.writeFileSync(
-            "fanout-plan.json",
-            JSON.stringify(plan, null, 2)
-          );
-
-          console.log("Dashboard fanout plan:");
-          console.log(JSON.stringify(plan, null, 2));
-          JS
-
-          node resolve-dashboard-fanout.mjs
-
-      # ─────────────────────────────────────────────
-      # Trigger dashboard builds (repo-scoped)
-      # ─────────────────────────────────────────────
       - name: Trigger dashboard builds
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
@@ -146,7 +80,7 @@ jobs:
             exit 0
           fi
 
-          for row in $(jq -c '.[]' fanout-plan.json); do
+          jq -c '.[]' fanout-plan.json | while read -r row; do
             OWNER="$(echo "$row" | jq -r '.owner')"
             REPO="$(echo "$row" | jq -r '.repo')"
             TELEMETRY_REPO="$(echo "$row" | jq -r '.telemetryRepo')"
@@ -155,6 +89,7 @@ jobs:
 
             gh workflow run engine-dashboard.yml \
               --repo "${GITHUB_REPOSITORY}" \
+              -f engine_ref="$ENGINE_REF" \
               -f owner="$OWNER" \
               -f repo="$REPO" \
               -f telemetry_repo="$TELEMETRY_REPO" \
