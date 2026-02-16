@@ -6,8 +6,8 @@ on:
   workflow_call:
     inputs:
       engine_ref:
-      required: true
-      type: string
+        required: true
+        type: string
 
       target_repo:
         required: true
