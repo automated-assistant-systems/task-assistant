@@ -158,6 +158,8 @@ enforce
 
 dashboard
 
+release
+
 Adding a new category does NOT require version bump.
 Removing or renaming a category does.
 

@@ -1,0 +1,96 @@
+---
+name: Task Assistant • Release • Auto Publish
+
+# yamllint disable rule:truthy
+on:
+  workflow_run:
+    workflows:
+      - "Task Assistant • Release • Tag Self-Consistency"
+    types:
+      - completed
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  publish:
+    if: >
+      github.event.workflow_run.conclusion == 'success' &&
+      startsWith(github.event.workflow_run.head_branch, 'v')
+    runs-on: ubuntu-latest
+
+    env:
+      ENGINE_NAME: release
+      ENGINE_JOB: publish
+
+    steps:
+      - name: Extract tag
+        id: tag
+        run: |
+          set -euo pipefail
+          TAG="${{ github.event.workflow_run.head_branch }}"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Determine prerelease
+        id: prerelease
+        run: |
+          set -euo pipefail
+          TAG="${{ steps.tag.outputs.tag }}"
+          if [[ "$TAG" =~ - ]]; then
+            echo "is_prerelease=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "is_prerelease=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Generate correlation ID
+        run: |
+          set -euo pipefail
+          echo "CORRELATION_ID=${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_ENV"
+
+      - name: Checkout Task Assistant
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.tag.outputs.tag }}
+
+      - name: Create GitHub Release
+        id: create_release
+        if: steps.prerelease.outputs.is_prerelease == 'false'
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.tag.outputs.tag }}
+          generate_release_notes: true
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build release result payload
+        run: |
+          set -euo pipefail
+
+          TAG="${{ steps.tag.outputs.tag }}"
+          PRERELEASE="${{ steps.prerelease.outputs.is_prerelease }}"
+          URL="${{ steps.create_release.outputs.url || '' }}"
+
+          jq -n \
+            --arg tag "$TAG" \
+            --arg url "$URL" \
+            --argjson pre "$PRERELEASE" \
+            '{
+              ok: true,
+              tag: $tag,
+              prerelease: ($pre == "true"),
+              release_url: $url
+            }' > result.json
+
+      - name: Emit release telemetry
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OWNER: ${{ github.repository_owner }}
+          REPO: ${{ github.event.repository.name }}
+          TELEMETRY_REPO: automated-assistant-systems/task-assistant-telemetry
+          RESULT_FILE: result.json
+        run: |
+          set -euo pipefail
+          chmod +x scripts/telemetry/emit-engine.sh
+          ./scripts/telemetry/emit-engine.sh
