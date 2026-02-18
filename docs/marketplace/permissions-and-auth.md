@@ -1,45 +1,80 @@
-# Permissions & Authentication Model
+# Permissions & Authentication Model (Authoritative)
 
-Task Assistant follows the principle of least privilege.
+Task Assistant follows the principle of least privilege under a preflight-gated, version-pinned runtime model.
 
 ---
 
-## Authentication
+## 1. Authentication
 
-Task Assistant uses a GitHub App installation token for all runtime behavior.
+All runtime behavior uses:
 
-All workflows run under the same GitHub App identity; no alternate credentials are used.
+- GitHub App installation tokens
+- Repository-scoped permissions
+- No Personal Access Tokens (PATs)
+- No user credentials
 
-Characteristics:
+The dispatcher creates installation-scoped tokens per execution.
+
+Authentication is validated during preflight before any mutation-capable engine runs.
+
+---
+
+## 2. Identity Characteristics
+
 - Repository-scoped
 - Explicitly granted by installation
 - Auditable and revocable
-- No Personal Access Tokens (PATs)
+- Version-pinned execution (engine_ref)
 
-GitHub Actions workflows that perform cross-repository operations authenticate using the same GitHub App identity.
+No alternate credentials are used.
 
 ---
 
-## Permissions Rationale
+## 3. Permission Usage
 
 ### Repository Metadata (read)
-Used to inspect repository state, issues, labels, and milestones.
+Used to inspect repository state.
 
-### Issues (read/write — optional)
-Used only when enforcement actions are explicitly configured.
+### Issues (read/write)
+Used only when enforcement is explicitly configured.
 
 ### Contents (read)
-Used to read configuration files.
+Used to read `.github/task-assistant.yml`.
 
 ### Contents (write — telemetry repository only)
-Used to write telemetry and derived dashboards to a dedicated operator-owned repository.
+Used exclusively to write telemetry and derived dashboards.
+
+Monitored repositories never receive telemetry writes.
 
 ---
 
-## Explicit Restrictions
+## 4. Enforcement Guardrails
+
+Mutation requires:
+
+- Valid installation
+- Successful preflight
+- Valid configuration
+- Explicit engine invocation
+- engine_ref pinning
+
+If any condition fails:
+
+- No mutation occurs
+- Telemetry is emitted with ok=false
+
+---
+
+## 5. Explicit Restrictions
 
 Task Assistant does not:
-- Modify repository code
+
+- Modify repository source code
 - Create pull requests
-- Delete issues, PRs, or branches
-- Perform actions without explicit configuration
+- Execute repository code
+- Escalate privileges
+- Cross organization boundaries
+- Override engine_ref
+- Perform autonomous actions
+
+All execution is dispatcher-controlled and auditable.

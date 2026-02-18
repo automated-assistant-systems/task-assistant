@@ -1,179 +1,285 @@
-# Runtime Execution Components
+# Runtime Execution Components (Authoritative)
 
-This document defines the **authoritative runtime components** that execute as part of **Task Assistant for GitHub**.
+This document defines the official runtime surface of **Task Assistant for GitHub Marketplace**.
 
-Only the components described here are part of the GitHub Marketplace runtime surface.
-No other behavior exists.
+Only the components described here execute in production.
 
----
-
-## Execution Model (Non-Negotiable)
-
-Task Assistant operates using a strict **Dispatcher → Engine** model.
-
-- The **Dispatcher** decides *when* something runs
-- **Engines** decide *what* runs
-- **Telemetry** records *what happened*
-
-No engine runs autonomously.
-No engine is embedded in customer repositories.
+No hidden engines exist.  
+No undocumented behavior exists.
 
 ---
 
-## Dispatcher Workflow
+## 1. Runtime Model (Non-Negotiable)
 
-**Component:** `task-assistant-dispatch.yml`  
-**Location:** Customer repository  
-**Role:** Routing and orchestration only
+Task Assistant operates under a strictly ordered, version-pinned runtime model:
+
+Dispatcher → Preflight → Engine(s) → emit-engine → Telemetry Repository
+
+This flow is mandatory and cannot be bypassed.
+
+All runtime execution is:
+
+- Deterministic
+- Version-pinned
+- Preflight-gated
+- Telemetry-backed
+- GitHub App–authenticated
+
+---
+
+## 2. Dispatcher
+
+**Role:** Orchestration authority  
+**Surface:** GitHub App runtime  
 
 Responsibilities:
-- Receives GitHub events (push, issues, schedule, manual dispatch)
-- Resolves execution mode (validate, materialize, self-test, enforce)
-- Generates a run-scoped correlation ID
-- Invokes exactly one engine per job
+
+- Receives GitHub events
+- Generates or normalizes correlation_id
+- Selects engine_ref (tag or SHA)
+- Invokes preflight
+- Sequences engines
+- Halts execution on preflight failure
 
 Guarantees:
+
 - Contains no business logic
-- Performs no repository mutation
-- Is safe to inspect, edit, or delete
+- Performs no repository mutations
+- Does not write telemetry directly
+- All engines in a run share identical engine_ref
+
+The dispatcher is the only component allowed to select runtime version.
 
 ---
 
-## Preflight Engine
+## 3. Preflight (Mandatory Validation Stage)
 
-Validates infrastructure and execution prerequisites before any other engine runs.
+Preflight executes first in every dispatcher run.
 
 Capabilities:
-- Repository registration resolution
-- Telemetry repository resolution
-- Permission verification
-- Execution gating
+
+- Validates GitHub App installation
+- Resolves telemetry repository
+- Confirms authentication scope
+- Confirms repository eligibility
+- Establishes runtime invariants
 
 Behavior:
-- Runs at the start of every execution chain
-- Fails fast if prerequisites are not satisfied
-- Emits telemetry describing resolution outcome
-- Never mutates repositories
+
+- Non-mutating
+- Emits exactly one telemetry record
+- Stops execution on failure
+- Runs under the same engine_ref as subsequent engines
+
+No engine executes before preflight succeeds.
 
 ---
 
-## Validation Engine
+## 4. Engines
 
-Validates Task Assistant configuration without modifying repositories.
+Engines are stateless execution units invoked via workflow_call.
 
-Capabilities:
-- Schema validation of `.github/task-assistant.yml`
-- Detection of invalid or unsafe configurations
-- Deterministic, repeatable evaluation
+Each engine:
 
-Behavior:
-- Runs automatically on configuration changes
-- Runs on a nightly schedule
-- Can be triggered manually
-- Emits telemetry describing validation results
-- Performs **no repository mutations**
+- Receives target_repo, telemetry_repo, correlation_id, engine_ref
+- Is deterministic
+- Is version-pinned
+- Emits exactly one telemetry record via emit-engine
+- Does not invoke other engines
+- Does not generate correlation IDs
+- Does not override engine_ref
+
+Engines never:
+
+- Execute repository code
+- Create pull requests
+- Run arbitrary scripts
+- Escalate permissions
+- Cross organization boundaries
 
 ---
 
-## Materialize Repository Engine
+## 5. Engine Types
 
-Creates repository metadata **only when explicitly requested**.
+### 5.1 Validation Engine
 
-Capabilities:
-- Creates missing labels
-- Creates missing milestones
-- Reconciles configuration with repository state
+Purpose:
 
-Behavior:
-- Runs **only** via manual dispatch
-- Reads configuration as the sole source of truth
-- Applies idempotent, deterministic changes
-- Emits telemetry describing what was created or skipped
+- Validates Task Assistant configuration
+- Performs deterministic evaluation
+- Emits validation telemetry
 
 Guarantees:
-- Never modifies code
-- Never runs automatically
-- Safe to re-run at any time
+
+- No repository mutation
+- Safe to run repeatedly
+- Idempotent
 
 ---
 
-## Enforcement Engine
+### 5.2 Materialize Engine
 
-Responds to GitHub issue events using configuration-driven rules.
+Purpose:
 
-Capabilities:
-- Issue lifecycle enforcement
-- Label and milestone hygiene
-- Deterministic state correction
+- Creates missing labels or milestones
+- Reconciles configuration with repository metadata
 
 Behavior:
-- Triggered only by relevant GitHub events
-- Applies **only** explicitly configured rules
-- Skips all actions if configuration is invalid
-- Emits telemetry for every enforcement decision
+
+- Manual invocation only
+- Deterministic
+- Idempotent
+- Emits telemetry describing actions taken
 
 Guarantees:
+
+- Never modifies source code
+- Safe to re-run
+
+---
+
+### 5.3 Enforcement Engine
+
+Purpose:
+
+- Responds to issue lifecycle events
+- Applies explicitly configured rules
+
+Behavior:
+
+- Triggered by GitHub issue events
+- Applies deterministic rule evaluation
+- Emits telemetry for each decision
+
+Guarantees:
+
 - No speculative mutations
+- No silent corrections
 - No cross-repository access
-- No silent behavior
 
 ---
 
-## Dashboard Engine
+### 5.4 Self-Test Engine
 
-Builds read-only observability artifacts from telemetry.
+Purpose:
 
-Capabilities:
-- Aggregates telemetry into dashboards
-- Produces derived, read-only artifacts
+- Validates system integrity
+- Confirms telemetry write capability
+- Confirms configuration validity
 
 Behavior:
-- Runs as part of self-test workflows
-- Runs on a scheduled basis
-- Reads telemetry only
-- Never mutates monitored repositories
+
+- Manual invocation
+- Emits telemetry
+- Does not mutate repositories
 
 ---
 
-## Telemetry Emission (Shared Component)
+### 5.5 Dashboard Engine
 
-All engines emit structured telemetry using a shared, audited mechanism.
+Purpose:
 
-Capabilities:
-- Immutable, append-only records
-- Run-scoped correlation
-- Cross-repository storage using GitHub App identity
+- Aggregates telemetry
+- Produces read-only dashboard artifacts
 
 Behavior:
-- Writes telemetry to a dedicated telemetry repository
-- Never writes to monitored repositories
+
+- Reads telemetry repository only
+- Emits dashboard telemetry
+- Does not mutate monitored repositories
+
+---
+
+## 6. Version Pinning (engine_ref)
+
+All runtime execution is pinned to engine_ref.
+
+Rules:
+
+- engine_ref is selected by the dispatcher
+- In Marketplace mode, engine_ref must be a tag or SHA
+- Floating branches are not permitted
+- engine_ref is recorded in every telemetry record
+- All engines in a dispatcher run share the same engine_ref
+
+This guarantees reproducibility and auditability.
+
+---
+
+## 7. Telemetry Emission (emit-engine)
+
+All engines emit telemetry exclusively via emit-engine.
+
+Capabilities:
+
+- Canonical envelope structure
+- engine_name + engine_ref inclusion
+- ok success indicator
+- Single-record-per-engine enforcement
+- Immutable append-only write
+- Safe retry on write conflict
+
+Telemetry:
+
+- Is written only to a dedicated telemetry repository
+- Is never written to monitored repositories
 - Does not influence execution outcomes
 
 ---
 
-## Explicit Non-Behaviors
+## 8. Authentication Model
 
-Task Assistant runtime components **do not**:
+All runtime components use:
+
+- GitHub App authentication
+- Installation-scoped tokens
+- No PATs
+- No user credentials
+- No cross-org escalation
+
+Authentication validity is verified during preflight.
+
+---
+
+## 9. Explicit Non-Behaviors
+
+Task Assistant runtime components do NOT:
 
 - Execute arbitrary code
 - Modify repository source code
 - Create pull requests
-- Run local scripts
-- Require developer machines
-- Cross organization boundaries
 - Self-install or self-update
+- Run local scripts
+- Cross organization boundaries
+- Override engine_ref
+- Write telemetry directly (engines must use emit-engine)
 
 ---
 
-## Summary
+## 10. Deterministic Guarantees
 
-Task Assistant runtime behavior is:
+The runtime guarantees:
+
+- One dispatcher run → one correlation_id
+- One engine invocation → one telemetry file
+- Preflight executes first
+- No mutation before validation
+- Version-pinned execution
+- Immutable telemetry
+- No hidden execution paths
+
+---
+
+## 11. Marketplace Safety Statement
+
+Task Assistant runtime components are:
 
 - Explicit
 - Deterministic
-- Manually gated for mutations
-- Fully auditable via telemetry
+- Preflight-gated
+- Version-pinned
+- Fully auditable
 - Safe for GitHub Marketplace distribution
 
-No hidden engines exist.
+No hidden engines exist.  
 No undocumented behavior exists.

@@ -1,163 +1,193 @@
-# Task Assistant — One-Page Marketplace Reviewer Summary
+# Task Assistant — Marketplace Reviewer Summary (Authoritative)
+
+Status: Phase 3.5 Runtime Model  
+
+---
 
 ## What This App Does
 
-Task Assistant is a GitHub App that enforces repository hygiene using explicit, configuration-driven rules and emits immutable telemetry for auditability and operator visibility.
+Task Assistant is a GitHub App that enforces repository hygiene using explicit, configuration-driven rules under a deterministic, version-pinned runtime model.
 
-* Manual materialization is required for repo mutations
+All execution is:
 
-* Correlation IDs are system-generated, not user-provided
+- Preflight-gated
+- Dispatcher-controlled
+- Version-pinned via engine_ref
+- Fully auditable via immutable telemetry
 
-* Telemetry is immutable and separated from monitored repos
+No speculative behavior exists.
+No hidden automation exists.
+No destructive action occurs without explicit configuration.
 
+---
 
-The system is intentionally conservative:
+## Runtime Model (Non-Negotiable)
 
-* No speculative behavior
+Task Assistant executes under a strictly ordered model:
 
-* No hidden automation
+Dispatcher → Preflight → Engine(s) → emit-engine → Telemetry Repository
 
-* No destructive actions without explicit configuration
+Guarantees:
 
-## Core Design Principles
+- Preflight validates before any mutation
+- engine_ref pins runtime version
+- Engines are stateless and deterministic
+- Exactly one telemetry record per engine invocation
+- Telemetry written only to a dedicated telemetry repository
 
-Deterministic — same inputs produce the same outcomes
+No engine runs autonomously.
 
-Non-destructive by default — enforcement actions require explicit configuration
-
-Auditable — all automated behavior is recorded as immutable telemetry
-
-Marketplace-safe — strict separation between enforcement, telemetry, and observability
+---
 
 ## What Runs Automatically
 
-Task Assistant executes only three runtime components:
-(No external services or servers are required for current functionality.)
+Task Assistant executes only explicitly invoked runtime engines:
 
-### Repository Preparation Engine
+### Preflight Engine
+- Validates installation, permissions, and runtime invariants
+- Prevents mutation before validation
+- Emits immutable telemetry
 
-* Validates configuration and repository hygiene
+### Validation Engine
+- Validates configuration
+- Non-mutating
+- Deterministic
 
-* Supports dry-run execution
+### Enforcement Engine
+- Responds to issue events
+- Applies only explicitly configured rules
+- Deterministic and idempotent
 
-* Does not modify code or content
+### Materialize Engine (Manual Only)
+- Creates missing labels/milestones
+- Explicitly invoked
+- Safe to re-run
 
-### Enforcement Event Processor
+### Dashboard Engine
+- Reads telemetry only
+- Produces derived artifacts
+- Never mutates monitored repositories
 
-* Responds to GitHub events (e.g., issue updates)
+No other scripts or background processes execute.
 
-* Applies only explicitly configured actions
+---
 
-* Performs no speculative or self-healing mutations
+## Version Pinning & Reproducibility
 
-### Telemetry Emission Engine
+All runtime execution is pinned to engine_ref:
 
-* Emits structured, append-only telemetry
+- Selected by dispatcher
+- Tag or SHA in Marketplace mode
+- Identical across engines in a single run
+- Recorded in every telemetry record
 
-* Records what happened, when, and why
+This guarantees reproducibility and auditability.
 
-* Does not influence enforcement decisions
-
-* No other scripts or tools execute automatically.
+---
 
 ## Telemetry & Dashboards
 
-Telemetry is organized by date and correlation ID to support deterministic recovery and audit.
-
 ### Telemetry
 
-* Written to a dedicated, operator-owned telemetry repository
+Telemetry is:
 
-* Stored as append-only, immutable JSONL
+- Written only to a dedicated telemetry repository
+- Partitioned by repository, date, and correlation
+- Exactly one JSON file per engine invocation
+- Immutable once written
+- Version-attributed (engine_ref included)
 
-* Never modified after creation
-
-* Never written to monitored repositories
+Telemetry is the canonical audit record.
 
 ### Dashboards
 
-* Derived artifacts, not authoritative data
+Dashboards are:
 
-* Generated from raw telemetry by a scheduled workflow
+- Derived artifacts
+- Fully regenerable
+- Read-only
+- Deterministic
+- Never written to monitored repositories
+- Never influence enforcement behavior
 
-* Written only to the telemetry repository
-
-* Never written to monitored repositories
-
-* Fully regenerable and deterministic
-
-* Dashboards have no effect on enforcement behavior.
+---
 
 ## Authentication & Permissions
 
-* All automation uses a GitHub App installation token
+All automation uses:
 
-* No Personal Access Tokens (PATs)
+- GitHub App installation tokens
+- Least-privilege repository permissions
+- No PATs
+- No user credentials
+- No cross-org escalation
 
-* No user credentials
+Mutation requires:
 
-* Permissions follow least-privilege principles
+- Valid installation
+- Successful preflight
+- Explicit engine invocation
 
-Writes are restricted to:
-
-* Telemetry repository (telemetry + dashboards only)
-
-Task Assistant does not:
-
-* Modify repository code
-
-* Create pull requests
-
-* Delete issues, PRs, or branches
+---
 
 ## Failure & Safety Behavior
 
-* Missing configuration: enforcement does not run
+Failures:
 
-* Empty telemetry: dashboard generation exits cleanly
-
-* Malformed telemetry: dashboards report error state without mutation
-
-* Workflow failures: visible only via GitHub Actions logs
+- Emit telemetry with ok=false
+- Do not mutate repositories
+- Do not cascade
+- Are visible via GitHub Actions logs
 
 Failures never:
 
-* Propagate to monitored repositories
+- Propagate across repositories
+- Trigger hidden retries
+- Generate unintended side effects
 
-* Trigger enforcement changes
-
-* Generate user-facing noise
+---
 
 ## Explicit Non-Behaviors
 
-For clarity, Task Assistant does not:
+Task Assistant does NOT:
 
-* Modify source code
+- Modify source code
+- Create or modify pull requests
+- Execute repository code
+- Run arbitrary scripts
+- Perform speculative actions
+- Self-install or self-update
+- Aggregate across organizations
+- Write dashboards into monitored repositories
 
-* Create or modify pull requests
+---
 
-* Perform self-healing or speculative actions
+## Security Posture
 
-* Aggregate data across organizations
+Task Assistant is secure by construction:
 
-* Write dashboards into user repositories
+- Preflight-gated mutation
+- Dispatcher-controlled execution
+- Version-pinned runtime
+- Immutable telemetry
+- Deterministic behavior
+- Strict identity boundaries
 
-* Require users to run scripts manually
+All behavior is explicit, auditable, and Marketplace-safe.
 
-* Embed UI elements inside repositories
+---
 
-## Summary Statement (Reviewer-Facing)
+## Validation Evidence
 
-Task Assistant enforces repository hygiene using explicit configuration and emits immutable telemetry to a dedicated repository. Derived dashboards are generated separately as read-only artifacts and never modify monitored repositories. All behavior is deterministic, auditable, and designed to meet GitHub Marketplace safety standards.
+Phase 3.5 runtime hardening validation confirms:
 
-### Validation Evidence
+- engine_ref propagation across engines
+- Preflight gating prevents unsafe mutation
+- Single-record-per-engine enforcement
+- Immutable telemetry writes
+- Cross-org mutation blocking
 
-All Phase 3.4 validation Test 07 was executed against the
-`v0.3.4.r.3` release artifact.
+Validation artifacts are available under:
 
-Test 07 (multi-org + repo matrix) evidence was committed after tagging
-to preserve tag immutability and is available at:
-
-Commit: main 9e0ccdd
-Path: docs/validation/results/test-07-multi-org+repo/
-
+docs/validation/phase-3.5-runtime-hardening.md
+docs/validation/results/

@@ -1,180 +1,151 @@
-Task Assistant Configuration Schema v1
+# Task Assistant — Configuration Schema v1.0 (Authoritative)
 
-Authoritative Configuration Contract
+Status: Locked  
+Applies To: Enforcement & Materialization Engines  
+Phase: 3.5 Runtime Model  
 
-Status: LOCKED (v1)
-Applies to: Task Assistant GitHub App
-Phase: 3.2 — Hygiene & Enforcement
-Effective: Immediately
+---
 
-1. Purpose of This Document
+## 1. Purpose
 
-This document is the single source of truth for what the Task Assistant
-configuration declares and what the runtime enforces.
+This document defines the authoritative configuration contract for Task Assistant.
 
-From this point forward:
+The configuration file:
 
-❌ Any runtime behavior not justified by this schema is invalid
+- Declares repository governance rules
+- Defines enforcement behavior
+- Defines label and milestone expectations
+- Does NOT control runtime versioning
+- Does NOT control telemetry behavior
+- Does NOT override preflight gating
 
-❌ Any schema element not enforced by runtime is a defect
+Runtime invariants (engine_ref, telemetry emission, authentication) are enforced by the dispatcher and engines, not configuration.
 
-❌ Any ambiguity results in a BLOCKED outcome
+---
 
-This document replaces all prior informal or implied contracts.
+## 2. Configuration File Location
 
-2. Configuration File Location (Authoritative)
-
-Task Assistant configuration MUST exist at:
+The configuration file MUST exist at:
 
 .github/task-assistant.yml
 
-Failure Handling
-
 If the file is:
 
-Missing
+- Missing
+- Unreadable
+- Invalid YAML
+- Invalid schema
 
-Unreadable
+Then:
 
-Invalid YAML
+- event.action = "failure"
+- ok = false
+- No repository mutation occurs
 
-Outcome: BLOCKED
-Runtime Action: No repository mutation
-Enforcement: prepare-repo, issue-events, nightly-sweep, self-test
+Preflight still executes before configuration evaluation.
 
-3. Schema Versioning
+---
+
+## 3. Schema Versioning
+
 schema_version: "1.0"
 
-Rules
+Rules:
 
-Required
+- Required
+- Must be string
+- Unknown major version → BLOCKED
+- Minor additions must be backward-compatible
+- Runtime enforces major version match
 
-Must be a string
+---
 
-Unknown major versions (e.g. 2.x) → BLOCKED
+## 4. Top-Level Structure (v1)
 
-Minor extensions allowed only if backward compatible
-
-Runtime enforces exact major version match
-
-4. Top-Level Schema Structure (v1)
+```yaml
 schema_version: "1.0"
 
 tracks: [...]
 labels: [...]
 milestones: [...]
 enforcement: {...}
-
-Guarantees
-
-All listed top-level keys are explicitly defined
+Rules:
 
 Unknown top-level keys are ignored
 
-Ignored keys do not affect enforcement
-
 Missing required keys → BLOCKED
 
-5. Tracks (Authoritative)
-Schema
+Enforcement behavior must be declared explicitly
+
+5. Tracks (Declarative)
+Tracks define authoritative work categories.
+
+yaml
+Copy code
 tracks:
   - id: sprint
     label: track/sprint
     description: Active sprint work
-
-Rules
+Rules:
 
 id must be unique
 
-label must be a valid GitHub label name
+label must be valid GitHub label name
 
-Tracks are declarative, not behavioral
+Tracks are declarative identifiers
 
-Track labels are authoritative identifiers
+Tracks do not imply enforcement unless configured
 
-Runtime Guarantees
+Runtime guarantees:
 
-Missing track labels → created
+Missing declared track labels may be created by materialize engine
 
-Invalid track entry → BLOCKED
+Invalid track definition → BLOCKED
 
-Track labels are not optional
-
-6. Labels (Authoritative, Declarative)
-Schema
+6. Labels (Declarative, Non-Destructive)
+yaml
+Copy code
 labels:
-  - name: phase-3.2
-    description: Phase 3.2 – Hygiene & Enforcement
+  - name: phase-1
+    description: Phase 1 – Planning
     color: "1D76DB"
+Runtime guarantees:
 
-Runtime Guarantees
+Declared labels are authoritative
 
-Labels listed here are source of truth
+Missing labels may be created by materialize engine
 
-Runtime will:
+Label color/description reconciled deterministically
 
-Create missing labels
+Labels not declared are never deleted
 
-Update color and description if mismatched
-
-Labels not listed are ignored (never deleted)
-
-System Labels (Implicitly Required)
-
-The following labels are mandatory, regardless of config:
-
-SUCCESS
-PARTIAL
-BLOCKED
-FAILED
-codex:execute
-
-
-Runtime ensures these labels exist and match canonical meaning.
-
-7. Milestones (Declarative, Non-Destructive)
-Schema
+7. Milestones (Declarative)
+yaml
+Copy code
 milestones:
-  - title: "Phase 3.2 – Hygiene & Enforcement"
+  - title: "Phase 1 – Planning"
+Runtime guarantees:
 
-Runtime Guarantees
-
-Milestones listed here are ensured to exist
+Missing milestones may be created
 
 Existing milestones are never modified
 
-Matching is done by title only
+Matching is by exact title
 
-Missing milestone → created (unless dry-run)
+No milestone is invented implicitly
 
-8. Phase Labels & Enforcement Semantics (Config-Driven)
-
-Phase labels are labels matching:
-
-phase-<number>
-
-Enforcement Rules:
-
-- Issues may have zero or more phase labels
-- Phase labels are mutually exclusive (highest wins by default)
-- Exclusivity behavior is defined in enforcement.exclusivity.phase
-
-Milestone Enforcement:
-
-- Occurs ONLY if enforcement.phase_milestones is defined
-- No implicit or hard-coded mappings exist
-- Task Assistant never invents milestone names
-
-9. Enforcement (Authoritative, Config-Driven)
-
-The enforcement section defines all behavioral rules applied by Task Assistant.
-
-No enforcement behavior may exist outside this section.
+8. Enforcement (Behavioral Section)
+All mutation behavior must be declared here.
 
 If enforcement is omitted:
-- No issue mutation occurs
-- Runtime operates in advisory / validation-only mode
-9.1 Enforcement Schema
+
+No issue mutation occurs
+
+Validation may still run
+
+System operates in advisory mode
+
+8.1 Enforcement Schema
 yaml
 Copy code
 enforcement:
@@ -182,9 +153,6 @@ enforcement:
     phase:
       mode: enforce | warn | fail | off
       strategy: highest | lowest
-
-    priority:
-      mode: enforce | warn | fail | off
 
     track:
       mode: enforce | warn | fail | off
@@ -194,117 +162,116 @@ enforcement:
       terminal: [state/done, state/closed]
 
   phase_milestones:
-    <phase-label>: <milestone-title>
-9.2 Phase → Milestone Mapping (Config-Driven)
-md
-Copy code
-Phase milestone enforcement is OPTIONAL and entirely config-driven.
-
-If phase_milestones is omitted:
-- Phase labels are still exclusive
-- No milestone enforcement occurs
-- Outcome: PASS or WARN (no mutation)
-Example:
-
-yaml
-Copy code
-enforcement:
-  phase_milestones:
     phase-1: "Planning"
     phase-2: "Execution"
-    phase-3: "Release"
-Rules:
+8.2 Exclusivity Rules
+Exclusivity behavior is:
 
-Keys must match phase-* labels
+Declarative
 
-Values must be exact milestone titles
+Deterministic
 
-Missing milestone → created (unless dry-run)
+Engine-enforced
 
-Missing mapping → WARN, no mutation
+Idempotent
 
+No hard-coded exclusivity exists outside configuration.
 
-10. Label Exclusivity (Config-Driven)
+8.3 Phase → Milestone Mapping
+Optional.
 
-Label exclusivity is config-driven, not hard-coded.
+If omitted:
 
-Supported Exclusivity Classes
+Phase labels remain exclusive (if configured)
 
-phase-* labels are mutually exclusive by priority
+No milestone enforcement occurs
 
-Track labels may be exclusive if declared
+No mutation related to milestones
 
-Future exclusivity rules must be:
+If defined:
 
-Declared in schema
+Keys must match declared phase-* labels
 
-Enforced deterministically
+Values must match milestone titles exactly
 
-Backward compatible
+Missing milestone → may be created by materialize engine
 
-11. Runtime Scope & Responsibilities
-Component	Responsibilities
-prepare-repo	Config validation, label & milestone reconciliation
-issue-events	Issue hygiene & phase enforcement
-self-test	Validate enforcement correctness
-nightly-sweep	Ongoing compliance checks
-emit.js	Telemetry emission only
+Invalid mapping → BLOCKED
 
-prepare-repo never emits telemetry.
-All telemetry emission occurs at workflow level.
+9. Mutation Model
+Mutation occurs only when:
 
-12. Telemetry (Out of Scope for Schema)
+Preflight succeeds
 
-Telemetry configuration is not part of schema v1.
+Configuration is valid
 
-Guarantees:
+Enforcement engine is invoked
 
-Runtime workflows always emit telemetry
+engine_ref is pinned
 
-Telemetry is written only to telemetry repository
+GitHub App token has permission
 
-Host repositories are never mutated by telemetry
+Configuration alone never causes mutation.
 
-Telemetry behavior is enforced by runtime, not configuration.
+10. Determinism Requirements
+Given:
 
-13. Runtime Outcomes & Status Mapping (Canonical)
-Condition	Status	Meaning
-Config valid, no errors	SUCCESS	No remediation required
-Config valid, warnings	PARTIAL	Action taken or advisory
-Config invalid or ambiguous	BLOCKED	No mutation
-Runtime failure	FAILED	Execution error
+Identical configuration
 
-This mapping is shared across all workflows.
+Identical issue state
 
-14. Backward Compatibility Policy
+Identical engine_ref
 
-Schema v1 is stable
+The enforcement result must be identical.
 
-New keys must be optional
+No randomness.
+No time-dependent behavior.
+No implicit defaults.
+
+11. Explicit Non-Behaviors
+Configuration does NOT:
+
+Select runtime version
+
+Override engine_ref
+
+Control telemetry emission
+
+Alter authentication model
+
+Permit cross-repository access
+
+Trigger background execution
+
+All runtime guarantees are enforced externally.
+
+12. Failure Semantics
+Invalid configuration results in:
+
+event.action = "failure"
+
+ok = false
+
+No repository mutation
+
+Telemetry emitted
+
+Ambiguity is treated as failure.
+
+13. Backward Compatibility Policy
+Schema v1.0 is locked.
 
 Breaking changes require:
 
 New major version
 
-Explicit migration plan
+Migration guidance
 
-Parallel runtime support
+Runtime support for both versions (during transition)
 
-v1 Compatibility Note:
+Minor additions must be optional and backward compatible.
 
-Repositories relying on implicit phase → milestone semantics must
-declare phase_milestones explicitly going forward.
+14. Canonical Declaration
+Configuration Schema v1.0 governs repository hygiene rules only.
 
-Omission of enforcement configuration results in non-destructive behavior.
-
-15. Enforcement Summary (Non-Negotiable)
-
-❌ No runtime behavior without schema justification
-
-❌ No schema element without runtime enforcement
-
-❌ No ambiguity without BLOCKED
-
-❌ No silent failure
-
-❌ No telemetry without determinism
+All runtime invariants — including version pinning, preflight gating, authentication, and telemetry emission — are enforced by the Task Assistant runtime model and cannot be altered via configuration.

@@ -1,94 +1,107 @@
-Task Assistant — Dashboard Engine (v1)
-Purpose
+# Task Assistant — Dashboard Engine (Authoritative)
 
-Generate per-repository dashboards for a single organization, based solely on that organization’s telemetry data.
+Status: Canonical  
+Phase: 3.5 Runtime Model  
 
-Code Location
-automated-assistant-systems/task-assistant
+---
 
-Execution Scope (Hard Boundary)
-Dimension	Rule
-Org scope	Exactly one org per run
-Telemetry source	<owner>/task-assistant-telemetry
-Dashboard output	Same telemetry repo
-Cross-org access	Forbidden
-Inputs (Environment / Workflow Inputs)
-Name	Description
-OWNER	GitHub org/user
-TELEMETRY_REPO	<owner>/task-assistant-telemetry
-CORRELATION_ID	Trace identifier
-Filesystem Contract (Immutable)
+## 1. Purpose
 
-Reads only:
+The Dashboard Engine generates a deterministic, read-only projection of telemetry for a single repository.
 
-telemetry/v1/repos/<repo-name>/*.jsonl
+It:
+
+- Reads immutable telemetry
+- Emits exactly one telemetry record (category: "dashboard")
+- Produces a derived dashboard JSON document
+- Does not mutate monitored repositories
+- Does not modify raw telemetry files
+
+The dashboard is a projection layer, not a source of truth.
+
+---
+
+## 2. Execution Scope (Hard Boundary)
+
+| Dimension        | Rule |
+|------------------|------|
+| Repository scope | Exactly one repository per invocation |
+| Telemetry source | Dedicated telemetry repository only |
+| Cross-org access | Forbidden |
+| Cross-repo access| Forbidden |
+| Mutation ability | None (read-only aggregation) |
+
+The engine operates only on telemetry belonging to the provided `target_repo`.
+
+---
+
+## 3. Inputs
+
+Provided by dispatcher:
+
+- `target_repo`
+- `telemetry_repo`
+- `correlation_id`
+- `engine_ref`
+
+The engine must not discover repositories.
+
+---
+
+## 4. Telemetry Read Contract
+
+Reads exclusively:
+
+telemetry/v1/repos/<repo>/<yyyy-mm-dd>/<correlation_id>/*.json
 
 
-Writes only:
+Rules:
 
-telemetry/v1/dashboards/<repo-name>/dashboard.json
+- Exactly one JSON object per file
+- No JSONL streaming
+- No mutation of source files
+- Must validate schema_version = "1.0"
 
-Registry Interaction
+---
 
-Registry is read by scheduler, not engine
+## 5. Dashboard Output
 
-Engine does not discover orgs
+The dashboard reducer:
 
-Engine assumes inputs are valid
+- Emits exactly one JSON object to stdout
+- Must conform to `dashboard-output-contract-v1.md`
+- Must not write files directly
 
-Scheduling Model
+A wrapper workflow MAY persist the reducer output to:
 
-Daily schedule triggers fan-out
+telemetry/v1/repos/<repo>/dashboard/dashboard.json
 
-One job per org
 
-Jobs may run in parallel
+Derived artifacts:
 
-Failure in one org does not affect others
+- Are fully regenerable
+- May be overwritten
+- Must never modify raw telemetry
 
-Failure Isolation
+Dashboard artifacts must not be stored inside correlation directories.
 
-Per-repo dashboard failures are isolated
+---
 
-Per-org failures do not block other orgs
+## 6. Telemetry Emission
 
-Engine must be idempotent
+The Dashboard Engine emits exactly one telemetry record via emit-engine:
 
-Telemetry
+- `event.category = "dashboard"`
+- `ok = true | false`
+- `engine_ref` included
 
-Engine emits:
+The engine must not emit multiple telemetry records.
 
-dashboard.start
+---
 
-dashboard.success
+## 7. Determinism Guarantee
 
-dashboard.failure
+Given identical telemetry input and identical `engine_ref`, output must be identical (except generated_at).
 
-Telemetry written to same org telemetry repo
-
-Explicit Non-Responsibilities
-
-The dashboard engine must not:
-
-Aggregate dashboards across orgs
-
-Write to infra repo
-
-Read another org’s telemetry
-
-Modify registry
-
-Assume global state
-
-Why This Model Is Correct (Engineering Rationale)
-
-Marketplace-safe permissions
-
-Tenant isolation by construction
-
-Linear scalability with org count
-
-Future-proof for Core orchestration
-
-Auditable and deterministic
+The Dashboard Engine is read-only, deterministic, and auditable.
 

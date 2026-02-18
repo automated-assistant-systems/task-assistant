@@ -1,3 +1,4 @@
+Archived. Infra-level registry moved to task-assistant-infra (v2). Not part of Marketplace runtime.
 Telemetry Registry Schema (Authoritative v1)
 
 This schema must be boring, explicit, deterministic, and extensible. No magic. No inference.

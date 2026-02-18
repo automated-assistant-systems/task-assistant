@@ -1,254 +1,231 @@
-#Authoritative - supersedes all prior docs
-Task Assistant — System Summary (Authoritative)
+# Task Assistant — System Summary (Authoritative)
 
-Status: ✅ GitHub App + Core fully operational
-Date: 2025-12-14
-Phase: Post-MVP / Stabilized Infrastructure
+Status: Canonical  
+Phase: 3.5 — Runtime Hardening Complete  
+Scope: End-to-end runtime architecture and execution guarantees  
 
-1. System Overview
+---
 
-Task Assistant is split into two deliberately separate components:
+## 1. System Overview
 
-A. task-assistant-core (Engine)
+Task Assistant is a deterministic GitHub App–based automation system built around a dispatcher-controlled runtime model.
 
-Pure task assistant engine
+It consists of:
 
-No GitHub App concepts
+A. Dispatcher (Orchestration Layer)  
+B. Engines (Stateless Execution Units)  
+C. emit-engine (Telemetry Authority)  
+D. Dedicated Telemetry Repository  
 
-No webhook handling
+Execution is version-pinned, preflight-gated, and audit-backed.
 
-No Express server
+---
 
-No installation logic
+## 2. Runtime Architecture
 
-Stateless and environment-agnostic
+Task Assistant executes under the following invariant flow:
 
-Can run in:
+Dispatcher → Preflight → Engine(s) → emit-engine → Telemetry Repository
 
-GitHub Actions
+This flow is mandatory and cannot be bypassed.
 
-GitHub Apps
+---
 
-Local/test harnesses
+## 3. Dispatcher Responsibilities
 
-B. task-assistant (GitHub App)
+The dispatcher is the single orchestration authority.
 
-GitHub App + webhook server
+It owns:
 
-Owns:
+- Event interpretation
+- Correlation ID generation and normalization
+- Engine sequencing
+- engine_ref selection and propagation
+- Halting execution on preflight failure
 
-App authentication
+The dispatcher:
 
-Installation token generation
+- Does not perform engine logic
+- Does not write telemetry
+- Does not mutate repositories directly
 
-Webhook verification
+All authority flows through the dispatcher.
 
-Dispatching events into core
+---
 
-Uses core as a library
+## 4. Preflight (Mandatory First Stage)
 
-Runs locally via Express + ngrok during development
+Preflight executes first in every dispatcher run.
 
-2. Execution Modes (Confirmed Working)
-GitHub App Mode ✅
+Preflight validates:
 
-App installed on repository
+- GitHub App installation
+- Repository eligibility
+- Telemetry repository resolution
+- Authentication scope
+- Runtime invariants
 
-Issues trigger webhook events
+If preflight fails:
 
-Webhooks verified using shared secret
+- Execution halts
+- No mutation occurs
+- Telemetry is emitted with ok=false
 
-Installation-scoped Octokit created correctly
+Preflight is non-mutating.
 
-Issue events dispatched to runCore
+---
 
-Labels, milestones, telemetry applied successfully
+## 5. Engine Model
 
-GitHub Actions Mode ✅
+Engines are:
 
-action.ts serves as GitHub Action entrypoint
+- Stateless
+- Deterministic
+- Version-pinned
+- Infra-agnostic
+- Invoked via workflow_call
 
-Uses @actions/core and @actions/github
+Each engine:
 
-Runs runAction() which delegates to run()
+- Receives target_repo, telemetry_repo, correlation_id, engine_ref
+- Emits exactly one telemetry record
+- Does not invoke other engines
+- Does not generate correlation IDs
+- Does not override engine_ref
+- Does not write telemetry directly
 
-Uses GITHUB_TOKEN only in Action context
+All engines in a run share the same:
 
-3. Authentication Model (Final)
-GitHub App Authentication
+- correlation_id
+- engine_ref
 
-Uses GitHub App ID + Private Key
+---
 
-Installation token generated per event
+## 6. Version Pinning (engine_ref)
 
-No user tokens
+All runtime execution is version-pinned.
 
-No PATs
+Rules:
 
-App credentials loaded from environment
+- engine_ref is selected by the dispatcher
+- Marketplace runtime requires tag or SHA
+- Floating branches are not permitted in production
+- engine_ref is recorded in every telemetry record
 
-Environment Variables (App)
-APP_ID=2454517
-PRIVATE_KEY="-----BEGIN RSA PRIVATE KEY-----\n...\n-----END RSA PRIVATE KEY-----"
-WEBHOOK_SECRET=********
-PORT=3000
-NODE_ENV=development
+This guarantees reproducibility and auditability.
 
-AppEnv (Canonical)
-export interface AppEnv {
-  GITHUB_APP_ID: number;
-  GITHUB_APP_PRIVATE_KEY: string;
-  GITHUB_WEBHOOK_SECRET: string;
-  PORT: number;
-  NODE_ENV: "development" | "production" | "test";
-}
+---
 
-4. Webhook Flow (Verified End-to-End)
+## 7. Telemetry Model
 
-Issue created or updated in GitHub
+Telemetry is:
 
-GitHub sends webhook → ngrok URL
+- Immutable
+- Append-only
+- Single-record-per-engine
+- Written only to a dedicated telemetry repository
+- Emitted exclusively via emit-engine
 
-Express server receives webhook
+Telemetry includes:
 
-@octokit/webhooks verifies signature
+- engine_name
+- engine_ref
+- correlation_id
+- ok (success indicator)
+- Deterministic envelope structure
 
-GitHub App creates installation-scoped Octokit
+Host repositories never store telemetry.
 
-dispatchIssueEvent() invoked
+---
 
-runCore() executed with:
+## 8. Authentication Model
 
-owner
+All engines and dispatcher operations use:
 
-repo
+- GitHub App authentication
+- Installation-scoped tokens
+- No PATs
+- No user credentials
+- No cross-organization escalation
 
-issue payload
+Authentication is validated during preflight.
 
-installation token
+---
 
-Core applies:
+## 9. Determinism Guarantees
 
-Track classification
+Task Assistant guarantees:
 
-Labels (if missing)
+- One dispatcher run → one correlation_id
+- One engine invocation → one telemetry file
+- Identical inputs under identical engine_ref produce identical behavior
+- No mutation before validation
+- No hidden execution paths
+- No dynamic code loading from monitored repositories
 
-Milestones (if configured)
+---
 
-Telemetry output
+## 10. Operational Modes
 
-5. Core Responsibilities (Final)
+Task Assistant runs as:
 
-task-assistant-core does only:
+- GitHub App (primary mode)
+- GitHub Actions–invoked engines
 
-Issue classification
+Local development (Express/ngrok) is a development convenience only.
 
-Track inference
+The runtime model is defined by dispatcher and engines — not by server implementation.
 
-Self-healing rules
+---
 
-Milestone enforcement
+## 11. Storage Model
 
-Telemetry generation
+Telemetry repository structure:
 
-Deterministic task assistant logic
+telemetry/v1/repos/<repo>/<yyyy-mm-dd>/<correlation_id>/<category>.json
 
-Core never:
+Partitioned by:
 
-Reads App credentials
+- Repository
+- Date (UTC)
+- Correlation
+- Engine category
 
-Handles webhooks
+No cross-correlation mixing permitted.
 
-Starts servers
+---
 
-Assumes GitHub Actions context unless explicitly invoked
+## 12. Security Posture
 
-6. Dispatcher Contract (Final)
-export interface DispatchContext {
-  octokit: Octokit;
-  owner: string;
-  repo: string;
-}
+Task Assistant enforces:
 
+- Strict separation of orchestration and execution
+- Non-mutating validation stage
+- Single-writer telemetry authority
+- Version-pinned runtime execution
+- No repository code execution
+- No pull request creation by engines
 
-Dispatcher:
+The system is Marketplace-safe and audit-friendly.
 
-Receives installation-scoped Octokit
+---
 
-Extracts issue payload
+## 13. Current State
 
-Calls runCore()
+As of Phase 3.5:
 
-Core handles everything else
+- engine_ref propagation enforced
+- Preflight gating mandatory
+- emit-engine required
+- Telemetry Schema v1.0 locked
+- Runtime model documented and validated
+- Validation evidence captured
+- Marketplace posture strengthened
 
-7. Verified Success Criteria (All Met)
+The system operates as deterministic automation infrastructure.
 
-✅ ngrok tunnel active and receiving traffic
+---
 
-✅ Webhook deliveries visible in ngrok inspector
+## 14. Canonical Declaration
 
-✅ GitHub App installed on task assistant repo
-
-✅ Issue creation triggers processing
-
-✅ Labels and milestones applied
-
-✅ Telemetry written
-
-✅ No auth errors
-
-✅ No missing App ID / private key errors
-
-✅ Both Action + App paths proven
-
-8. Known Sharp Edges (Documented)
-
-These are expected, not bugs:
-
-TypeScript NodeNext requires explicit .js imports
-
-Octokit type differences between octokit packages
-
-Core must not auto-execute except in Action mode
-
-App and Core must never share env loaders
-
-App must be installed on a repo for events to fire
-
-Installing core does NOT install the GitHub App
-
-9. Repository State
-
-Both repos build cleanly
-
-App runs locally with:
-
-npm run dev
-
-
-Core packaged and consumable as library
-
-Task Assistant app successfully processes real GitHub issues
-
-10. What Comes Next (New Thread Scope)
-
-Out of scope for this summary:
-
-Feature expansion
-
-Rule DSL
-
-Telemetry dashboards
-
-Marketplace hardening
-
-Multi-repo orchestration
-
-Monetization
-
-Those belong in the next clean thread.
-
-11. Canonical Declaration
-
-This summary represents the current, correct system state.
-Prior debugging history is obsolete and should not be referenced.
+Task Assistant is a version-pinned, preflight-gated, dispatcher-controlled automation platform. Engines are stateless execution units emitting immutable telemetry exclusively through emit-engine. All execution is deterministic, auditable, and reproducible under engine_ref. The runtime model is formally documented and locked under Phase 3.5.

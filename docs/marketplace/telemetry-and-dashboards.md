@@ -1,63 +1,120 @@
-# Telemetry & Dashboards
+# Telemetry & Dashboards (Authoritative)
 
-Task Assistant emits telemetry for auditability and operator visibility.
+Task Assistant emits immutable telemetry to provide auditability, reproducibility, and operator visibility.
 
 Telemetry and dashboards are strictly separated from enforcement behavior.
 
 ---
 
-## Telemetry Storage
+## 1. Telemetry Storage
 
-Telemetry is written to a dedicated, operator-owned repository.
+Telemetry is written exclusively to a dedicated telemetry repository.
 
-Data types:
+Monitored repositories never store telemetry.
 
-### Raw Telemetry
-Path:
-telemetry/v1/repos/<owner_repo>/<yyyy-mm-dd>/<correlation_id>/*.jsonl
+### Storage Layout
+
+telemetry/v1/repos/<repo>/<yyyy-mm-dd>/<correlation_id>/<category>.json
+
 
 Properties:
-- Append-only
-- Immutable
-- Never rewritten or corrected by runtime components
-- Canonical source of truth
+
+- One file per engine invocation
+- Exactly one JSON object per file
+- Immutable once written
+- Partitioned by repository, date, and correlation
+- Written only via emit-engine
+
+Each record includes:
+
+- engine_name
+- engine_ref
+- correlation_id
+- ok
+- Canonical envelope structure
+
+Raw telemetry is the canonical source of truth.
 
 ---
 
-## Dashboard Generation
+## 2. Raw Telemetry Properties
+
+Raw telemetry is:
+
+- Deterministic
+- Version-pinned
+- Immutable
+- Audit-grade
+- Fully attributable to engine_ref
+
+---
+
+## 3. Dashboard Generation
 
 Dashboards are derived artifacts generated from raw telemetry.
 
-Path:
-telemetry/v1/repos/<owner_repo>/<yyyy-mm-dd>/<correlation_id>/dashboard.json
+The Dashboard Engine:
+
+- Reads telemetry repository only
+- Emits exactly one dashboard telemetry record
+- Produces a deterministic JSON projection
+- Does not modify raw telemetry
+- Does not modify monitored repositories
+
+---
+
+## 4. Dashboard Storage (Derived Only)
+
+The dashboard reducer emits JSON to stdout.
+
+A wrapper workflow MAY persist the artifact to:
+
+telemetry/v1/repos/<repo>/dashboard/dashboard.json
+
 
 Properties:
+
 - Fully regenerable
 - Deterministic
 - Overwrite allowed
-- No effect on enforcement behavior
+- Not correlation-scoped
+- No mutation of raw telemetry files
+
+Dashboard artifacts must never be written inside correlation directories.
 
 ---
 
-## Dashboard Workflow
+## 5. Update Cadence
 
-- Runs as a scheduled GitHub Actions workflow
-- Authenticates using a GitHub App installation token
-- Reads raw telemetry
-- Writes derived dashboards back to the telemetry repository only
+Dashboard execution is externally scheduled via dispatcher.
 
----
+Consistency model:
 
-## Update Cadence
-
-- Scheduled: Hourly
-- Manual: On-demand
-- Consistency model: Eventually consistent (≤ 1 hour)
+- Eventually consistent
+- Deterministic per telemetry state
+- No background mutation loops
 
 ---
 
-## Safety Guarantees
+## 6. Safety Guarantees
 
-- No telemetry is written to monitored repositories
-- No dashboards are written to monitored repositories
+- No telemetry written to monitored repositories
+- No dashboards written to monitored repositories
 - No observability component affects enforcement
+- All telemetry includes engine_ref for traceability
+
+---
+
+## 7. Audit Guarantees
+
+Every engine invocation produces:
+
+- One immutable telemetry file
+- With version attribution
+- With success indicator
+- Under a correlation-scoped directory
+
+This enables full forensic reconstruction of any run.
+
+Dashboards are projections and do not alter audit history.
+

@@ -96,7 +96,7 @@ Task Assistant requires a repository to store telemetry.
 
 This repository:
 
-- Stores immutable telemetry (JSONL)
+- Stores immutable telemetry (JSON)
 - Stores derived dashboards
 - Is never written into monitored repositories
 

@@ -14,6 +14,7 @@ It exists to ensure that:
 - Engines remain interchangeable and evolvable
 - Telemetry remains consistent and auditable
 - Marketplace guarantees are preserved
+- Engine execution is version-pinned and auditable (engine_ref)
 - No engine becomes implicit, special-cased, or ad-hoc
 
 Any new engine must conform to this specification.
@@ -23,6 +24,14 @@ Any new engine must conform to this specification.
 
 Task Assistant follows a strict Dispatcher → Engine model.
 
+### Mandatory sequencing
+
+- Preflight MUST execute first for every dispatcher run.
+- If preflight fails, no subsequent engines may run.
+
+Preflight establishes run invariants (telemetry destination, auth viability, basic eligibility checks) and emits
+the canonical `preflight.json` record for the correlation.
+
 ### Dispatcher Responsibilities
 
 The dispatcher owns:
@@ -30,6 +39,7 @@ The dispatcher owns:
 - Execution sequencing
 - Correlation ID ownership and normalization
 - Engine orchestration
+- Engine version pinning and propagation (engine_ref)
 
 ### Engine Responsibilities
 
@@ -39,6 +49,7 @@ Engines are:
 - Configuration-driven
 - Telemetry-emitting
 - Infra-agnostic
+- Version-pinned by engine_ref
 
 ### Engines must never:
 
@@ -47,12 +58,14 @@ Engines are:
 - Inspect unrelated repositories
 - Invoke other engines
 - Contain cross-engine logic
+- Override engine_ref
 
 ### Operator Tooling (Out of Scope)
 
 Operator tools may:
 - Trigger dispatcher workflows
 - Supply optional correlation IDs
+- Supply optional engine_ref (non-Marketplace/testing only)
 - Wait on telemetry as a completion signal
 
 Operator tooling:
@@ -66,12 +79,21 @@ Operator tooling:
 All engines are invoked using workflow_call.
 
 ### Required Inputs (All Engines)
-Input		Type	Source		Description
-target_repo	string	dispatcher	<owner>/<repo> under operation
-telemetry_repo	string	preflight	Fully qualified telemetry repository
-correlation_id	string	dispatcher	Run-scoped correlation identifier
+
+Input           Type    Source       Description
+target_repo      string  dispatcher   <owner>/<repo> under operation
+telemetry_repo   string  preflight    Fully qualified telemetry repository
+correlation_id   string  dispatcher   Run-scoped correlation identifier
+engine_ref       string  dispatcher   Immutable engine repository ref (tag or SHA)
 
 These inputs are mandatory and uniform across all engines.
+
+### engine_ref (Locked execution pin)
+
+- engine_ref MUST be provided by the dispatcher to every engine invocation.
+- In Marketplace runtime, engine_ref MUST be a tag or SHA (no floating branches).
+- All engines in a dispatcher run MUST use the same engine_ref.
+- Engines treat engine_ref as opaque and MUST NOT override or reinterpret it.
 
 
 ## 4. Correlation Model (Locked)
@@ -111,6 +133,18 @@ Every engine must emit exactly one telemetry record per invocation.
 - Immutable after write
 - Written only to telemetry_repo
 - Never written to the monitored repository
+- MUST be emitted via the shared emit-engine mechanism (no bespoke emitters)
+
+### emit-engine (Required)
+
+All engines MUST emit telemetry using the shared `emit-engine` helper to ensure:
+
+- Canonical envelope shape
+- Single-record-per-engine enforcement
+- Standard ok=false failure reporting
+- Safe retry behavior on write conflicts (e.g. 409)
+
+Engines MUST NOT manually craft or write telemetry payloads outside emit-engine.
 
 ### Canonical Telemetry Envelope
 
@@ -119,9 +153,12 @@ Each engine emits a JSON document with the following top-level structure:
 - schema_version
 - generated_at (UTC ISO-8601)
 - correlation_id
+- engine_name
+- engine_ref
 - source
 - entity
 - event
+- ok
 - details
 
 ### Engine Result Location
@@ -135,11 +172,12 @@ Each engine emits a JSON document with the following top-level structure:
 
 Each engine is provided the following environment variables:
 
-Variable	Description
-CORRELATION_ID	Dispatcher-generated
-ENGINE_NAME	Stable engine identifier
-ENGINE_JOB	Job name (diagnostics only)
-TELEMETRY_REPO	Telemetry destination
+Variable        Description
+CORRELATION_ID  Dispatcher-generated
+ENGINE_NAME     Stable engine identifier
+ENGINE_REF      Dispatcher-provided execution ref (tag or SHA)
+ENGINE_JOB      Job name (diagnostics only)
+TELEMETRY_REPO  Telemetry destination
 
 Engines must not depend on:
 - GitHub event payloads
@@ -229,8 +267,9 @@ Rules:
 
 ## 10. Engine Versioning Rules
 
-- Engines are versioned by Task Assistant repository ref
+- Engines are versioned by Task Assistant repository ref (engine_ref)
 - Host repositories never pin engine versions
+- The dispatcher is the only authority that selects engine_ref
 - Breaking interface changes require:
   - A new engine name or
   - A major phase boundary
@@ -251,8 +290,8 @@ Rules:
 
 ### Before adding a new engine:
 -  Uses workflow_call
--  Accepts only standard inputs
--  Emits exactly one telemetry record
+-  Accepts only standard inputs (including engine_ref)
+-  Emits exactly one telemetry record via emit-engine
 -  Does not generate correlation IDs
 -  Has a single responsibility
 -  Is safe to disable
@@ -260,4 +299,4 @@ Rules:
 
 ## Canonical Statement
 
-Task Assistant engines are deterministic, stateless executors invoked by a central dispatcher. They operate only on explicitly provided inputs, emit immutable telemetry, and respect strict trust boundaries between enforcement, observability, and infrastructure.
+Task Assistant engines are deterministic, stateless executors invoked by a central dispatcher under a pinned engine_ref. Preflight executes first to establish run invariants. Engines operate only on explicitly provided inputs, emit immutable telemetry via emit-engine, and respect strict trust boundaries between enforcement, observability, and infrastructure.
